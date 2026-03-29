@@ -92,15 +92,17 @@ function findAirport(text: string): { code: string; city: string } | null {
     if (entry) return entry;
     return { code, city: code };
   }
-  // Check city names (longest match first)
+  // Check city names (longest match first, word boundary required)
   const sorted = Object.entries(AIRPORTS).sort((a, b) => b[0].length - a[0].length);
   for (const [name, data] of sorted) {
-    if (lower.includes(name)) return data;
+    const re = new RegExp(`\\b${name.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}\\b`, 'i');
+    if (re.test(lower)) return data;
   }
-  // Check regions/countries
+  // Check regions/countries (word boundary required)
   const regionsSorted = Object.entries(REGIONS).sort((a, b) => b[0].length - a[0].length);
   for (const [name, data] of regionsSorted) {
-    if (lower.includes(name)) return data;
+    const re = new RegExp(`\\b${name.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}\\b`, 'i');
+    if (re.test(lower)) return data;
   }
   return null;
 }
