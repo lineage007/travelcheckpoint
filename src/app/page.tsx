@@ -176,7 +176,7 @@ export default function TravelCheckpoint() {
       paddingBottom: 90,
     }}>
       <style>{`
-        @import url('https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,300;9..144,400;9..144,500;9..144,600;9..144,700&family=DM+Sans:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500;600;700&display=swap');
+        @import url('https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,300;9..144,400;9..144,500;9..144,600;9..144,700&family=DM+Sans:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500;600;700&family=Space+Grotesk:wght@300;400;500;600;700&display=swap');
         * { box-sizing: border-box; margin: 0; padding: 0; }
         input::placeholder { color: ${COLORS.textTertiary}; font-style: italic; }
         ::-webkit-scrollbar { display: none; }
@@ -198,11 +198,13 @@ export default function TravelCheckpoint() {
         position: 'relative', zIndex: 10,
       }}>
         <span style={{
-          fontFamily: "'Fraunces', serif",
-          fontSize: 18, fontWeight: 600,
+          fontFamily: "'Space Grotesk', 'DM Sans', sans-serif",
+          fontSize: 18,
+          letterSpacing: '-0.03em',
           color: COLORS.textPrimary,
-          letterSpacing: '-0.01em',
-        }}>TravelCheckpoint</span>
+        }}>
+          <span style={{ fontWeight: 400 }}>Travel</span><span style={{ fontWeight: 700 }}>Checkpoint</span>
+        </span>
         <div style={{
           width: 36, height: 36, borderRadius: '50%',
           background: COLORS.accentLight,
