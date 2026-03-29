@@ -18,8 +18,8 @@ export default function Home() {
     <div style={{ minHeight: '100vh', background: 'linear-gradient(180deg, #FAFAF7 0%, #F2EFE8 100%)' }}>
       {/* Header */}
       <header style={{ padding: '16px 20px', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-        <span style={{ fontFamily: 'var(--font-display)', fontSize: '18px', fontWeight: 600, color: 'var(--text-primary)' }}>
-          TravelCheckpoint
+        <span style={{ fontFamily: 'var(--font-display)', fontSize: '18px', letterSpacing: '-0.03em', color: 'var(--text-primary)' }}>
+          <span style={{ fontWeight: 400 }}>Travel</span><span style={{ fontWeight: 700 }}>Checkpoint</span>
         </span>
         <div style={{
           width: '32px', height: '32px', borderRadius: '50%', background: 'var(--accent)',
