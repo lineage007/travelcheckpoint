@@ -89,13 +89,19 @@ async function callGemini(messages: Message[]): Promise<{ text: string }> {
 }
 
 async function callAnthropic(messages: Message[]): Promise<{ text: string }> {
+  const isOAuth = ANTHROPIC_KEY.startsWith('sk-ant-oat');
+  const headers: Record<string, string> = {
+    'Content-Type': 'application/json',
+    'anthropic-version': '2023-06-01',
+  };
+  if (isOAuth) {
+    headers['Authorization'] = `Bearer ${ANTHROPIC_KEY}`;
+  } else {
+    headers['x-api-key'] = ANTHROPIC_KEY;
+  }
   const res = await fetch('https://api.anthropic.com/v1/messages', {
     method: 'POST',
-    headers: {
-      'Content-Type': 'application/json',
-      'x-api-key': ANTHROPIC_KEY,
-      'anthropic-version': '2023-06-01',
-    },
+    headers,
     body: JSON.stringify({
       model: 'claude-haiku-4-5-20251001',
       max_tokens: 300,
@@ -124,28 +130,30 @@ export async function POST(request: NextRequest) {
 
     // Try Gemini first (free), fall back to Anthropic
     let text = '';
-    try {
-      if (GOOGLE_AI_KEY) {
+    let lastError = '';
+    
+    if (GOOGLE_AI_KEY) {
+      try {
         const result = await callGemini(messages);
         text = result.text;
-      } else if (ANTHROPIC_KEY) {
+      } catch (e) {
+        lastError = String(e);
+        console.error('Gemini failed, trying Anthropic:', lastError);
+      }
+    }
+    
+    if (!text && ANTHROPIC_KEY) {
+      try {
         const result = await callAnthropic(messages);
         text = result.text;
-      } else {
-        return NextResponse.json({ error: 'No AI API key configured' }, { status: 500 });
+      } catch (e) {
+        lastError = String(e);
+        console.error('Anthropic also failed:', lastError);
       }
-    } catch (primaryError) {
-      // Fall back to the other provider
-      try {
-        if (GOOGLE_AI_KEY && ANTHROPIC_KEY) {
-          const result = await callAnthropic(messages);
-          text = result.text;
-        } else {
-          throw primaryError;
-        }
-      } catch {
-        return NextResponse.json({ error: 'AI service unavailable', details: String(primaryError) }, { status: 500 });
-      }
+    }
+    
+    if (!text) {
+      return NextResponse.json({ error: 'AI service unavailable', details: lastError }, { status: 500 });
     }
 
     // Extract search block if present
