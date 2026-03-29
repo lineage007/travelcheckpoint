@@ -47,12 +47,13 @@ interface DestinationResult {
 }
 
 type Tab = 'overview' | 'cash' | 'points';
+type Filter = 'all' | 'cash' | 'points' | 'jets';
 
 function SearchResults() {
   const router = useRouter();
   const searchParams = useSearchParams();
   const q = searchParams.get('q') || '';
-  const [tab, setTab] = useState<Tab>('overview');
+  const [tab, setTab] = useState<Tab>('cash');
   const [loading, setLoading] = useState(true);
   const [destinations, setDestinations] = useState<DestinationResult[]>([]);
   const [parsed, setParsed] = useState<Record<string, unknown> | null>(null);
@@ -61,6 +62,7 @@ function SearchResults() {
   const [selectedDest, setSelectedDest] = useState<string | null>(null);
   const [totalSearched, setTotalSearched] = useState(0);
   const [totalFound, setTotalFound] = useState(0);
+  const [filter, setFilter] = useState<Filter>('all');
 
   const doSearch = useCallback(async () => {
     setLoading(true);
@@ -76,6 +78,10 @@ function SearchResults() {
         parseData = d.parsed || {};
         setParsed(d.parsed);
         setPassengers((d.parsed?.passengers as number) || 1);
+        // Auto-set filter based on query preferences
+        const prefs = (d.parsed?.preferences as string[]) || [];
+        if (prefs.includes('points')) { setFilter('points'); setTab('points'); }
+        else if (prefs.includes('cash')) { setFilter('cash'); setTab('cash'); }
       }
     } catch { /* */ }
 
@@ -131,12 +137,23 @@ function SearchResults() {
   const regionName = (parsed?.regionName as string) || '';
   const originCity = (parsed?.originCity as string) || (parsed?.origin as string) || 'DXB';
 
-  // Sort destinations by cheapest cash price
+  // Sort destinations based on active filter
   const sortedDests = [...destinations].sort((a, b) => {
+    if (filter === 'points') {
+      if (a.cheapestAward === null && b.cheapestAward === null) return 0;
+      if (a.cheapestAward === null) return 1;
+      if (b.cheapestAward === null) return -1;
+      return a.cheapestAward - b.cheapestAward;
+    }
+    // Default: sort by cash
     if (a.cheapestCash === null && b.cheapestCash === null) return 0;
     if (a.cheapestCash === null) return 1;
     if (b.cheapestCash === null) return -1;
     return a.cheapestCash - b.cheapestCash;
+  }).filter(d => {
+    if (filter === 'points') return d.awardResults.length > 0 || d.loading;
+    if (filter === 'cash') return d.cashResults.filter(c => c.price > 0).length > 0 || d.loading;
+    return true; // 'all' or 'jets'
   });
 
   const selected = selectedDest ? destinations.find(d => d.code === selectedDest) : null;
@@ -192,16 +209,42 @@ function SearchResults() {
       {/* Main content */}
       <div style={{ maxWidth: 700, margin: '0 auto', padding: '16px' }}>
         {/* If region search and no specific destination selected → show overview grid */}
+        {/* Filter chips — always visible */}
+        <div style={{ display: 'flex', gap: 6, marginBottom: 14, overflowX: 'auto', paddingBottom: 2 }}>
+          {([
+            { key: 'all' as Filter, label: 'All', icon: '🔍' },
+            { key: 'cash' as Filter, label: 'Cash', icon: '💰' },
+            { key: 'points' as Filter, label: 'Points', icon: '✈️' },
+            { key: 'jets' as Filter, label: 'Jets', icon: '🛩️' },
+          ]).map(f => (
+            <button
+              key={f.key}
+              onClick={() => { setFilter(f.key); setSelectedDest(null); }}
+              style={{
+                padding: '8px 16px', borderRadius: 10, border: 'none', cursor: 'pointer',
+                fontSize: 13, fontWeight: filter === f.key ? 600 : 400, whiteSpace: 'nowrap',
+                background: filter === f.key ? '#0D7C72' : '#F5F3EE',
+                color: filter === f.key ? '#fff' : '#6B6560',
+                transition: 'all 0.15s',
+              }}
+            >
+              {f.icon} {f.label}
+            </button>
+          ))}
+        </div>
+
         {isRegion && !selectedDest && (
           <>
             <div style={{ fontSize: 12, fontWeight: 600, color: '#9C958C', textTransform: 'uppercase', letterSpacing: '0.08em', marginBottom: 12 }}>
-              {destinations.some(d => d.loading) ? `Searching ${totalSearched} cities...` : `${totalSearched} cities · ${totalFound} flights found · sorted by cheapest`}
+              {destinations.some(d => d.loading)
+                ? `Searching ${totalSearched} cities...`
+                : `${sortedDests.length} cities · ${totalFound} flights found · sorted by ${filter === 'points' ? 'fewest miles' : 'cheapest'}`}
             </div>
 
             {sortedDests.map((dest, i) => (
               <button
                 key={dest.code}
-                onClick={() => setSelectedDest(dest.code)}
+                onClick={() => { setSelectedDest(dest.code); setTab(filter === 'points' ? 'points' : 'cash'); }}
                 style={{
                   width: '100%', textAlign: 'left', cursor: 'pointer',
                   background: '#fff', border: '1px solid #E0DCD4', borderRadius: 14,
@@ -226,18 +269,33 @@ function SearchResults() {
                 <div style={{ textAlign: 'right' }}>
                   {dest.loading ? (
                     <div style={{ width: 60, height: 18, background: '#F5F3EE', borderRadius: 8 }} className="skeleton" />
+                  ) : filter === 'points' ? (
+                    <>
+                      {dest.cheapestAward ? (
+                        <div style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: 16, fontWeight: 700, color: '#0D7C72' }}>
+                          {dest.cheapestAward.toLocaleString()} mi
+                        </div>
+                      ) : (
+                        <div style={{ fontSize: 12, color: '#9C958C' }}>No award avail</div>
+                      )}
+                      {dest.cheapestCash && (
+                        <div style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: 11, color: '#9C958C' }}>
+                          or ${dest.cheapestCash.toLocaleString()} cash
+                        </div>
+                      )}
+                    </>
                   ) : (
                     <>
-                      {dest.cheapestCash && (
+                      {dest.cheapestCash ? (
                         <div style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: 16, fontWeight: 700, color: '#1A1A1A' }}>
                           ${dest.cheapestCash.toLocaleString()}
                         </div>
-                      )}
-                      {dest.cheapestAward && (
+                      ) : null}
+                      {dest.cheapestAward ? (
                         <div style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: 12, color: '#0D7C72' }}>
                           {dest.cheapestAward.toLocaleString()} mi
                         </div>
-                      )}
+                      ) : null}
                       {!dest.cheapestCash && !dest.cheapestAward && (
                         <div style={{ fontSize: 12, color: '#9C958C' }}>No results</div>
                       )}
