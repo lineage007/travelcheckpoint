@@ -1,267 +1,253 @@
 'use client';
 
-import { useState, useRef, useEffect } from 'react';
-import Link from 'next/link';
+import { useState } from 'react';
+import { useRouter } from 'next/navigation';
+import { Search, Plane, Building2, TrendingDown, TrendingUp, Bell, ChevronRight, Zap } from 'lucide-react';
 
-const bg = "'Inter', system-ui, sans-serif";
-const mono = "'JetBrains Mono', monospace";
-
-const ACCENT = '#3B82F6';
-const BG_DARK = '#0A1628';
-const BG_CARD = '#0F1D32';
-const BG_INPUT = '#162036';
-const BORDER = '#1E2D45';
-const TEXT_DIM = '#64748B';
-const TEXT_MID = '#94A3B8';
-const TEXT_LIGHT = '#E2E8F0';
-const GOLD = '#F59E0B';
-const GREEN = '#10B981';
-const RED = '#EF4444';
-
-const EXAMPLE_SEARCHES = [
-  "Dubai to London next week, business, under $3k or 80k points",
-  "DXB to Sydney, anytime in June, cheapest business class",
-  "Get me to Bali from Dubai, points or cash, whatever is cheapest",
-  "London to New York, hidden city options, next Friday",
-  "Any empty legs from Dubai this weekend",
-  "What's the best way to use 100k Amex points to get to Tokyo",
-  "Family of 6, Dubai to Istanbul, April school holidays, economy",
-];
-
-const RECENT_SEARCHES = [
-  { route: 'DXB → LHR', date: 'Mar 25', cabin: 'Business', status: 'tracked' },
-  { route: 'DXB → SYD', date: 'Mar 22', cabin: 'Business', status: 'new results' },
-  { route: 'DXB → IST', date: 'Mar 20', cabin: 'Economy', status: '' },
-];
-
-const ALERTS = [
-  { route: 'DXB → LHR', change: -12, direction: 'down', price: '$2,140' },
-  { route: 'DXB → SYD', change: 0, direction: 'stable', price: '$3,870' },
-  { route: 'DXB → CDG', change: 8, direction: 'up', price: '$1,920' },
-];
-
-const EMPTY_LEGS = [
-  { aircraft: 'Citation XLS', route: 'DXB → LTN', price: '$4,200', pax: 8, date: 'Today 11:00', broker: 'LunaJets' },
-  { aircraft: 'Challenger 350', route: 'DXB → MXP', price: '$6,800', pax: 10, date: 'Tomorrow 14:30', broker: 'PrivateFly' },
-  { aircraft: 'Phenom 300E', route: 'SHJ → BAH', price: '$2,100', pax: 6, date: 'Apr 1 09:00', broker: 'Victor' },
-];
-
-export default function HomePage() {
+export default function Home() {
+  const router = useRouter();
   const [query, setQuery] = useState('');
-  const [searching, setSearching] = useState(false);
-  const [placeholder, setPlaceholder] = useState(EXAMPLE_SEARCHES[0]);
-  const inputRef = useRef<HTMLTextAreaElement>(null);
-  const placeholderIdx = useRef(0);
+  const [focused, setFocused] = useState(false);
 
-  // Rotate placeholder examples
-  useEffect(() => {
-    const interval = setInterval(() => {
-      placeholderIdx.current = (placeholderIdx.current + 1) % EXAMPLE_SEARCHES.length;
-      setPlaceholder(EXAMPLE_SEARCHES[placeholderIdx.current]);
-    }, 4000);
-    return () => clearInterval(interval);
-  }, []);
-
-  const handleSearch = async () => {
+  const handleSearch = () => {
     if (!query.trim()) return;
-    setSearching(true);
-    // Navigate to results page with query
-    window.location.href = `/search?q=${encodeURIComponent(query.trim())}`;
+    router.push(`/search?q=${encodeURIComponent(query)}`);
   };
 
   return (
-    <div style={{ minHeight: '100vh', background: BG_DARK }}>
+    <div style={{ minHeight: '100vh', background: 'linear-gradient(180deg, #FAFAF7 0%, #F2EFE8 100%)' }}>
       {/* Header */}
-      <header style={{
-        padding: '16px 20px',
-        display: 'flex', justifyContent: 'space-between', alignItems: 'center',
-        borderBottom: `1px solid ${BORDER}`,
-      }}>
-        <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
-          <div style={{ width: '32px', height: '32px', borderRadius: '8px', background: `linear-gradient(135deg, ${ACCENT}, #1D4ED8)`, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="white" strokeWidth="2"><path d="M12 2L2 7l10 5 10-5-10-5z"/><path d="M2 17l10 5 10-5"/><path d="M2 12l10 5 10-5"/></svg>
-          </div>
-          <span style={{ fontFamily: bg, fontSize: '18px', fontWeight: 700, color: TEXT_LIGHT, letterSpacing: '-0.02em' }}>
-            Travel<span style={{ color: ACCENT }}>Checkpoint</span>
-          </span>
-        </div>
-        <button style={{ background: 'none', border: 'none', color: TEXT_MID, cursor: 'pointer', fontSize: '20px', padding: '4px' }}>
-          ☰
-        </button>
+      <header style={{ padding: '16px 20px', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+        <span style={{ fontFamily: 'var(--font-display)', fontSize: '18px', fontWeight: 600, color: 'var(--text-primary)' }}>
+          TravelCheckpoint
+        </span>
+        <div style={{
+          width: '32px', height: '32px', borderRadius: '50%', background: 'var(--accent)',
+          display: 'flex', alignItems: 'center', justifyContent: 'center',
+          color: '#fff', fontSize: '13px', fontFamily: 'var(--font-display)', fontWeight: 600,
+        }}>G</div>
       </header>
 
-      <div style={{ padding: '24px 20px', maxWidth: '600px', margin: '0 auto' }}>
+      {/* Hero search */}
+      <div style={{ padding: '60px 20px 32px', maxWidth: '600px', margin: '0 auto' }}>
+        <h1 style={{
+          fontFamily: 'var(--font-display)', fontSize: '36px', fontWeight: 600,
+          color: 'var(--text-primary)', lineHeight: 1.15, marginBottom: '8px',
+        }}>
+          Where to?
+        </h1>
+        <p style={{
+          fontFamily: 'var(--font-body)', fontSize: '14px', color: 'var(--text-secondary)',
+          marginBottom: '24px', lineHeight: 1.5,
+        }}>
+          Search flights, hotels, and private jets in one place.
+        </p>
 
-        {/* Hero search */}
-        <div style={{ marginBottom: '32px' }}>
-          <h1 style={{ fontSize: '28px', fontWeight: 800, color: TEXT_LIGHT, lineHeight: 1.15, marginBottom: '8px', letterSpacing: '-0.03em' }}>
-            Where to?
-          </h1>
-          <p style={{ fontSize: '14px', color: TEXT_DIM, marginBottom: '20px' }}>
-            Search cash fares, award points, hidden city routes, and private jet empty legs — all at once.
-          </p>
-
-          {/* Natural language input */}
+        {/* Search input */}
+        <div style={{ position: 'relative', marginBottom: '16px' }}>
           <div style={{
-            background: BG_INPUT, border: `1px solid ${BORDER}`, borderRadius: '16px',
-            padding: '16px', transition: 'border-color 0.2s',
+            display: 'flex', alignItems: 'center', gap: '12px',
+            background: 'var(--bg-surface)', border: `1.5px solid ${focused ? 'var(--accent)' : 'var(--border-default)'}`,
+            borderRadius: '16px', padding: '18px 20px',
+            boxShadow: focused ? '0 0 0 3px rgba(13, 124, 114, 0.1)' : 'none',
+            transition: 'border-color 0.2s, box-shadow 0.2s',
           }}>
-            <textarea
-              ref={inputRef}
+            <Plane size={18} color="var(--text-tertiary)" strokeWidth={1.5} />
+            <input
               value={query}
               onChange={e => setQuery(e.target.value)}
-              placeholder={placeholder}
-              rows={3}
-              onKeyDown={e => { if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); handleSearch(); } }}
+              onFocus={() => setFocused(true)}
+              onBlur={() => setFocused(false)}
+              onKeyDown={e => e.key === 'Enter' && handleSearch()}
+              placeholder="Dubai to anywhere..."
               style={{
-                width: '100%', background: 'transparent', border: 'none', outline: 'none', resize: 'none',
-                fontFamily: bg, fontSize: '16px', color: TEXT_LIGHT, lineHeight: 1.5,
+                flex: 1, border: 'none', outline: 'none', background: 'transparent',
+                fontFamily: 'var(--font-body)', fontSize: '16px', color: 'var(--text-primary)',
               }}
             />
-            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginTop: '12px' }}>
-              <div style={{ display: 'flex', gap: '8px' }}>
-                <button style={{ background: `${ACCENT}15`, border: `1px solid ${ACCENT}30`, borderRadius: '8px', padding: '6px 10px', color: ACCENT, fontSize: '12px', fontWeight: 600, cursor: 'pointer' }}>
-                  🎤 Voice
-                </button>
-                <button style={{ background: `${GOLD}15`, border: `1px solid ${GOLD}30`, borderRadius: '8px', padding: '6px 10px', color: GOLD, fontSize: '12px', fontWeight: 600, cursor: 'pointer' }}>
-                  ✨ Points
-                </button>
-              </div>
-              <button
-                onClick={handleSearch}
-                disabled={!query.trim() || searching}
-                style={{
-                  background: query.trim() ? ACCENT : `${ACCENT}40`,
-                  border: 'none', borderRadius: '10px', padding: '10px 24px',
-                  color: '#fff', fontSize: '14px', fontWeight: 700, cursor: query.trim() ? 'pointer' : 'default',
-                  transition: 'all 0.2s',
-                }}
-              >
-                {searching ? '⏳ Searching...' : 'Search →'}
-              </button>
-            </div>
+            <button onClick={handleSearch} style={{
+              width: '36px', height: '36px', borderRadius: '50%', border: 'none',
+              background: 'var(--accent)', color: '#fff', cursor: 'pointer',
+              display: 'flex', alignItems: 'center', justifyContent: 'center',
+              transition: 'background 0.15s',
+            }}>
+              <Search size={16} strokeWidth={2} />
+            </button>
           </div>
         </div>
 
-        {/* Mode tabs: Flights vs Stays */}
-        <div style={{ display: 'flex', gap: '8px', marginBottom: '20px' }}>
-          <Link href="/" style={{ background: ACCENT, border: 'none', borderRadius: '10px', padding: '10px 20px', fontSize: '13px', fontWeight: 700, color: '#fff', textDecoration: 'none', display: 'flex', alignItems: 'center', gap: '6px' }}>
-            ✈️ Flights
-          </Link>
-          <Link href="/stays?destination=Bali" style={{ background: BG_CARD, border: `1px solid ${BORDER}`, borderRadius: '10px', padding: '10px 20px', fontSize: '13px', fontWeight: 500, color: TEXT_MID, textDecoration: 'none', display: 'flex', alignItems: 'center', gap: '6px' }}>
-            🏨 Stays
-          </Link>
-          <Link href="/" style={{ background: BG_CARD, border: `1px solid ${BORDER}`, borderRadius: '10px', padding: '10px 20px', fontSize: '13px', fontWeight: 500, color: TEXT_MID, textDecoration: 'none', display: 'flex', alignItems: 'center', gap: '6px' }}>
-            📦 Packages
-          </Link>
-        </div>
-
-        {/* Quick filters */}
-        <div style={{ display: 'flex', gap: '8px', marginBottom: '28px', flexWrap: 'wrap' }}>
-          {['Cash Fares', 'Award Flights', 'Hidden City', 'Empty Legs', 'Multi-City'].map(f => (
-            <button key={f} style={{
-              background: BG_CARD, border: `1px solid ${BORDER}`, borderRadius: '999px',
-              padding: '8px 14px', fontSize: '12px', fontWeight: 500, color: TEXT_MID,
+        {/* Filter chips */}
+        <div style={{ display: 'flex', gap: '8px', overflowX: 'auto', paddingBottom: '4px', marginBottom: '32px' }}>
+          {[
+            { label: 'Cash Fares', active: true },
+            { label: 'Points' },
+            { label: 'Hidden City' },
+            { label: 'Private Jets' },
+          ].map((chip, i) => (
+            <button key={i} style={{
+              background: chip.active ? 'var(--accent)' : 'var(--bg-page)',
+              color: chip.active ? '#fff' : 'var(--text-secondary)',
+              border: chip.active ? 'none' : '1px solid var(--border-default)',
+              borderRadius: '100px', padding: '8px 16px', whiteSpace: 'nowrap',
+              fontFamily: 'var(--font-body)', fontSize: '13px', fontWeight: 500,
               cursor: 'pointer', transition: 'all 0.15s',
             }}>
-              {f}
+              {chip.label}
             </button>
           ))}
         </div>
 
+        {/* Divider */}
+        <div style={{ borderTop: '1px dashed var(--border-default)', marginBottom: '28px' }} />
+
         {/* Recent searches */}
-        <section style={{ marginBottom: '28px' }}>
+        <div className="fade-up-1">
           <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '12px' }}>
-            <h2 style={{ fontSize: '16px', fontWeight: 700, color: TEXT_LIGHT }}>Recent Searches</h2>
-            <span style={{ fontSize: '12px', color: ACCENT, cursor: 'pointer' }}>See all</span>
+            <span style={{
+              fontFamily: 'var(--font-body)', fontSize: '11px', fontWeight: 700,
+              color: 'var(--text-tertiary)', textTransform: 'uppercase', letterSpacing: '0.08em',
+            }}>Recent</span>
+            <span style={{ fontFamily: 'var(--font-body)', fontSize: '12px', color: 'var(--text-tertiary)', cursor: 'pointer' }}>
+              See all <ChevronRight size={12} style={{ verticalAlign: 'middle' }} />
+            </span>
           </div>
-          <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
-            {RECENT_SEARCHES.map((s, i) => (
-              <Link key={i} href={`/search?q=${encodeURIComponent(s.route.replace(' → ', ' to '))}`} style={{
-                display: 'flex', alignItems: 'center', justifyContent: 'space-between',
-                background: BG_CARD, border: `1px solid ${BORDER}`, borderRadius: '12px',
-                padding: '14px 16px', textDecoration: 'none', transition: 'border-color 0.15s',
-              }}>
+
+          {[
+            { route: 'DXB → LHR', date: 'Mar 25', cabin: 'Business', tag: 'tracked', tagColor: 'var(--accent)' },
+            { route: 'DXB → SYD', date: 'Mar 22', cabin: 'Business', tag: 'new results', tagColor: 'var(--status-success)' },
+            { route: 'DXB → IST', date: 'Mar 20', cabin: 'Economy' },
+          ].map((item, i) => (
+            <div key={i} className={`fade-up-${i + 2}`} onClick={() => router.push(`/search?q=${item.route.replace(' → ', ' to ')} ${item.cabin}`)} style={{
+              background: 'var(--bg-surface)', border: '1px solid var(--border-default)',
+              borderLeft: '3px solid var(--accent)', borderRadius: '12px',
+              padding: '14px 16px', marginBottom: '10px', cursor: 'pointer',
+              transition: 'all 0.2s',
+            }}>
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
                 <div>
-                  <div style={{ fontSize: '14px', fontWeight: 600, color: TEXT_LIGHT }}>{s.route}</div>
-                  <div style={{ fontSize: '12px', color: TEXT_DIM, marginTop: '2px' }}>{s.date} · {s.cabin}</div>
+                  <div style={{ fontFamily: 'var(--font-body)', fontSize: '15px', fontWeight: 600, color: 'var(--text-primary)' }}>{item.route}</div>
+                  <div style={{ fontFamily: 'var(--font-body)', fontSize: '12px', color: 'var(--text-tertiary)', marginTop: '2px' }}>{item.date} · {item.cabin}</div>
                 </div>
-                {s.status && (
+                {item.tag && (
                   <span style={{
-                    fontSize: '10px', fontWeight: 600, padding: '3px 8px', borderRadius: '6px',
-                    background: s.status === 'new results' ? `${GREEN}15` : `${ACCENT}15`,
-                    color: s.status === 'new results' ? GREEN : ACCENT,
-                  }}>{s.status}</span>
+                    fontFamily: 'var(--font-body)', fontSize: '10px', fontWeight: 600,
+                    color: item.tagColor, background: `${item.tagColor}10`,
+                    padding: '3px 10px', borderRadius: '100px',
+                  }}>{item.tag}</span>
                 )}
-              </Link>
-            ))}
-          </div>
-        </section>
+              </div>
+            </div>
+          ))}
+        </div>
 
         {/* Price alerts */}
-        <section style={{ marginBottom: '28px' }}>
+        <div className="fade-up-3" style={{ marginTop: '24px' }}>
           <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '12px' }}>
-            <h2 style={{ fontSize: '16px', fontWeight: 700, color: TEXT_LIGHT }}>Price Alerts</h2>
-            <span style={{ fontSize: '12px', color: TEXT_DIM }}>{ALERTS.length} active</span>
+            <span style={{
+              fontFamily: 'var(--font-body)', fontSize: '11px', fontWeight: 700,
+              color: 'var(--text-tertiary)', textTransform: 'uppercase', letterSpacing: '0.08em',
+            }}>Price Alerts</span>
+            <span style={{ fontFamily: 'var(--font-body)', fontSize: '12px', color: 'var(--text-tertiary)' }}>
+              <Bell size={12} style={{ verticalAlign: 'middle' }} /> 3 active
+            </span>
           </div>
-          <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
-            {ALERTS.map((a, i) => (
-              <div key={i} style={{
-                display: 'flex', alignItems: 'center', justifyContent: 'space-between',
-                background: BG_CARD, border: `1px solid ${BORDER}`, borderRadius: '12px',
-                padding: '14px 16px',
-              }}>
-                <div>
-                  <div style={{ fontSize: '14px', fontWeight: 600, color: TEXT_LIGHT }}>{a.route}</div>
-                  <div style={{ fontSize: '12px', color: TEXT_DIM, marginTop: '2px' }}>Currently {a.price}</div>
-                </div>
-                <span style={{
-                  fontFamily: mono, fontSize: '13px', fontWeight: 600,
-                  color: a.change < 0 ? GREEN : a.change > 0 ? RED : TEXT_DIM,
-                }}>
-                  {a.change < 0 ? `↓ ${Math.abs(a.change)}%` : a.change > 0 ? `↑ ${a.change}%` : '— stable'}
-                </span>
+
+          {[
+            { route: 'DXB → LHR', price: '$2,140', change: '↓ 12%', type: 'success' as const },
+            { route: 'DXB → CDG', price: '$1,920', change: '↑ 8%', type: 'danger' as const },
+            { route: 'DXB → SIN', price: '$980', change: '→ 0%', type: 'warning' as const },
+          ].map((alert, i) => (
+            <div key={i} className={`fade-up-${i + 3}`} style={{
+              background: 'var(--bg-surface)', border: '1px solid var(--border-default)',
+              borderRadius: '12px', padding: '14px 16px', marginBottom: '10px',
+              display: 'flex', justifyContent: 'space-between', alignItems: 'center',
+            }}>
+              <div>
+                <div style={{ fontFamily: 'var(--font-body)', fontSize: '15px', fontWeight: 600, color: 'var(--text-primary)' }}>{alert.route}</div>
+                <div style={{ fontFamily: 'var(--font-mono)', fontSize: '14px', fontWeight: 600, color: 'var(--text-primary)', marginTop: '2px' }}>{alert.price}</div>
               </div>
-            ))}
-          </div>
-        </section>
+              <span style={{
+                fontFamily: 'var(--font-mono)', fontSize: '12px', fontWeight: 600,
+                color: `var(--status-${alert.type})`,
+                background: `var(--status-${alert.type}-bg)`,
+                padding: '4px 10px', borderRadius: '100px',
+                display: 'flex', alignItems: 'center', gap: '4px',
+              }}>
+                {alert.type === 'success' ? <TrendingDown size={12} /> : alert.type === 'danger' ? <TrendingUp size={12} /> : null}
+                {alert.change}
+              </span>
+            </div>
+          ))}
+        </div>
 
         {/* Empty legs */}
-        <section style={{ marginBottom: '28px' }}>
+        <div className="fade-up-4" style={{ marginTop: '24px' }}>
           <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '12px' }}>
-            <h2 style={{ fontSize: '16px', fontWeight: 700, color: TEXT_LIGHT }}>
-              ✈️ Empty Legs Near Dubai
-            </h2>
-            <span style={{ fontSize: '12px', color: GOLD }}>{EMPTY_LEGS.length} available</span>
+            <span style={{
+              fontFamily: 'var(--font-body)', fontSize: '11px', fontWeight: 700,
+              color: 'var(--text-tertiary)', textTransform: 'uppercase', letterSpacing: '0.08em',
+            }}>Private Jets Near You</span>
+            <span style={{ fontFamily: 'var(--font-body)', fontSize: '12px', color: 'var(--text-tertiary)' }}>3 nearby</span>
           </div>
-          <div style={{ display: 'flex', gap: '12px', overflowX: 'auto', paddingBottom: '8px' }}>
-            {EMPTY_LEGS.map((e, i) => (
-              <div key={i} style={{
-                minWidth: '220px', background: `linear-gradient(135deg, ${BG_CARD}, #0D1A2E)`,
-                border: `1px solid ${GOLD}25`, borderRadius: '14px', padding: '16px', flexShrink: 0,
-              }}>
-                <div style={{ fontSize: '11px', color: GOLD, fontWeight: 600, marginBottom: '8px' }}>{e.broker}</div>
-                <div style={{ fontSize: '15px', fontWeight: 700, color: TEXT_LIGHT, marginBottom: '4px' }}>{e.route}</div>
-                <div style={{ fontSize: '12px', color: TEXT_DIM, marginBottom: '8px' }}>{e.aircraft} · Up to {e.pax} pax</div>
-                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                  <span style={{ fontFamily: mono, fontSize: '18px', fontWeight: 700, color: GOLD }}>{e.price}</span>
-                  <span style={{ fontSize: '11px', color: TEXT_DIM }}>{e.date}</span>
+
+          {[
+            { route: 'DXB → London Luton', aircraft: 'Citation XLS · 8 pax', price: '$4,200', perPerson: '$525/person', time: 'Today 11:00', broker: 'LunaJets' },
+            { route: 'DXB → Nice', aircraft: 'Falcon 2000 · 10 pax', price: '$6,800', perPerson: '$680/person', time: 'Tomorrow 09:00', broker: 'PrivateFly' },
+          ].map((leg, i) => (
+            <div key={i} className={`fade-up-${i + 4}`} style={{
+              background: 'var(--bg-surface)', border: '1px solid var(--border-default)',
+              borderRadius: '12px', padding: '16px', marginBottom: '10px',
+              position: 'relative', overflow: 'hidden',
+            }}>
+              {/* Subtle airplane watermark */}
+              <div style={{ position: 'absolute', top: '8px', right: '8px', opacity: 0.04 }}>
+                <Plane size={48} />
+              </div>
+              <div style={{ fontFamily: 'var(--font-body)', fontSize: '15px', fontWeight: 600, color: 'var(--text-primary)', marginBottom: '2px' }}>{leg.route}</div>
+              <div style={{ fontFamily: 'var(--font-body)', fontSize: '12px', color: 'var(--text-tertiary)', marginBottom: '10px' }}>{leg.aircraft}</div>
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-end' }}>
+                <div>
+                  <span style={{ fontFamily: 'var(--font-mono)', fontSize: '18px', fontWeight: 700, color: 'var(--text-primary)' }}>{leg.price}</span>
+                  <span style={{ fontFamily: 'var(--font-body)', fontSize: '12px', color: 'var(--text-tertiary)', marginLeft: '8px' }}>{leg.perPerson}</span>
                 </div>
-                <div style={{ fontSize: '10px', color: TEXT_DIM, marginTop: '6px' }}>
-                  {e.price.replace('$', '').replace(',', '') && `$${Math.round(parseInt(e.price.replace(/[$,]/g, '')) / e.pax)}/person if split`}
+                <div style={{ textAlign: 'right' }}>
+                  <div style={{ fontFamily: 'var(--font-mono)', fontSize: '12px', color: 'var(--text-secondary)' }}>{leg.time}</div>
+                  <div style={{ fontFamily: 'var(--font-body)', fontSize: '11px', color: 'var(--text-tertiary)' }}>via {leg.broker}</div>
                 </div>
               </div>
-            ))}
-          </div>
-        </section>
-
-        {/* Bottom nav hint */}
-        <div style={{ textAlign: 'center', padding: '20px 0', borderTop: `1px solid ${BORDER}` }}>
-          <p style={{ fontSize: '12px', color: TEXT_DIM }}>
-            Powered by Google Flights, Seats.aero, and private charter networks
-          </p>
+            </div>
+          ))}
         </div>
+
+        {/* Spacer for bottom nav */}
+        <div style={{ height: '80px' }} />
       </div>
+
+      {/* Bottom nav — frosted glass */}
+      <nav style={{
+        position: 'fixed', bottom: 0, left: 0, right: 0, zIndex: 50,
+        background: 'rgba(250, 250, 247, 0.85)', backdropFilter: 'blur(20px)',
+        borderTop: '1px solid var(--border-default)',
+        padding: '8px 0 env(safe-area-inset-bottom, 8px)',
+        display: 'flex', justifyContent: 'space-around', alignItems: 'center',
+      }}>
+        {[
+          { icon: <Search size={20} strokeWidth={1.5} />, label: 'Search', active: true, href: '/' },
+          { icon: <Building2 size={20} strokeWidth={1.5} />, label: 'Stay', href: '/stays' },
+          { icon: <Bell size={20} strokeWidth={1.5} />, label: 'Alerts', href: '/' },
+          { icon: <Zap size={20} strokeWidth={1.5} />, label: 'More', href: '/' },
+        ].map((item, i) => (
+          <button key={i} onClick={() => item.href !== '/' ? router.push(item.href) : null} style={{
+            display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '2px',
+            background: 'none', border: 'none', cursor: 'pointer',
+            color: item.active ? 'var(--accent)' : 'var(--text-tertiary)',
+            padding: '4px 16px',
+          }}>
+            {item.icon}
+            <span style={{ fontFamily: 'var(--font-body)', fontSize: '10px', fontWeight: item.active ? 600 : 400 }}>{item.label}</span>
+          </button>
+        ))}
+      </nav>
     </div>
   );
 }
