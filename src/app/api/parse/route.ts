@@ -1,95 +1,229 @@
 import { NextRequest, NextResponse } from 'next/server';
 
-const GOOGLE_AI_KEY = process.env.GOOGLE_AI_API_KEY || '';
+// ═══════════════════════════════════════════════════
+// LOCAL NLP PARSER — Zero API cost, instant response
+// ═══════════════════════════════════════════════════
 
-interface ParsedQuery {
-  origin: string;
-  destination: string;
-  originCity: string;
-  destinationCity: string;
-  departDate: string;
-  returnDate: string;
-  cabin: string;
-  passengers: number;
-  tripType: 'one-way' | 'round-trip' | 'multi-city';
-  flexible: boolean;
-  maxBudget: number | null;
-  maxPoints: number | null;
-  currency: string;
-  preferences: string[];
+const AIRPORTS: Record<string, { code: string; city: string }> = {
+  'dubai': { code: 'DXB', city: 'Dubai' }, 'abu dhabi': { code: 'AUH', city: 'Abu Dhabi' },
+  'london': { code: 'LHR', city: 'London' }, 'heathrow': { code: 'LHR', city: 'London' },
+  'gatwick': { code: 'LGW', city: 'London' }, 'paris': { code: 'CDG', city: 'Paris' },
+  'istanbul': { code: 'IST', city: 'Istanbul' }, 'new york': { code: 'JFK', city: 'New York' },
+  'nyc': { code: 'JFK', city: 'New York' }, 'newark': { code: 'EWR', city: 'New York' },
+  'la': { code: 'LAX', city: 'Los Angeles' }, 'los angeles': { code: 'LAX', city: 'Los Angeles' },
+  'sydney': { code: 'SYD', city: 'Sydney' }, 'melbourne': { code: 'MEL', city: 'Melbourne' },
+  'tokyo': { code: 'NRT', city: 'Tokyo' }, 'singapore': { code: 'SIN', city: 'Singapore' },
+  'bangkok': { code: 'BKK', city: 'Bangkok' }, 'bali': { code: 'DPS', city: 'Bali' },
+  'maldives': { code: 'MLE', city: 'Maldives' }, 'male': { code: 'MLE', city: 'Maldives' },
+  'hong kong': { code: 'HKG', city: 'Hong Kong' }, 'kuala lumpur': { code: 'KUL', city: 'Kuala Lumpur' },
+  'kl': { code: 'KUL', city: 'Kuala Lumpur' }, 'doha': { code: 'DOH', city: 'Doha' },
+  'riyadh': { code: 'RUH', city: 'Riyadh' }, 'jeddah': { code: 'JED', city: 'Jeddah' },
+  'cairo': { code: 'CAI', city: 'Cairo' }, 'mumbai': { code: 'BOM', city: 'Mumbai' },
+  'delhi': { code: 'DEL', city: 'Delhi' }, 'colombo': { code: 'CMB', city: 'Colombo' },
+  'san francisco': { code: 'SFO', city: 'San Francisco' }, 'sf': { code: 'SFO', city: 'San Francisco' },
+  'miami': { code: 'MIA', city: 'Miami' }, 'rome': { code: 'FCO', city: 'Rome' },
+  'milan': { code: 'MXP', city: 'Milan' }, 'barcelona': { code: 'BCN', city: 'Barcelona' },
+  'madrid': { code: 'MAD', city: 'Madrid' }, 'amsterdam': { code: 'AMS', city: 'Amsterdam' },
+  'frankfurt': { code: 'FRA', city: 'Frankfurt' }, 'zurich': { code: 'ZRH', city: 'Zurich' },
+  'athens': { code: 'ATH', city: 'Athens' }, 'phuket': { code: 'HKT', city: 'Phuket' },
+  'manila': { code: 'MNL', city: 'Manila' }, 'jakarta': { code: 'CGK', city: 'Jakarta' },
+  'seoul': { code: 'ICN', city: 'Seoul' }, 'osaka': { code: 'KIX', city: 'Osaka' },
+  'toronto': { code: 'YYZ', city: 'Toronto' }, 'vancouver': { code: 'YVR', city: 'Vancouver' },
+  'auckland': { code: 'AKL', city: 'Auckland' }, 'johannesburg': { code: 'JNB', city: 'Johannesburg' },
+  'cape town': { code: 'CPT', city: 'Cape Town' }, 'nairobi': { code: 'NBO', city: 'Nairobi' },
+  'muscat': { code: 'MCT', city: 'Muscat' }, 'bahrain': { code: 'BAH', city: 'Bahrain' },
+  'kuwait': { code: 'KWI', city: 'Kuwait' }, 'trabzon': { code: 'TZX', city: 'Trabzon' },
+  'bodrum': { code: 'BJV', city: 'Bodrum' }, 'antalya': { code: 'AYT', city: 'Antalya' },
+  'mauritius': { code: 'MRU', city: 'Mauritius' }, 'seychelles': { code: 'SEZ', city: 'Seychelles' },
+  'chicago': { code: 'ORD', city: 'Chicago' }, 'washington': { code: 'IAD', city: 'Washington' },
+  'boston': { code: 'BOS', city: 'Boston' }, 'seattle': { code: 'SEA', city: 'Seattle' },
+  'perth': { code: 'PER', city: 'Perth' }, 'brisbane': { code: 'BNE', city: 'Brisbane' },
+  'hanoi': { code: 'HAN', city: 'Hanoi' }, 'ho chi minh': { code: 'SGN', city: 'Ho Chi Minh' },
+  'saigon': { code: 'SGN', city: 'Ho Chi Minh' }, 'taipei': { code: 'TPE', city: 'Taipei' },
+  'beijing': { code: 'PEK', city: 'Beijing' }, 'shanghai': { code: 'PVG', city: 'Shanghai' },
+  'zanzibar': { code: 'ZNZ', city: 'Zanzibar' }, 'marrakech': { code: 'RAK', city: 'Marrakech' },
+  'lisbon': { code: 'LIS', city: 'Lisbon' }, 'dublin': { code: 'DUB', city: 'Dublin' },
+  'edinburgh': { code: 'EDI', city: 'Edinburgh' }, 'manchester': { code: 'MAN', city: 'Manchester' },
+  'sao paulo': { code: 'GRU', city: 'São Paulo' }, 'mexico city': { code: 'MEX', city: 'Mexico City' },
+  'cancun': { code: 'CUN', city: 'Cancún' }, 'hawaii': { code: 'HNL', city: 'Hawaii' },
+  'honolulu': { code: 'HNL', city: 'Hawaii' }, 'fiji': { code: 'NAN', city: 'Fiji' },
+  'bora bora': { code: 'BOB', city: 'Bora Bora' }, 'nice': { code: 'NCE', city: 'Nice' },
+};
+
+function findAirport(text: string): { code: string; city: string } | null {
+  const lower = text.toLowerCase();
+  // Check for IATA codes first (3 uppercase letters)
+  const iataMatch = text.match(/\b([A-Z]{3})\b/);
+  if (iataMatch) {
+    const code = iataMatch[1];
+    const entry = Object.values(AIRPORTS).find(a => a.code === code);
+    if (entry) return entry;
+    return { code, city: code };
+  }
+  // Check city names (longest match first)
+  const sorted = Object.entries(AIRPORTS).sort((a, b) => b[0].length - a[0].length);
+  for (const [name, data] of sorted) {
+    if (lower.includes(name)) return data;
+  }
+  return null;
+}
+
+function parseDate(text: string): string {
+  const now = new Date();
+  const lower = text.toLowerCase();
+  
+  if (lower.includes('tomorrow')) {
+    const d = new Date(now.getTime() + 86400000);
+    return d.toISOString().split('T')[0];
+  }
+  if (lower.includes('next week')) {
+    const d = new Date(now.getTime() + 7 * 86400000);
+    return d.toISOString().split('T')[0];
+  }
+  if (lower.includes('next month')) {
+    const d = new Date(now);
+    d.setMonth(d.getMonth() + 1);
+    return d.toISOString().split('T')[0];
+  }
+  
+  // Match "in X days/weeks"
+  const inDays = lower.match(/in (\d+)\s*days?/);
+  if (inDays) { const d = new Date(now.getTime() + parseInt(inDays[1]) * 86400000); return d.toISOString().split('T')[0]; }
+  const inWeeks = lower.match(/in (\d+)\s*weeks?/);
+  if (inWeeks) { const d = new Date(now.getTime() + parseInt(inWeeks[1]) * 7 * 86400000); return d.toISOString().split('T')[0]; }
+  
+  // Match month names
+  const months = ['january','february','march','april','may','june','july','august','september','october','november','december'];
+  const monthMatch = lower.match(new RegExp(`(\\d{1,2})\\s*(?:st|nd|rd|th)?\\s*(${months.join('|')})|(${months.join('|')})\\s*(\\d{1,2})`));
+  if (monthMatch) {
+    const day = parseInt(monthMatch[1] || monthMatch[4]);
+    const monthName = (monthMatch[2] || monthMatch[3]).toLowerCase();
+    const month = months.indexOf(monthName);
+    const year = now.getFullYear();
+    const d = new Date(year, month, day);
+    if (d < now) d.setFullYear(year + 1);
+    return d.toISOString().split('T')[0];
+  }
+  
+  // Match YYYY-MM-DD
+  const isoMatch = text.match(/(\d{4}-\d{2}-\d{2})/);
+  if (isoMatch) return isoMatch[1];
+  
+  // Match DD/MM or MM/DD
+  const slashMatch = text.match(/(\d{1,2})[\/\-](\d{1,2})(?:[\/\-](\d{2,4}))?/);
+  if (slashMatch) {
+    const a = parseInt(slashMatch[1]), b = parseInt(slashMatch[2]);
+    const year = slashMatch[3] ? (parseInt(slashMatch[3]) < 100 ? 2000 + parseInt(slashMatch[3]) : parseInt(slashMatch[3])) : now.getFullYear();
+    // Assume DD/MM for non-US
+    const d = new Date(year, b - 1, a);
+    if (d < now && !slashMatch[3]) d.setFullYear(year + 1);
+    return d.toISOString().split('T')[0];
+  }
+  
+  // Default: 7 days from now
+  return new Date(now.getTime() + 7 * 86400000).toISOString().split('T')[0];
 }
 
 export async function POST(request: NextRequest) {
-  if (!GOOGLE_AI_KEY) {
-    return NextResponse.json({ error: 'API key not configured' }, { status: 500 });
-  }
-
   const { query } = await request.json();
-  if (!query) {
-    return NextResponse.json({ error: 'No query provided' }, { status: 400 });
-  }
+  if (!query) return NextResponse.json({ error: 'No query provided' }, { status: 400 });
 
-  const today = new Date().toISOString().split('T')[0];
-  const tomorrow = new Date(Date.now() + 86400000).toISOString().split('T')[0];
-  const nextWeekStart = new Date(Date.now() + 7 * 86400000).toISOString().split('T')[0];
-
-  const prompt = `Parse this flight search query into structured JSON. Today is ${today}.
-
-Query: "${query}"
-
-Return ONLY valid JSON with these fields:
-{
-  "origin": "3-letter IATA code (default DXB if not specified or if UAE/Dubai mentioned)",
-  "destination": "3-letter IATA code",
-  "originCity": "city name",
-  "destinationCity": "city name",
-  "departDate": "YYYY-MM-DD (use ${nextWeekStart} if 'next week', ${tomorrow} if 'tomorrow', best guess for relative dates)",
-  "returnDate": "YYYY-MM-DD or empty string if one-way",
-  "cabin": "economy|premium|business|first (default business)",
-  "passengers": number (default 1, parse 'family of X', 'X people', etc),
-  "tripType": "one-way|round-trip",
-  "flexible": true if dates are flexible or 'anytime' mentioned,
-  "maxBudget": number in USD or null,
-  "maxPoints": number or null,
-  "currency": "USD" (or AED if UAE context),
-  "preferences": ["direct", "cheapest", "points", "cash", etc]
-}
-
-Airport codes: Dubai=DXB, Abu Dhabi=AUH, London=LHR, Heathrow=LHR, Gatwick=LGW, Paris=CDG, Istanbul=IST, New York=JFK, Newark=EWR, LA=LAX, Sydney=SYD, Melbourne=MEL, Tokyo=NRT/HND, Singapore=SIN, Bangkok=BKK, Bali=DPS, Maldives=MLE, Hong Kong=HKG, Kuala Lumpur=KUL, Doha=DOH, Riyadh=RUH, Jeddah=JED, Cairo=CAI, Mumbai=BOM, Delhi=DEL, Colombo=CMB, Male=MLE, San Francisco=SFO, Miami=MIA, Rome=FCO, Milan=MXP, Barcelona=BCN, Madrid=MAD, Amsterdam=AMS, Frankfurt=FRA, Zurich=ZRH, Athens=ATH, Phuket=HKT, Manila=MNL, Jakarta=CGK, Seoul=ICN, Osaka=KIX, Toronto=YYZ, Vancouver=YVR, Auckland=AKL, Johannesburg=JNB, Cape Town=CPT, Nairobi=NBO, Muscat=MCT, Bahrain=BAH, Kuwait=KWI, Trabzon=TZX, Bodrum=BJV, Antalya=AYT, Mauritius=MRU, Seychelles=SEZ
-
-JSON only, no explanation:`;
-
-  try {
-    const res = await fetch(
-      `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash-lite:generateContent?key=${GOOGLE_AI_KEY}`,
-      {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          contents: [{ parts: [{ text: prompt }] }],
-          generationConfig: { temperature: 0.1, maxOutputTokens: 500 },
-        }),
+  const lower = query.toLowerCase();
+  
+  // Parse origin and destination
+  // Split on "to", "→", "->", "–"
+  const parts = lower.split(/\s+to\s+|\s*[→\-–>]+\s*/);
+  let origin = findAirport(parts[0] || '');
+  let destination = parts.length > 1 ? findAirport(parts.slice(1).join(' ')) : null;
+  
+  // If no clear split, try to find two airports in the text
+  if (!destination) {
+    const allMatches: { code: string; city: string; pos: number }[] = [];
+    const sorted = Object.entries(AIRPORTS).sort((a, b) => b[0].length - a[0].length);
+    for (const [name, data] of sorted) {
+      const idx = lower.indexOf(name);
+      if (idx >= 0 && !allMatches.some(m => m.code === data.code)) {
+        allMatches.push({ ...data, pos: idx });
       }
-    );
-
-    if (!res.ok) {
-      const errText = await res.text();
-      return NextResponse.json({ error: 'Gemini API error', status: res.status, details: errText.slice(0, 200) }, { status: 500 });
     }
-
-    const data = await res.json();
-    const text = data.candidates?.[0]?.content?.parts?.[0]?.text || '{}';
-
-    // Extract JSON from response
-    const jsonMatch = text.match(/\{[\s\S]*\}/);
-    if (!jsonMatch) {
-      return NextResponse.json({ error: 'Failed to parse query', raw_response: text.slice(0, 200) }, { status: 500 });
+    allMatches.sort((a, b) => a.pos - b.pos);
+    if (allMatches.length >= 2) {
+      origin = { code: allMatches[0].code, city: allMatches[0].city };
+      destination = { code: allMatches[1].code, city: allMatches[1].city };
     }
-
-    const parsed: ParsedQuery = JSON.parse(jsonMatch[0]);
-
-    return NextResponse.json({ parsed, raw: query });
-  } catch (error) {
-    return NextResponse.json({ error: 'Parse failed', details: String(error) }, { status: 500 });
   }
+  
+  // Default origin to DXB
+  if (!origin) origin = { code: 'DXB', city: 'Dubai' };
+  if (!destination) destination = { code: 'LHR', city: 'London' };
+  
+  // Parse cabin class
+  let cabin = 'business';
+  if (/\b(first\s*class|first)\b/.test(lower)) cabin = 'first';
+  else if (/\b(premium\s*econ|premium)\b/.test(lower)) cabin = 'premium';
+  else if (/\b(economy|econ|cheap)\b/.test(lower)) cabin = 'economy';
+  
+  // Parse passengers
+  let passengers = 1;
+  const paxMatch = lower.match(/(\d+)\s*(people|pax|passengers|adults|person)|family\s*of\s*(\d+)/);
+  if (paxMatch) passengers = parseInt(paxMatch[1] || paxMatch[3]);
+  const coupleMatch = lower.match(/\bcouple\b|two of us/);
+  if (coupleMatch) passengers = 2;
+  
+  // Parse budget
+  let maxBudget: number | null = null;
+  const budgetMatch = lower.match(/(?:under|below|max|budget|less than)\s*\$?\s*([\d,]+)/);
+  if (budgetMatch) maxBudget = parseInt(budgetMatch[1].replace(/,/g, ''));
+  const budgetMatch2 = lower.match(/\$([\d,]+)/);
+  if (!maxBudget && budgetMatch2) maxBudget = parseInt(budgetMatch2[1].replace(/,/g, ''));
+  
+  // Parse points budget
+  let maxPoints: number | null = null;
+  const pointsMatch = lower.match(/([\d,]+)\s*k?\s*(points|miles|pts)/);
+  if (pointsMatch) {
+    maxPoints = parseInt(pointsMatch[1].replace(/,/g, ''));
+    if (lower.includes('k') && maxPoints < 1000) maxPoints *= 1000;
+  }
+  
+  // Parse date
+  const departDate = parseDate(query);
+  
+  // Parse return date
+  let returnDate = '';
+  const returnMatch = lower.match(/return(?:ing)?\s+(?:on\s+)?(.+?)(?:\s*,|\s*$)/);
+  if (returnMatch) returnDate = parseDate(returnMatch[1]);
+  
+  // Flexible?
+  const flexible = /\b(flexible|anytime|any\s*date|whenever|no fixed)\b/.test(lower);
+  
+  // Trip type
+  const tripType = returnDate || /\b(round\s*trip|return)\b/.test(lower) ? 'round-trip' : 'one-way';
+  
+  // Preferences
+  const preferences: string[] = [];
+  if (/\b(direct|nonstop|non-stop)\b/.test(lower)) preferences.push('direct');
+  if (/\b(cheap|cheapest|budget|value)\b/.test(lower)) preferences.push('cheapest');
+  if (/\b(points|miles|award)\b/.test(lower)) preferences.push('points');
+  if (/\b(cash|money)\b/.test(lower)) preferences.push('cash');
+  if (/\b(luxury|best|premium)\b/.test(lower) && cabin !== 'premium') preferences.push('luxury');
+
+  return NextResponse.json({
+    parsed: {
+      origin: origin.code,
+      destination: destination.code,
+      originCity: origin.city,
+      destinationCity: destination.city,
+      departDate,
+      returnDate,
+      cabin,
+      passengers,
+      tripType,
+      flexible,
+      maxBudget,
+      maxPoints,
+      currency: 'USD',
+      preferences,
+    },
+    raw: query,
+  });
 }
