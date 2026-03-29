@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect, Suspense } from 'react';
+import { useState, useEffect, Suspense, useCallback } from 'react';
 import { useSearchParams } from 'next/navigation';
 import Link from 'next/link';
 
@@ -19,122 +19,170 @@ const PURPLE = '#8B5CF6';
 
 type ResultTab = 'best' | 'cash' | 'points' | 'hidden' | 'empty';
 
-const TABS: { key: ResultTab; label: string; color: string; count: number }[] = [
-  { key: 'best', label: 'Best Value', color: GREEN, count: 24 },
-  { key: 'cash', label: 'Cash', color: ACCENT, count: 12 },
-  { key: 'points', label: 'Points', color: GOLD, count: 6 },
-  { key: 'hidden', label: 'Hidden City', color: PURPLE, count: 3 },
-  { key: 'empty', label: 'Empty Leg', color: GOLD, count: 2 },
-];
-
-const MOCK_RESULTS: Record<ResultTab, Array<{
-  type: string; airline: string; flight: string; price: string; priceSub?: string;
-  route: string; duration: string; stops: string; date: string; time: string;
-  badge?: string; badgeColor?: string; value?: string; warning?: string; broker?: string;
-  transferFrom?: string; cpp?: string; aircraft?: string; pax?: number;
-}>> = {
-  best: [
-    { type: 'points', airline: 'Emirates', flight: 'EK29', price: '62,500 miles + $43', priceSub: 'via Emirates Skywards', route: 'DXB → LHR', duration: '7h 30m', stops: 'Nonstop', date: 'Apr 3', time: '08:15 → 13:45', badge: 'BEST VALUE', badgeColor: GREEN, transferFrom: 'Amex MR', cpp: '4.8' },
-    { type: 'cash', airline: 'Turkish Airlines', flight: 'TK764 + TK1987', price: '$1,847', route: 'DXB → IST → LHR', duration: '14h 20m', stops: '1 stop', date: 'Apr 5', time: '02:30 → 16:50', badge: 'CHEAPEST', badgeColor: ACCENT },
-    { type: 'points', airline: 'Etihad', flight: 'EY19', price: '50,000 miles + $89', priceSub: 'via Etihad Guest', route: 'AUH → LHR', duration: '7h 45m', stops: 'Nonstop', date: 'Apr 4', time: '09:20 → 14:05', transferFrom: 'Amex MR / Citi TY', cpp: '4.2' },
-    { type: 'cash', airline: 'Emirates', flight: 'EK3', price: '$2,890', route: 'DXB → LHR', duration: '7h 10m', stops: 'Nonstop', date: 'Apr 3', time: '14:35 → 19:45', badge: 'DIRECT', badgeColor: ACCENT },
-  ],
-  cash: [
-    { type: 'cash', airline: 'Turkish Airlines', flight: 'TK764 + TK1987', price: '$1,847', route: 'DXB → IST → LHR', duration: '14h 20m', stops: '1 stop', date: 'Apr 5', time: '02:30 → 16:50', badge: 'CHEAPEST', badgeColor: GREEN },
-    { type: 'cash', airline: 'Gulf Air', flight: 'GF002 + GF003', price: '$1,920', route: 'DXB → BAH → LHR', duration: '12h 45m', stops: '1 stop', date: 'Apr 4', time: '06:00 → 18:45' },
-    { type: 'cash', airline: 'Qatar Airways', flight: 'QR1078 + QR3', price: '$2,150', route: 'DXB → DOH → LHR', duration: '11h 30m', stops: '1 stop', date: 'Apr 3', time: '08:30 → 20:00' },
-    { type: 'cash', airline: 'Emirates', flight: 'EK3', price: '$2,890', route: 'DXB → LHR', duration: '7h 10m', stops: 'Nonstop', date: 'Apr 3', time: '14:35 → 19:45' },
-    { type: 'cash', airline: 'Emirates', flight: 'EK29', price: '$3,240', route: 'DXB → LHR', duration: '7h 30m', stops: 'Nonstop', date: 'Apr 3', time: '08:15 → 13:45' },
-    { type: 'cash', airline: 'British Airways', flight: 'BA108', price: '$3,410', route: 'DXB → LHR', duration: '7h 20m', stops: 'Nonstop', date: 'Apr 4', time: '09:50 → 14:10' },
-  ],
-  points: [
-    { type: 'points', airline: 'Etihad', flight: 'EY19', price: '50,000 miles + $89', priceSub: 'via Etihad Guest', route: 'AUH → LHR', duration: '7h 45m', stops: 'Nonstop', date: 'Apr 4', time: '09:20 → 14:05', badge: 'BEST POINTS DEAL', badgeColor: GOLD, transferFrom: 'Amex MR / Citi TY', cpp: '4.2' },
-    { type: 'points', airline: 'Emirates', flight: 'EK29', price: '62,500 miles + $43', priceSub: 'via Emirates Skywards', route: 'DXB → LHR', duration: '7h 30m', stops: 'Nonstop', date: 'Apr 3', time: '08:15 → 13:45', transferFrom: 'Amex MR', cpp: '4.8' },
-    { type: 'points', airline: 'Turkish Airlines', flight: 'TK764', price: '45,000 miles + $120', priceSub: 'via Miles&Smiles', route: 'DXB → IST → LHR', duration: '14h 20m', stops: '1 stop', date: 'Apr 5', time: '02:30 → 16:50', transferFrom: 'Citi TY', cpp: '3.8' },
-    { type: 'points', airline: 'Aeroplan', flight: 'AC856 (EK codeshare)', price: '70,000 pts + $65', priceSub: 'via Aeroplan', route: 'DXB → LHR', duration: '7h 10m', stops: 'Nonstop', date: 'Apr 3', time: '14:35 → 19:45', transferFrom: 'Amex MR', cpp: '3.9' },
-  ],
-  hidden: [
-    { type: 'hidden', airline: 'British Airways', flight: 'BA117', price: '$1,412', priceSub: 'Save $435 vs direct', route: 'DXB → LHR → JFK', duration: '7h 20m to LHR', stops: 'Exit at LHR', date: 'Apr 4', time: '09:50 → 14:10', badge: 'HIDDEN CITY', badgeColor: PURPLE, warning: '⚠ Carry-on only. No checked bags. Do not book round-trip.' },
-    { type: 'hidden', airline: 'Emirates', flight: 'EK1 + EK201', price: '$2,180', priceSub: 'Save $710 vs direct business', route: 'DXB → LHR → MAN', duration: '7h 30m to LHR', stops: 'Exit at LHR', date: 'Apr 3', time: '08:15 → 13:45', badge: 'HIDDEN CITY', badgeColor: PURPLE, warning: '⚠ Business class. Carry-on only. Risky for frequent flyers — airline may flag.' },
-  ],
-  empty: [
-    { type: 'empty', airline: '', flight: '', price: '$4,200', priceSub: 'Up to 8 passengers', route: 'DXB → LTN', duration: '7h 15m', stops: 'Nonstop', date: 'Apr 2', time: 'Departs 11:00', badge: 'EMPTY LEG', badgeColor: GOLD, broker: 'LunaJets', aircraft: 'Citation X', pax: 8 },
-    { type: 'empty', airline: '', flight: '', price: '$5,800', priceSub: 'Up to 12 passengers', route: 'DXB → LHR', duration: '7h 30m', stops: 'Nonstop', date: 'Apr 5', time: 'Departs 09:00', badge: 'EMPTY LEG', badgeColor: GOLD, broker: 'PrivateFly', aircraft: 'Challenger 350', pax: 12 },
-  ],
+// Airline booking URLs
+const AIRLINE_BOOK_URLS: Record<string, string> = {
+  'Emirates': 'https://www.emirates.com/ae/english/manage-booking/redeem-miles/',
+  'Etihad': 'https://www.etihad.com/en-ae/manage/redeem-miles',
+  'Qatar Airways': 'https://www.qatarairways.com/en/Privilege-Club/use-qmiles.html',
+  'Turkish Airlines': 'https://www.turkishairlines.com/en-int/miles-and-smiles/',
+  'Singapore Airlines': 'https://www.singaporeair.com/en_UK/ppsclub-krisflyer/use-miles/',
+  'British Airways': 'https://www.britishairways.com/travel/redeem/execclub/',
+  'Virgin Atlantic': 'https://www.virginatlantic.com/flying-club/spend-miles',
+  'Air Canada': 'https://www.aircanada.com/aeroplan/redeem',
+  'United': 'https://www.united.com/ual/en/us/flight-search/book-a-flight/results/rev',
+  'American Airlines': 'https://www.aa.com/booking/find-flights',
+  'Alaska': 'https://www.alaskaair.com/planbook',
+  'Qantas': 'https://www.qantas.com/au/en/book-a-trip/flights/classic-flight-rewards.html',
+  'Cathay Pacific': 'https://www.cathaypacific.com/cx/en_HK/book-a-trip/redeem-flights.html',
+  'Lufthansa': 'https://www.lufthansa.com/de/en/award-flights',
+  'ANA': 'https://www.ana.co.jp/en/us/amc/award-reservation/',
 };
 
-function ResultCard({ r }: { r: typeof MOCK_RESULTS['best'][0] }) {
+const PROGRAM_NAMES: Record<string, string> = {
+  'emirates': 'Emirates Skywards',
+  'etihad': 'Etihad Guest',
+  'turkish': 'Miles&Smiles',
+  'virgin_atlantic': 'Virgin Atlantic Flying Club',
+  'singapore': 'KrisFlyer',
+  'aeroplan': 'Aeroplan',
+  'united': 'United MileagePlus',
+  'american': 'AAdvantage',
+  'alaska': 'Alaska Mileage Plan',
+  'qantas': 'Qantas Frequent Flyer',
+  'cathay': 'Asia Miles',
+  'lufthansa': 'Miles & More',
+};
+
+interface AwardResult {
+  id: string;
+  type: 'points';
+  airline: string;
+  airlineCode: string;
+  route: string;
+  origin: string;
+  destination: string;
+  date: string;
+  cabin: string;
+  miles: number;
+  taxes: number;
+  taxesCurrency: string;
+  seats: number;
+  isDirect: boolean;
+  source: string;
+  program: string;
+  transferFrom: string[];
+}
+
+function formatDate(dateStr: string): string {
+  const d = new Date(dateStr + 'T00:00:00');
+  return d.toLocaleDateString('en-GB', { weekday: 'short', day: 'numeric', month: 'short' });
+}
+
+function timeAgo(dateStr: string): string {
+  const diff = Date.now() - new Date(dateStr).getTime();
+  const hours = Math.floor(diff / 3600000);
+  if (hours < 1) return 'just now';
+  if (hours < 24) return `${hours}h ago`;
+  return `${Math.floor(hours / 24)}d ago`;
+}
+
+function getBookUrl(airline: string, origin: string, destination: string, date: string): string {
+  return AIRLINE_BOOK_URLS[airline] || `https://www.google.com/travel/flights?q=${origin}+to+${destination}+${date}`;
+}
+
+function ResultCard({ r, passengers }: { r: AwardResult; passengers: number }) {
+  const bookUrl = getBookUrl(r.airline, r.origin, r.destination, r.date);
+  const totalMiles = r.miles * passengers;
+  const totalTaxes = r.taxes * passengers;
+
   return (
     <div style={{
       background: BG_CARD, border: `1px solid ${BORDER}`, borderRadius: '14px',
-      padding: '16px', marginBottom: '10px', transition: 'border-color 0.15s',
-      cursor: 'pointer',
+      padding: '16px', marginBottom: '10px',
     }}>
-      {/* Badge */}
-      {r.badge && (
-        <div style={{
-          fontSize: '10px', fontWeight: 700, color: r.badgeColor, letterSpacing: '0.06em',
-          marginBottom: '8px', textTransform: 'uppercase',
-        }}>{r.badge}</div>
-      )}
+      {/* Top badge row */}
+      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '8px' }}>
+        <div style={{ display: 'flex', gap: '6px', alignItems: 'center' }}>
+          {r.isDirect && (
+            <span style={{ fontSize: '9px', fontWeight: 700, color: GREEN, background: `${GREEN}15`, padding: '2px 8px', borderRadius: '4px', letterSpacing: '0.04em' }}>DIRECT</span>
+          )}
+          <span style={{ fontSize: '9px', fontWeight: 600, color: GOLD, background: `${GOLD}10`, padding: '2px 8px', borderRadius: '4px' }}>
+            {r.program}
+          </span>
+        </div>
+        <span style={{ fontSize: '10px', color: TEXT_DIM }}>
+          {r.seats} seat{r.seats !== 1 ? 's' : ''} left
+        </span>
+      </div>
 
-      {/* Main row */}
+      {/* Airline + route */}
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: '8px' }}>
         <div>
-          <div style={{ fontSize: '15px', fontWeight: 700, color: TEXT_LIGHT }}>
-            {r.aircraft ? r.aircraft : r.airline} {r.flight && <span style={{ color: TEXT_DIM, fontWeight: 500 }}>{r.flight}</span>}
+          <div style={{ fontSize: '16px', fontWeight: 700, color: TEXT_LIGHT }}>
+            {r.airline} <span style={{ color: TEXT_DIM, fontWeight: 500, fontSize: '13px' }}>{r.airlineCode}</span>
           </div>
           <div style={{ fontSize: '13px', color: TEXT_MID, marginTop: '2px' }}>
-            {r.route} · {r.stops}
+            {r.origin} → {r.destination} · {r.isDirect ? 'Nonstop' : 'Connecting'} · {r.cabin}
           </div>
-        </div>
-        <div style={{ textAlign: 'right' }}>
-          <div style={{ fontFamily: mono, fontSize: '18px', fontWeight: 700, color: r.type === 'points' ? GOLD : r.type === 'hidden' ? PURPLE : TEXT_LIGHT }}>
-            {r.price}
-          </div>
-          {r.priceSub && <div style={{ fontSize: '11px', color: TEXT_DIM }}>{r.priceSub}</div>}
         </div>
       </div>
 
-      {/* Details */}
-      <div style={{ display: 'flex', gap: '16px', fontSize: '12px', color: TEXT_DIM }}>
-        <span>{r.date}</span>
-        <span>{r.time}</span>
-        <span>{r.duration}</span>
+      {/* Date */}
+      <div style={{ fontSize: '12px', color: TEXT_DIM, marginBottom: '10px' }}>
+        {formatDate(r.date)}
       </div>
 
-      {/* Transfer info for points */}
-      {r.transferFrom && (
-        <div style={{ marginTop: '8px', padding: '8px 10px', background: `${GOLD}08`, border: `1px solid ${GOLD}20`, borderRadius: '8px', fontSize: '11px' }}>
-          <span style={{ color: GOLD, fontWeight: 600 }}>Transfer from: {r.transferFrom}</span>
-          {r.cpp && <span style={{ color: TEXT_DIM, marginLeft: '8px' }}>· {r.cpp} cpp value</span>}
+      {/* Pricing — per person + total */}
+      <div style={{ background: `${GOLD}06`, border: `1px solid ${GOLD}15`, borderRadius: '10px', padding: '12px', marginBottom: '10px' }}>
+        <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '6px' }}>
+          <span style={{ fontSize: '12px', color: TEXT_DIM }}>Per person</span>
+          <span style={{ fontFamily: mono, fontSize: '16px', fontWeight: 700, color: GOLD }}>
+            {r.miles.toLocaleString()} miles + ${r.taxes.toFixed(0)}
+          </span>
+        </div>
+        {passengers > 1 && (
+          <div style={{ display: 'flex', justifyContent: 'space-between', paddingTop: '6px', borderTop: `1px solid ${GOLD}15` }}>
+            <span style={{ fontSize: '12px', color: TEXT_DIM }}>Total ({passengers} pax)</span>
+            <span style={{ fontFamily: mono, fontSize: '14px', fontWeight: 600, color: TEXT_LIGHT }}>
+              {totalMiles.toLocaleString()} miles + ${totalTaxes.toFixed(0)}
+            </span>
+          </div>
+        )}
+      </div>
+
+      {/* Transfer info */}
+      {r.transferFrom.length > 0 && (
+        <div style={{ fontSize: '11px', color: TEXT_DIM, marginBottom: '10px' }}>
+          Transfer from: <span style={{ color: ACCENT }}>{r.transferFrom.join(', ')}</span>
         </div>
       )}
 
-      {/* Warning for hidden city */}
-      {r.warning && (
-        <div style={{ marginTop: '8px', padding: '8px 10px', background: `${RED}08`, border: `1px solid ${RED}20`, borderRadius: '8px', fontSize: '11px', color: RED }}>
-          {r.warning}
-        </div>
-      )}
-
-      {/* Broker for empty legs */}
-      {r.broker && (
-        <div style={{ marginTop: '8px', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-          <span style={{ fontSize: '11px', color: GOLD }}>via {r.broker}</span>
-          {r.pax && <span style={{ fontSize: '11px', color: TEXT_DIM }}>${Math.round(parseInt(r.price.replace(/[$,]/g, '')) / r.pax)}/person if split</span>}
-        </div>
-      )}
-
-      {/* Book CTA */}
-      <div style={{ marginTop: '10px', display: 'flex', justifyContent: 'flex-end' }}>
-        <button style={{
-          background: r.type === 'empty' ? GOLD : ACCENT, border: 'none', borderRadius: '8px',
-          padding: '8px 16px', color: r.type === 'empty' ? '#000' : '#fff',
-          fontSize: '12px', fontWeight: 600, cursor: 'pointer',
-        }}>
-          {r.type === 'empty' ? 'Inquire →' : r.type === 'hidden' ? 'Details →' : 'Book →'}
-        </button>
+      {/* Actions */}
+      <div style={{ display: 'flex', gap: '8px' }}>
+        <a
+          href={bookUrl}
+          target="_blank"
+          rel="noopener noreferrer"
+          style={{
+            flex: 1, display: 'block', textAlign: 'center',
+            background: ACCENT, border: 'none', borderRadius: '8px', padding: '10px',
+            color: '#fff', fontSize: '13px', fontWeight: 600, textDecoration: 'none',
+          }}
+        >
+          Book on {r.airline} →
+        </a>
+        <a
+          href={`https://seats.aero`}
+          target="_blank"
+          rel="noopener noreferrer"
+          style={{
+            display: 'flex', alignItems: 'center', justifyContent: 'center',
+            background: `${TEXT_DIM}15`, border: `1px solid ${BORDER}`, borderRadius: '8px',
+            padding: '10px 14px', color: TEXT_MID, fontSize: '12px', fontWeight: 500, textDecoration: 'none',
+          }}
+        >
+          Verify
+        </a>
       </div>
     </div>
   );
@@ -143,12 +191,92 @@ function ResultCard({ r }: { r: typeof MOCK_RESULTS['best'][0] }) {
 function SearchResults() {
   const searchParams = useSearchParams();
   const q = searchParams.get('q') || '';
-  const [tab, setTab] = useState<ResultTab>('best');
+  const [tab, setTab] = useState<ResultTab>('points');
   const [loading, setLoading] = useState(true);
+  const [results, setResults] = useState<AwardResult[]>([]);
+  const [meta, setMeta] = useState<{ totalAwards: number; sourcesSearched: number; timestamp: string } | null>(null);
+  const [passengers, setPassengers] = useState(1);
 
-  useEffect(() => { setTimeout(() => setLoading(false), 1500); }, []);
+  // Parse passenger count from query
+  useEffect(() => {
+    const paxMatch = q.match(/(\d+)\s*(people|pax|passengers|person|adults?|travellers?)/i);
+    if (paxMatch) setPassengers(parseInt(paxMatch[1]));
+    const familyMatch = q.match(/family\s*(?:of\s*)?(\d+)/i);
+    if (familyMatch) setPassengers(parseInt(familyMatch[1]));
+  }, [q]);
 
-  const results = MOCK_RESULTS[tab] || [];
+  // Parse origin/destination from query and search
+  const doSearch = useCallback(async () => {
+    setLoading(true);
+    
+    // Simple parser — extract airport codes or city names
+    const upperQ = q.toUpperCase();
+    
+    // Try to find 3-letter airport codes
+    const codeMatch = upperQ.match(/\b([A-Z]{3})\b.*?\b(?:TO|→|->)\b.*?\b([A-Z]{3})\b/);
+    let origin = 'DXB';
+    let destination = 'LHR';
+    
+    if (codeMatch) {
+      origin = codeMatch[1];
+      destination = codeMatch[2];
+    } else {
+      // City name mapping
+      const cityMap: Record<string, string> = {
+        'DUBAI': 'DXB', 'LONDON': 'LHR', 'SYDNEY': 'SYD', 'TOKYO': 'NRT', 'BALI': 'DPS',
+        'NEW YORK': 'JFK', 'PARIS': 'CDG', 'ISTANBUL': 'IST', 'SINGAPORE': 'SIN', 'BANGKOK': 'BKK',
+        'MELBOURNE': 'MEL', 'HONG KONG': 'HKG', 'KUALA LUMPUR': 'KUL', 'DOHA': 'DOH',
+        'ABU DHABI': 'AUH', 'RIYADH': 'RUH', 'JEDDAH': 'JED', 'CAIRO': 'CAI',
+        'MUMBAI': 'BOM', 'DELHI': 'DEL', 'COLOMBO': 'CMB', 'MALE': 'MLE', 'MALDIVES': 'MLE',
+        'LOS ANGELES': 'LAX', 'SAN FRANCISCO': 'SFO', 'MIAMI': 'MIA', 'ROME': 'FCO',
+        'MILAN': 'MXP', 'BARCELONA': 'BCN', 'MADRID': 'MAD', 'AMSTERDAM': 'AMS',
+        'FRANKFURT': 'FRA', 'ZURICH': 'ZRH', 'ATHENS': 'ATH', 'PHUKET': 'HKT',
+        'MANILA': 'MNL', 'JAKARTA': 'CGK', 'SEOUL': 'ICN', 'OSAKA': 'KIX',
+        'TORONTO': 'YYZ', 'VANCOUVER': 'YVR', 'AUCKLAND': 'AKL',
+      };
+      
+      for (const [city, code] of Object.entries(cityMap)) {
+        if (upperQ.includes(city)) {
+          // Determine if it's origin or destination based on position
+          const idx = upperQ.indexOf(city);
+          const toIdx = upperQ.search(/\bTO\b|\b→\b|\b->\b/);
+          if (toIdx > -1 && idx < toIdx) origin = code;
+          else if (toIdx > -1) destination = code;
+          else if (!codeMatch) destination = code; // Default: if only one city mentioned, it's destination
+        }
+      }
+    }
+
+    // Detect cabin
+    let cabin = 'business';
+    if (/economy|eco\b/i.test(q)) cabin = 'economy';
+    if (/first\s*class|first\b/i.test(q)) cabin = 'first';
+    if (/premium\s*eco/i.test(q)) cabin = 'premium';
+
+    try {
+      const res = await fetch(`/api/search?origin=${origin}&destination=${destination}&cabin=${cabin}`);
+      const data = await res.json();
+      setResults(data.results?.awards || []);
+      setMeta(data.meta || null);
+    } catch (e) {
+      console.error('Search failed:', e);
+    }
+    setLoading(false);
+  }, [q]);
+
+  useEffect(() => { doSearch(); }, [doSearch]);
+
+  // Derive origin/destination for display
+  const displayOrigin = results[0]?.origin || 'DXB';
+  const displayDest = results[0]?.destination || '???';
+  const displayCabin = results[0]?.cabin || 'Business';
+
+  const TABS_DATA: { key: ResultTab; label: string; color: string; count: number }[] = [
+    { key: 'points', label: 'Award Flights', color: GOLD, count: results.length },
+    { key: 'cash', label: 'Cash Fares', color: ACCENT, count: 0 },
+    { key: 'hidden', label: 'Hidden City', color: PURPLE, count: 0 },
+    { key: 'empty', label: 'Empty Legs', color: GOLD, count: 0 },
+  ];
 
   return (
     <div style={{ minHeight: '100vh', background: BG_DARK }}>
@@ -160,22 +288,25 @@ function SearchResults() {
       }}>
         <Link href="/" style={{ color: TEXT_MID, textDecoration: 'none', fontSize: '20px' }}>←</Link>
         <div style={{ flex: 1 }}>
-          <div style={{ fontSize: '15px', fontWeight: 700, color: TEXT_LIGHT }}>DXB → LHR</div>
-          <div style={{ fontSize: '12px', color: TEXT_DIM }}>Business · Apr 2–5 · {TABS.reduce((s, t) => s + t.count, 0)} results</div>
+          <div style={{ fontSize: '15px', fontWeight: 700, color: TEXT_LIGHT }}>{displayOrigin} → {displayDest}</div>
+          <div style={{ fontSize: '12px', color: TEXT_DIM }}>{displayCabin} · {passengers} pax · {results.length} results</div>
         </div>
-        <button style={{ background: `${ACCENT}15`, border: `1px solid ${ACCENT}30`, borderRadius: '8px', padding: '6px 12px', color: ACCENT, fontSize: '11px', fontWeight: 600, cursor: 'pointer' }}>
-          🔔 Alert
-        </button>
       </header>
 
-      {/* Parsed query confirmation */}
-      <div style={{ padding: '12px 20px', background: BG_CARD, borderBottom: `1px solid ${BORDER}`, fontSize: '12px', color: TEXT_DIM }}>
-        <span style={{ color: TEXT_MID }}>Understood:</span> "{q}" → <span style={{ color: ACCENT }}>DXB</span> to <span style={{ color: ACCENT }}>LHR</span>, <span style={{ color: GOLD }}>Business Class</span>, next week, under $3,000 or 80K points
+      {/* Query interpretation */}
+      <div style={{ padding: '10px 20px', background: BG_CARD, borderBottom: `1px solid ${BORDER}`, fontSize: '12px', color: TEXT_DIM }}>
+        <span style={{ color: TEXT_MID }}>Search:</span> &ldquo;{q}&rdquo;
+        {meta && <span style={{ marginLeft: '12px' }}>· {meta.sourcesSearched} programs searched</span>}
+      </div>
+
+      {/* Disclaimer */}
+      <div style={{ padding: '8px 20px', background: `${GOLD}08`, borderBottom: `1px solid ${GOLD}15`, fontSize: '11px', color: GOLD }}>
+        ⚠ Award availability is cached. Always verify on the airline website before booking.
       </div>
 
       {/* Tabs */}
       <div style={{ display: 'flex', gap: '0', overflowX: 'auto', borderBottom: `1px solid ${BORDER}`, padding: '0 20px' }}>
-        {TABS.map(t => (
+        {TABS_DATA.map(t => (
           <button key={t.key} onClick={() => setTab(t.key)} style={{
             padding: '12px 16px', background: 'none', border: 'none', cursor: 'pointer',
             fontSize: '13px', fontWeight: tab === t.key ? 700 : 500, whiteSpace: 'nowrap',
@@ -189,19 +320,43 @@ function SearchResults() {
       </div>
 
       {/* Results */}
-      <div style={{ padding: '16px 20px' }}>
+      <div style={{ padding: '16px 20px', maxWidth: '700px' }}>
         {loading ? (
           <div style={{ textAlign: 'center', padding: '60px 0' }}>
             <div style={{ fontSize: '28px', marginBottom: '12px' }}>✈️</div>
-            <div style={{ fontSize: '14px', color: TEXT_MID, marginBottom: '8px' }}>Searching across all sources...</div>
-            <div style={{ display: 'flex', justifyContent: 'center', gap: '8px', fontSize: '11px', color: TEXT_DIM }}>
-              <span>Google Flights ✓</span>
-              <span>Seats.aero ⏳</span>
-              <span>Empty Legs ⏳</span>
+            <div style={{ fontSize: '14px', color: TEXT_MID, marginBottom: '8px' }}>Searching across all programs...</div>
+            <div style={{ display: 'flex', justifyContent: 'center', gap: '8px', fontSize: '11px', color: TEXT_DIM, flexWrap: 'wrap' }}>
+              {['Emirates', 'Etihad', 'Turkish', 'Singapore', 'Aeroplan', 'United', 'Qantas'].map(a => (
+                <span key={a}>{a} ⏳</span>
+              ))}
             </div>
           </div>
+        ) : tab === 'points' ? (
+          results.length > 0 ? (
+            <>
+              {results.map((r) => <ResultCard key={r.id} r={r} passengers={passengers} />)}
+              {meta && (
+                <div style={{ textAlign: 'center', padding: '16px 0', fontSize: '11px', color: TEXT_DIM }}>
+                  Data from Seats.aero · Last updated: {timeAgo(meta.timestamp)}
+                </div>
+              )}
+            </>
+          ) : (
+            <div style={{ textAlign: 'center', padding: '60px 0' }}>
+              <div style={{ fontSize: '28px', marginBottom: '12px' }}>😔</div>
+              <div style={{ fontSize: '14px', color: TEXT_MID }}>No award availability found for this route.</div>
+              <div style={{ fontSize: '12px', color: TEXT_DIM, marginTop: '8px' }}>Try different dates or check nearby airports.</div>
+            </div>
+          )
         ) : (
-          results.map((r, i) => <ResultCard key={i} r={r} />)
+          <div style={{ textAlign: 'center', padding: '60px 0' }}>
+            <div style={{ fontSize: '28px', marginBottom: '12px' }}>{tab === 'cash' ? '💰' : tab === 'hidden' ? '🔍' : '✈️'}</div>
+            <div style={{ fontSize: '14px', color: TEXT_MID }}>
+              {tab === 'cash' ? 'Cash fare search coming soon — wiring Google Flights API' :
+               tab === 'hidden' ? 'Hidden city detection coming soon' :
+               'Empty leg search coming soon'}
+            </div>
+          </div>
         )}
       </div>
     </div>
