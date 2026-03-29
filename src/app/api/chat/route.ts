@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 
+const GOOGLE_AI_KEY = process.env.GOOGLE_AI_API_KEY || '';
 const ANTHROPIC_KEY = process.env.ANTHROPIC_API_KEY || '';
 
 interface Message {
@@ -54,6 +55,65 @@ AIRPORT KNOWLEDGE:
 
 TONE: Knowledgeable, direct, slightly enthusiastic about finding deals. Like a friend who's obsessed with travel hacking.`;
 
+async function callGemini(messages: Message[]): Promise<{ text: string }> {
+  // Build Gemini-style contents
+  const contents = messages.map(m => ({
+    role: m.role === 'assistant' ? 'model' : 'user',
+    parts: [{ text: m.content }],
+  }));
+  
+  // Prepend system instruction as first user message if needed
+  const body = {
+    system_instruction: { parts: [{ text: SYSTEM_PROMPT }] },
+    contents,
+    generationConfig: { maxOutputTokens: 300, temperature: 0.7 },
+  };
+
+  const res = await fetch(
+    `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash-lite:generateContent?key=${GOOGLE_AI_KEY}`,
+    {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(body),
+    }
+  );
+
+  if (!res.ok) {
+    const err = await res.text();
+    throw new Error(`Gemini error ${res.status}: ${err}`);
+  }
+
+  const data = await res.json();
+  const text = data.candidates?.[0]?.content?.parts?.[0]?.text || '';
+  return { text };
+}
+
+async function callAnthropic(messages: Message[]): Promise<{ text: string }> {
+  const res = await fetch('https://api.anthropic.com/v1/messages', {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+      'x-api-key': ANTHROPIC_KEY,
+      'anthropic-version': '2023-06-01',
+    },
+    body: JSON.stringify({
+      model: 'claude-haiku-4-5-20251001',
+      max_tokens: 300,
+      system: SYSTEM_PROMPT,
+      messages: messages.map(m => ({ role: m.role, content: m.content })),
+    }),
+  });
+
+  if (!res.ok) {
+    const err = await res.text();
+    throw new Error(`Anthropic error ${res.status}: ${err}`);
+  }
+
+  const data = await res.json();
+  const text = data.content?.[0]?.text || '';
+  return { text };
+}
+
 export async function POST(request: NextRequest) {
   try {
     const { messages }: { messages: Message[] } = await request.json();
@@ -62,29 +122,31 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: 'No messages provided' }, { status: 400 });
     }
 
-    const response = await fetch('https://api.anthropic.com/v1/messages', {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        'x-api-key': ANTHROPIC_KEY,
-        'anthropic-version': '2023-06-01',
-      },
-      body: JSON.stringify({
-        model: 'claude-haiku-4-5-20251001',
-        max_tokens: 300,
-        system: SYSTEM_PROMPT,
-        messages: messages.map(m => ({ role: m.role, content: m.content })),
-      }),
-    });
-
-    if (!response.ok) {
-      const err = await response.text();
-      console.error('Anthropic error:', err);
-      return NextResponse.json({ error: 'AI service error', details: err }, { status: response.status });
+    // Try Gemini first (free), fall back to Anthropic
+    let text = '';
+    try {
+      if (GOOGLE_AI_KEY) {
+        const result = await callGemini(messages);
+        text = result.text;
+      } else if (ANTHROPIC_KEY) {
+        const result = await callAnthropic(messages);
+        text = result.text;
+      } else {
+        return NextResponse.json({ error: 'No AI API key configured' }, { status: 500 });
+      }
+    } catch (primaryError) {
+      // Fall back to the other provider
+      try {
+        if (GOOGLE_AI_KEY && ANTHROPIC_KEY) {
+          const result = await callAnthropic(messages);
+          text = result.text;
+        } else {
+          throw primaryError;
+        }
+      } catch {
+        return NextResponse.json({ error: 'AI service unavailable', details: String(primaryError) }, { status: 500 });
+      }
     }
-
-    const data = await response.json();
-    const text = data.content?.[0]?.text || '';
 
     // Extract search block if present
     const searchMatch = text.match(/```SEARCH\n([\s\S]*?)\n```/);
@@ -94,7 +156,6 @@ export async function POST(request: NextRequest) {
     if (searchMatch) {
       try {
         searchParams = JSON.parse(searchMatch[1]);
-        // Remove the search block from display text
         displayText = text.replace(/```SEARCH\n[\s\S]*?\n```/, '').trim();
       } catch { /* ignore parse errors */ }
     }
