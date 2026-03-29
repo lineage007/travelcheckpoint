@@ -109,9 +109,43 @@ interface CashResult {
 
 async function searchCashFlights(origin: string, destination: string, date: string, cabin: string): Promise<CashResult[]> {
   const departDate = date || new Date(Date.now() + 7 * 86400000).toISOString().split('T')[0];
-  const serpApiKey = process.env.SERPAPI_KEY || '';
   
-  // SerpAPI Google Flights — real prices from Google Flights
+  // PRIMARY: Self-hosted fast-flights API (London VPS)
+  const cashApiUrl = process.env.CASH_FLIGHTS_API_URL;
+  if (cashApiUrl) {
+    try {
+      const res = await fetch(`${cashApiUrl}/search?origin=${origin}&destination=${destination}&date=${departDate}&cabin=${cabin}&currency=USD`, {
+        signal: AbortSignal.timeout(25000),
+      });
+      if (res.ok) {
+        const data = await res.json();
+        return (data.flights || []).map((f: Record<string, unknown>, i: number): CashResult => {
+          const priceStr = String(f.price || '').replace(/[^\d]/g, '');
+          const priceNum = parseInt(priceStr) || 0;
+          return {
+            id: `cash-${i}`,
+            type: 'cash' as const,
+            airline: String(f.name || 'Multiple Airlines'),
+            flights: '',
+            route: `${origin} → ${destination}`,
+            origin, destination,
+            price: priceNum,
+            currency: 'USD',
+            departureTime: String(f.departure || ''),
+            arrivalTime: String(f.arrival || ''),
+            duration: String(f.duration || ''),
+            stops: typeof f.stops === 'number' ? f.stops : (String(f.stops || '').includes('Nonstop') ? 0 : 1),
+            date: departDate,
+            cabin: cabin.charAt(0).toUpperCase() + cabin.slice(1),
+            bookingUrl: `https://www.google.com/travel/flights?q=${origin}+to+${destination}+${departDate}+${cabin}`,
+          };
+        }).filter((f: CashResult) => f.price > 0).sort((a: CashResult, b: CashResult) => a.price - b.price);
+      }
+    } catch { /* fall through to SerpAPI */ }
+  }
+
+  // FALLBACK: SerpAPI Google Flights
+  const serpApiKey = process.env.SERPAPI_KEY || '';
   if (serpApiKey) {
     try {
       const travelClass = cabin === 'first' ? 4 : cabin === 'business' ? 3 : cabin === 'premium' ? 2 : 1;
