@@ -146,16 +146,60 @@ function Card({ children, delay = 0, leftBorder, style = {} }: { children: React
   );
 }
 
+interface ChatMessage {
+  role: 'user' | 'assistant';
+  content: string;
+  searchParams?: {
+    origin: string; destination: string; date: string; cabin: string;
+    passengers: number; returnDate?: string | null; alternatives?: string[];
+  } | null;
+}
+
 export default function TravelCheckpoint() {
   const router = useRouter();
   const [activeChip, setActiveChip] = useState(0);
   const [query, setQuery] = useState('');
   const [searchFocused, setSearchFocused] = useState(false);
   const [activeTab, setActiveTab] = useState(0);
+  const [chatMessages, setChatMessages] = useState<ChatMessage[]>([]);
+  const [chatOpen, setChatOpen] = useState(false);
+  const [chatLoading, setChatLoading] = useState(false);
 
-  const handleSearch = () => {
+  const handleSearch = async () => {
     if (!query.trim()) return;
-    router.push(`/search?q=${encodeURIComponent(query)}`);
+    const userMsg: ChatMessage = { role: 'user', content: query };
+    const newMessages = [...chatMessages, userMsg];
+    setChatMessages(newMessages);
+    setChatOpen(true);
+    setQuery('');
+    setChatLoading(true);
+
+    try {
+      const res = await fetch('/api/chat', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ messages: newMessages.map(m => ({ role: m.role, content: m.content })) }),
+      });
+      const data = await res.json();
+      const assistantMsg: ChatMessage = {
+        role: 'assistant',
+        content: data.message || 'Sorry, something went wrong.',
+        searchParams: data.searchParams || null,
+      };
+      setChatMessages(prev => [...prev, assistantMsg]);
+
+      // If search params returned, auto-navigate after a brief pause
+      if (data.searchParams) {
+        const p = data.searchParams;
+        setTimeout(() => {
+          const searchQ = `${p.origin} to ${p.destination} ${p.cabin} ${p.passengers > 1 ? p.passengers + ' people' : ''}`.trim();
+          router.push(`/search?q=${encodeURIComponent(searchQ)}&origin=${p.origin}&dest=${p.destination}&date=${p.date}&cabin=${p.cabin}&pax=${p.passengers}${p.alternatives?.length ? '&alt=' + p.alternatives.join(',') : ''}`);
+        }, 2000);
+      }
+    } catch {
+      setChatMessages(prev => [...prev, { role: 'assistant', content: 'Connection error. Try again.' }]);
+    }
+    setChatLoading(false);
   };
 
   const [showMore, setShowMore] = useState(false);
@@ -164,17 +208,13 @@ export default function TravelCheckpoint() {
     setActiveTab(i);
     setShowMore(false);
     if (i === 0) {
-      // Search — scroll to top & focus search
       window.scrollTo({ top: 0, behavior: 'smooth' });
       setTimeout(() => document.getElementById('search-input')?.focus(), 400);
     } else if (i === 1) {
-      // Stay — navigate to stays page
       router.push('/stays');
     } else if (i === 2) {
-      // Alerts — scroll to alerts section
       document.getElementById('price-alerts')?.scrollIntoView({ behavior: 'smooth', block: 'start' });
     } else if (i === 3) {
-      // More — toggle menu
       setShowMore(prev => !prev);
     }
   };
@@ -332,6 +372,97 @@ export default function TravelCheckpoint() {
             <Chip key={c} label={c} active={activeChip === i} onClick={() => setActiveChip(i)} />
           ))}
         </div>
+
+        {/* AI Chat Panel */}
+        {chatOpen && (
+          <div style={{
+            background: COLORS.bgSurface,
+            border: `1px solid ${COLORS.border}`,
+            borderRadius: 16,
+            marginTop: 12,
+            marginBottom: 8,
+            overflow: 'hidden',
+            animation: 'fadeIn 0.3s ease both',
+          }}>
+            <div style={{
+              padding: '12px 16px 8px',
+              borderBottom: `1px solid ${COLORS.border}`,
+              display: 'flex', justifyContent: 'space-between', alignItems: 'center',
+            }}>
+              <span style={{
+                fontSize: 11, fontWeight: 700, letterSpacing: '0.08em',
+                textTransform: 'uppercase', color: COLORS.accent,
+              }}>AI Search Assistant</span>
+              <button onClick={() => { setChatOpen(false); setChatMessages([]); }} style={{
+                background: 'none', border: 'none', cursor: 'pointer',
+                fontSize: 13, color: COLORS.textTertiary, fontWeight: 600,
+              }}>Clear ✕</button>
+            </div>
+            <div style={{ padding: '12px 16px', maxHeight: 320, overflowY: 'auto' }}>
+              {chatMessages.map((msg, i) => (
+                <div key={i} style={{
+                  marginBottom: 12,
+                  display: 'flex',
+                  justifyContent: msg.role === 'user' ? 'flex-end' : 'flex-start',
+                }}>
+                  <div style={{
+                    maxWidth: '85%',
+                    padding: '10px 14px',
+                    borderRadius: msg.role === 'user' ? '14px 14px 4px 14px' : '14px 14px 14px 4px',
+                    background: msg.role === 'user' ? COLORS.accent : '#fff',
+                    color: msg.role === 'user' ? '#fff' : COLORS.textPrimary,
+                    fontSize: 14, lineHeight: 1.5,
+                    fontFamily: "'DM Sans', sans-serif",
+                    border: msg.role === 'assistant' ? `1px solid ${COLORS.border}` : 'none',
+                  }}>
+                    {msg.content}
+                    {msg.searchParams && (
+                      <div style={{
+                        marginTop: 10, padding: '10px 12px',
+                        background: COLORS.accentLight,
+                        borderRadius: 10,
+                        fontFamily: "'JetBrains Mono', monospace",
+                        fontSize: 12,
+                        color: COLORS.accent,
+                      }}>
+                        <div style={{ fontWeight: 700, marginBottom: 4 }}>✈ Searching now...</div>
+                        <div>{msg.searchParams.origin} → {msg.searchParams.destination}</div>
+                        <div>{msg.searchParams.date} · {msg.searchParams.cabin} · {msg.searchParams.passengers} pax</div>
+                        {msg.searchParams.alternatives && msg.searchParams.alternatives.length > 0 && (
+                          <div style={{ marginTop: 4, fontSize: 11, opacity: 0.8 }}>
+                            Also checking: {msg.searchParams.alternatives.join(', ')}
+                          </div>
+                        )}
+                      </div>
+                    )}
+                  </div>
+                </div>
+              ))}
+              {chatLoading && (
+                <div style={{
+                  display: 'flex', justifyContent: 'flex-start', marginBottom: 12,
+                }}>
+                  <div style={{
+                    padding: '12px 18px', borderRadius: '14px 14px 14px 4px',
+                    background: '#fff', border: `1px solid ${COLORS.border}`,
+                  }}>
+                    <div style={{
+                      display: 'flex', gap: 6, alignItems: 'center',
+                    }}>
+                      {[0, 1, 2].map(j => (
+                        <div key={j} style={{
+                          width: 7, height: 7, borderRadius: '50%',
+                          background: COLORS.accent, opacity: 0.4,
+                          animation: `subtleFloat 1s ease ${j * 0.15}s infinite`,
+                        }} />
+                      ))}
+                    </div>
+                  </div>
+                </div>
+              )}
+            </div>
+          </div>
+        )}
 
         {/* Divider */}
         <div style={{
