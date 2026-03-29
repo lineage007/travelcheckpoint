@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 
 const GOOGLE_AI_KEY = process.env.GOOGLE_AI_API_KEY || '';
 const ANTHROPIC_KEY = process.env.ANTHROPIC_API_KEY || '';
+const OPENROUTER_KEY = process.env.OPENROUTER_API_KEY || '';
 
 interface Message {
   role: 'user' | 'assistant';
@@ -89,19 +90,13 @@ async function callGemini(messages: Message[]): Promise<{ text: string }> {
 }
 
 async function callAnthropic(messages: Message[]): Promise<{ text: string }> {
-  const isOAuth = ANTHROPIC_KEY.startsWith('sk-ant-oat');
-  const headers: Record<string, string> = {
-    'Content-Type': 'application/json',
-    'anthropic-version': '2023-06-01',
-  };
-  if (isOAuth) {
-    headers['Authorization'] = `Bearer ${ANTHROPIC_KEY}`;
-  } else {
-    headers['x-api-key'] = ANTHROPIC_KEY;
-  }
   const res = await fetch('https://api.anthropic.com/v1/messages', {
     method: 'POST',
-    headers,
+    headers: {
+      'Content-Type': 'application/json',
+      'x-api-key': ANTHROPIC_KEY,
+      'anthropic-version': '2023-06-01',
+    },
     body: JSON.stringify({
       model: 'claude-haiku-4-5-20251001',
       max_tokens: 300,
