@@ -194,6 +194,7 @@ function SearchResults() {
   const [tab, setTab] = useState<ResultTab>('points');
   const [loading, setLoading] = useState(true);
   const [results, setResults] = useState<AwardResult[]>([]);
+  const [cashResults, setCashResults] = useState<Array<{ id: string; airline: string; flights: string; price: number; currency: string; route: string; departureTime: string; arrivalTime: string; duration: string; stops: number; date: string; cabin: string; bookingUrl: string }>>([]);
   const [meta, setMeta] = useState<{ totalAwards: number; sourcesSearched: number; timestamp: string } | null>(null);
   const [passengers, setPassengers] = useState(1);
 
@@ -257,6 +258,7 @@ function SearchResults() {
       const res = await fetch(`/api/search?origin=${origin}&destination=${destination}&cabin=${cabin}`);
       const data = await res.json();
       setResults(data.results?.awards || []);
+      setCashResults(data.results?.cash || []);
       setMeta(data.meta || null);
     } catch (e) {
       console.error('Search failed:', e);
@@ -273,7 +275,7 @@ function SearchResults() {
 
   const TABS_DATA: { key: ResultTab; label: string; color: string; count: number }[] = [
     { key: 'points', label: 'Award Flights', color: GOLD, count: results.length },
-    { key: 'cash', label: 'Cash Fares', color: ACCENT, count: 0 },
+    { key: 'cash', label: 'Cash Fares', color: ACCENT, count: cashResults.length },
     { key: 'hidden', label: 'Hidden City', color: PURPLE, count: 0 },
     { key: 'empty', label: 'Empty Legs', color: GOLD, count: 0 },
   ];
@@ -331,6 +333,42 @@ function SearchResults() {
               ))}
             </div>
           </div>
+        ) : tab === 'cash' ? (
+          cashResults.length > 0 ? (
+            <>
+              {cashResults.map((f) => (
+                <div key={f.id} style={{ background: BG_CARD, border: `1px solid ${BORDER}`, borderRadius: '14px', padding: '16px', marginBottom: '10px' }}>
+                  <div style={{ fontSize: '16px', fontWeight: 700, color: TEXT_LIGHT, marginBottom: '4px' }}>{f.airline}</div>
+                  {f.flights && <div style={{ fontSize: '12px', color: TEXT_DIM, marginBottom: '8px' }}>{f.flights}</div>}
+                  {f.departureTime && (
+                    <div style={{ fontSize: '13px', color: TEXT_MID, marginBottom: '6px' }}>
+                      {f.departureTime} → {f.arrivalTime} · {f.duration} · {f.stops === 0 ? 'Nonstop' : `${f.stops} stop${f.stops > 1 ? 's' : ''}`}
+                    </div>
+                  )}
+                  {f.price > 0 && (
+                    <div style={{ fontFamily: mono, fontSize: '20px', fontWeight: 700, color: TEXT_LIGHT, marginBottom: '10px' }}>
+                      {f.currency} {f.price.toLocaleString()}
+                      {passengers > 1 && <span style={{ fontSize: '13px', color: TEXT_DIM, marginLeft: '8px' }}>× {passengers} = {f.currency} {(f.price * passengers).toLocaleString()}</span>}
+                    </div>
+                  )}
+                  <a href={f.bookingUrl} target="_blank" rel="noopener noreferrer" style={{
+                    display: 'block', textAlign: 'center', background: ACCENT, border: 'none', borderRadius: '8px',
+                    padding: '10px', color: '#fff', fontSize: '13px', fontWeight: 600, textDecoration: 'none',
+                  }}>
+                    {f.price > 0 ? `Book ${f.airline} →` : `Search on ${f.airline} →`}
+                  </a>
+                </div>
+              ))}
+            </>
+          ) : (
+            <div style={{ textAlign: 'center', padding: '60px 0' }}>
+              <div style={{ fontSize: '14px', color: TEXT_MID }}>No cash fare results yet. Use the links below to search:</div>
+              <div style={{ marginTop: '16px', display: 'flex', flexDirection: 'column', gap: '8px' }}>
+                <a href={`https://www.google.com/travel/flights?q=${displayOrigin}+to+${displayDest}+${displayCabin}`} target="_blank" rel="noopener noreferrer" style={{ color: ACCENT, textDecoration: 'none', fontSize: '14px' }}>Google Flights →</a>
+                <a href={`https://www.skyscanner.ae/transport/flights/${displayOrigin.toLowerCase()}/${displayDest.toLowerCase()}/`} target="_blank" rel="noopener noreferrer" style={{ color: ACCENT, textDecoration: 'none', fontSize: '14px' }}>Skyscanner →</a>
+              </div>
+            </div>
+          )
         ) : tab === 'points' ? (
           results.length > 0 ? (
             <>
@@ -350,10 +388,9 @@ function SearchResults() {
           )
         ) : (
           <div style={{ textAlign: 'center', padding: '60px 0' }}>
-            <div style={{ fontSize: '28px', marginBottom: '12px' }}>{tab === 'cash' ? '💰' : tab === 'hidden' ? '🔍' : '✈️'}</div>
+            <div style={{ fontSize: '28px', marginBottom: '12px' }}>{tab === 'hidden' ? '🔍' : '✈️'}</div>
             <div style={{ fontSize: '14px', color: TEXT_MID }}>
-              {tab === 'cash' ? 'Cash fare search coming soon — wiring Google Flights API' :
-               tab === 'hidden' ? 'Hidden city detection coming soon' :
+              {tab === 'hidden' ? 'Hidden city detection coming soon' :
                'Empty leg search coming soon'}
             </div>
           </div>

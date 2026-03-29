@@ -108,28 +108,79 @@ interface CashResult {
 }
 
 async function searchCashFlights(origin: string, destination: string, date: string, cabin: string): Promise<CashResult[]> {
-  // Generate Google Flights deep link for cash fare search
   const departDate = date || new Date(Date.now() + 7 * 86400000).toISOString().split('T')[0];
-  const cabinParam = cabin === 'business' ? '1' : cabin === 'first' ? '2' : cabin === 'premium' ? '3' : '0';
-  const googleUrl = `https://www.google.com/travel/flights/search?tfs=CBwQAhoeEgoyMDI2LTA0LTA1agcIARIDRFhCcgcIARIDTEhSGh4SCjIwMjYtMDQtMTJqBwgBEgNMSFJyBwgBEgNEWEJCAQFIAXABggELCP___________wEYAZgBAQ&hl=en&gl=ae&curr=AED`;
+  const cabinCode = cabin === 'business' ? 3 : cabin === 'first' ? 4 : cabin === 'premium' ? 2 : 1;
   
-  return [{
-    id: 'gf-link',
-    type: 'cash' as const,
-    airline: 'Search Google Flights',
-    flights: '',
-    route: origin + ' → ' + destination,
-    origin, destination,
-    price: 0,
-    currency: 'USD',
-    departureTime: '',
-    arrivalTime: '',
-    duration: '',
-    stops: 0,
-    date: departDate,
-    cabin: cabin.charAt(0).toUpperCase() + cabin.slice(1),
-    bookingUrl: googleUrl,
-  }];
+  // Try the local cash-flights Python API if available (dev/self-hosted)
+  const localApiUrl = process.env.CASH_FLIGHTS_API_URL;
+  if (localApiUrl) {
+    try {
+      const res = await fetch(`${localApiUrl}/search?origin=${origin}&destination=${destination}&date=${departDate}&cabin=${cabin}`, {
+        signal: AbortSignal.timeout(15000),
+      });
+      if (res.ok) {
+        const data = await res.json();
+        return (data.flights || []).map((f: Record<string, unknown>, i: number) => {
+          const priceStr = String(f.price || '').replace(/\xa0/g, ' ');
+          const priceMatch = priceStr.match(/([\d,]+)/);
+          const priceNum = priceMatch ? parseInt(priceMatch[1].replace(/,/g, '')) : 0;
+          const currency = priceStr.match(/([A-Z]{3})/)?.[1] || 'USD';
+          return {
+            id: `cash-${i}`,
+            type: 'cash' as const,
+            airline: String(f.name || 'Multiple Airlines'),
+            flights: '',
+            route: `${origin} → ${destination}`,
+            origin, destination,
+            price: priceNum,
+            currency,
+            departureTime: String(f.departure || ''),
+            arrivalTime: String(f.arrival || ''),
+            duration: String(f.duration || ''),
+            stops: typeof f.stops === 'number' ? f.stops : 0,
+            date: departDate,
+            cabin: cabin.charAt(0).toUpperCase() + cabin.slice(1),
+            bookingUrl: `https://www.google.com/travel/flights?q=${origin}+to+${destination}+${departDate}+${cabin}`,
+          };
+        }).filter((f: CashResult) => f.price > 0).sort((a: CashResult, b: CashResult) => a.price - b.price);
+      }
+    } catch { /* fall through to Google Flights link */ }
+  }
+  
+  // Fallback: generate a Google Flights deep link
+  const googleUrl = `https://www.google.com/travel/flights?q=${origin}+to+${destination}+on+${departDate}+${cabin}+class`;
+  const skyUrl = `https://www.skyscanner.ae/transport/flights/${origin.toLowerCase()}/${destination.toLowerCase()}/${departDate.replace(/-/g, '').slice(2)}/?adultsv2=1&cabinclass=${cabin}&ref=home`;
+  
+  return [
+    {
+      id: 'google-flights',
+      type: 'cash' as const,
+      airline: 'Google Flights',
+      flights: 'Compare prices across all airlines',
+      route: `${origin} → ${destination}`,
+      origin, destination,
+      price: 0,
+      currency: 'USD',
+      departureTime: '', arrivalTime: '', duration: '',
+      stops: 0, date: departDate,
+      cabin: cabin.charAt(0).toUpperCase() + cabin.slice(1),
+      bookingUrl: googleUrl,
+    },
+    {
+      id: 'skyscanner',
+      type: 'cash' as const,
+      airline: 'Skyscanner',
+      flights: 'Compare prices across all airlines',
+      route: `${origin} → ${destination}`,
+      origin, destination,
+      price: 0,
+      currency: 'USD',
+      departureTime: '', arrivalTime: '', duration: '',
+      stops: 0, date: departDate,
+      cabin: cabin.charAt(0).toUpperCase() + cabin.slice(1),
+      bookingUrl: skyUrl,
+    },
+  ];
 }
 
 // ═══════════════════════════════════════════════════
