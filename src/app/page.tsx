@@ -158,6 +158,27 @@ export default function TravelCheckpoint() {
     router.push(`/search?q=${encodeURIComponent(query)}`);
   };
 
+  const [showMore, setShowMore] = useState(false);
+
+  const handleTab = (i: number) => {
+    setActiveTab(i);
+    setShowMore(false);
+    if (i === 0) {
+      // Search — scroll to top & focus search
+      window.scrollTo({ top: 0, behavior: 'smooth' });
+      setTimeout(() => document.getElementById('search-input')?.focus(), 400);
+    } else if (i === 1) {
+      // Stay — navigate to stays page
+      router.push('/stays');
+    } else if (i === 2) {
+      // Alerts — scroll to alerts section
+      document.getElementById('price-alerts')?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+    } else if (i === 3) {
+      // More — toggle menu
+      setShowMore(prev => !prev);
+    }
+  };
+
   const tabItems = [
     { icon: Plane, label: 'Search' },
     { icon: Building2, label: 'Stay' },
@@ -258,6 +279,7 @@ export default function TravelCheckpoint() {
             <Search size={18} color={COLORS.textTertiary} style={{ flexShrink: 0 }} />
             <input
               type="text"
+              id="search-input"
               placeholder="Dubai to anywhere..."
               value={query}
               onChange={e => setQuery(e.target.value)}
@@ -358,6 +380,7 @@ export default function TravelCheckpoint() {
         ))}
 
         {/* Price Alerts */}
+        <div id="price-alerts" style={{ scrollMarginTop: 20 }} />
         <SectionLabel right="3 active">Price Alerts</SectionLabel>
         {priceAlerts.map((a, i) => (
           <Card key={i} delay={600 + i * 80}>
@@ -481,7 +504,7 @@ export default function TravelCheckpoint() {
           const Icon = tab.icon;
           const isActive = activeTab === i;
           return (
-            <button key={i} onClick={() => setActiveTab(i)} style={{
+            <button key={i} onClick={() => handleTab(i)} style={{
               display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 4,
               background: 'transparent', border: 'none', cursor: 'pointer',
               padding: '4px 16px',

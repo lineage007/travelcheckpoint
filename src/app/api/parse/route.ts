@@ -50,8 +50,40 @@ const AIRPORTS: Record<string, { code: string; city: string }> = {
   'bora bora': { code: 'BOB', city: 'Bora Bora' }, 'nice': { code: 'NCE', city: 'Nice' },
 };
 
+// Region / country → primary airport mapping
+const REGIONS: Record<string, { code: string; city: string }> = {
+  'europe': { code: 'LHR', city: 'London' },
+  'uk': { code: 'LHR', city: 'London' }, 'england': { code: 'LHR', city: 'London' },
+  'france': { code: 'CDG', city: 'Paris' }, 'germany': { code: 'FRA', city: 'Frankfurt' },
+  'italy': { code: 'FCO', city: 'Rome' }, 'spain': { code: 'MAD', city: 'Madrid' },
+  'greece': { code: 'ATH', city: 'Athens' }, 'turkey': { code: 'IST', city: 'Istanbul' },
+  'netherlands': { code: 'AMS', city: 'Amsterdam' }, 'holland': { code: 'AMS', city: 'Amsterdam' },
+  'switzerland': { code: 'ZRH', city: 'Zurich' }, 'portugal': { code: 'LIS', city: 'Lisbon' },
+  'ireland': { code: 'DUB', city: 'Dublin' }, 'scotland': { code: 'EDI', city: 'Edinburgh' },
+  'uae': { code: 'DXB', city: 'Dubai' }, 'emirates': { code: 'DXB', city: 'Dubai' },
+  'usa': { code: 'JFK', city: 'New York' }, 'america': { code: 'JFK', city: 'New York' },
+  'united states': { code: 'JFK', city: 'New York' }, 'states': { code: 'JFK', city: 'New York' },
+  'australia': { code: 'SYD', city: 'Sydney' }, 'japan': { code: 'NRT', city: 'Tokyo' },
+  'thailand': { code: 'BKK', city: 'Bangkok' }, 'indonesia': { code: 'DPS', city: 'Bali' },
+  'malaysia': { code: 'KUL', city: 'Kuala Lumpur' }, 'india': { code: 'DEL', city: 'Delhi' },
+  'china': { code: 'PEK', city: 'Beijing' }, 'south korea': { code: 'ICN', city: 'Seoul' },
+  'korea': { code: 'ICN', city: 'Seoul' }, 'vietnam': { code: 'SGN', city: 'Ho Chi Minh' },
+  'philippines': { code: 'MNL', city: 'Manila' }, 'sri lanka': { code: 'CMB', city: 'Colombo' },
+  'egypt': { code: 'CAI', city: 'Cairo' }, 'morocco': { code: 'RAK', city: 'Marrakech' },
+  'south africa': { code: 'JNB', city: 'Johannesburg' }, 'kenya': { code: 'NBO', city: 'Nairobi' },
+  'canada': { code: 'YYZ', city: 'Toronto' }, 'mexico': { code: 'MEX', city: 'Mexico City' },
+  'brazil': { code: 'GRU', city: 'São Paulo' }, 'new zealand': { code: 'AKL', city: 'Auckland' },
+  'qatar': { code: 'DOH', city: 'Doha' }, 'saudi': { code: 'RUH', city: 'Riyadh' },
+  'saudi arabia': { code: 'RUH', city: 'Riyadh' }, 'oman': { code: 'MCT', city: 'Muscat' },
+  'bahrain': { code: 'BAH', city: 'Bahrain' }, 'kuwait': { code: 'KWI', city: 'Kuwait' },
+  'asia': { code: 'BKK', city: 'Bangkok' }, 'southeast asia': { code: 'BKK', city: 'Bangkok' },
+  'middle east': { code: 'DXB', city: 'Dubai' }, 'africa': { code: 'NBO', city: 'Nairobi' },
+  'caribbean': { code: 'CUN', city: 'Cancún' }, 'south america': { code: 'GRU', city: 'São Paulo' },
+  'scandinavia': { code: 'ARN', city: 'Stockholm' }, 'nordic': { code: 'ARN', city: 'Stockholm' },
+};
+
 function findAirport(text: string): { code: string; city: string } | null {
-  const lower = text.toLowerCase();
+  const lower = text.toLowerCase().trim();
   // Check for IATA codes first (3 uppercase letters)
   const iataMatch = text.match(/\b([A-Z]{3})\b/);
   if (iataMatch) {
@@ -63,6 +95,11 @@ function findAirport(text: string): { code: string; city: string } | null {
   // Check city names (longest match first)
   const sorted = Object.entries(AIRPORTS).sort((a, b) => b[0].length - a[0].length);
   for (const [name, data] of sorted) {
+    if (lower.includes(name)) return data;
+  }
+  // Check regions/countries
+  const regionsSorted = Object.entries(REGIONS).sort((a, b) => b[0].length - a[0].length);
+  for (const [name, data] of regionsSorted) {
     if (lower.includes(name)) return data;
   }
   return null;
