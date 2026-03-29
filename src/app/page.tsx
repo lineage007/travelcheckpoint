@@ -1,724 +1,162 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useState } from 'react';
 import { useRouter } from 'next/navigation';
-import { Search, Plane, Building2, TrendingDown, TrendingUp, Minus, Bell, Mic, ChevronRight, ArrowRight, Users, Settings } from 'lucide-react';
+import { Search, Plane, ArrowRight } from 'lucide-react';
 
-const COLORS = {
-  bgPage: '#FAFAF7',
-  bgSurface: '#F5F3EE',
-  bgSurfaceHover: '#EEEBE4',
-  border: '#E0DCD4',
-  borderStrong: '#D4CFC6',
-  textPrimary: '#1A1A1A',
-  textSecondary: '#6B6560',
-  textTertiary: '#9C958C',
-  accent: '#0D7C72',
-  accentHover: '#0A635B',
-  accentLight: '#E8F5F3',
-  successBg: '#E8F5E8',
-  success: '#3D8B37',
-  warningBg: '#FEF4E4',
-  warning: '#C4841D',
-  dangerBg: '#FCEEE8',
-  danger: '#C4462A',
+const C = {
+  bg: '#FAFAF7', surface: '#F5F3EE', surfaceHover: '#EEEBE4',
+  border: '#E0DCD4', text: '#1A1A1A', textSub: '#6B6560', textMuted: '#9C958C',
+  accent: '#0D7C72', accentHover: '#0A635B', accentLight: '#E8F5F3',
 };
 
-const recentSearches = [
-  { from: 'DXB', to: 'LHR', date: 'Mar 25', cabin: 'Business', status: 'tracked' },
-  { from: 'DXB', to: 'SYD', date: 'Mar 22', cabin: 'Business', status: 'new results' },
-  { from: 'DXB', to: 'IST', date: 'Mar 20', cabin: 'Economy', status: null },
+const EXAMPLES = [
+  'Dubai to London, business class, tomorrow',
+  'UAE to Europe, cheapest, next week',
+  'DXB to Bali, 2 people, economy',
+  'Dubai to anywhere in Asia, business, flexible',
+  'Abu Dhabi to USA, first class, April',
+  'UAE to Istanbul, family of 4, April 15',
 ];
 
-const priceAlerts = [
-  { from: 'DXB', to: 'LHR', price: '$2,140', change: -12 },
-  { from: 'DXB', to: 'SYD', price: '$3,870', change: 0 },
-  { from: 'DXB', to: 'CDG', price: '$1,920', change: 8 },
-];
-
-const emptyLegs = [
-  { broker: 'LunaJets', from: 'DXB', to: 'London Luton', aircraft: 'Citation XLS', pax: 8, price: '$4,200', perPerson: '$525', when: 'Apr 2' },
-  { broker: 'PrivateFly', from: 'DXB', to: 'Milan Malpensa', aircraft: 'Challenger 350', pax: 10, price: '$6,800', perPerson: '$680', when: 'Apr 5' },
-  { broker: 'Victor', from: 'SHJ', to: 'Bahrain', aircraft: 'Phenom 300E', pax: 6, price: '$2,100', perPerson: '$350', when: 'Mar 31' },
-];
-
-const chips = ['Cash', 'Points', 'Hidden City', 'Jets', 'Hotels'];
-
-function Chip({ label, active, onClick }: { label: string; active: boolean; onClick: () => void }) {
-  return (
-    <button onClick={onClick} style={{
-      background: active ? COLORS.accent : COLORS.bgPage,
-      color: active ? '#fff' : COLORS.textSecondary,
-      border: `1px solid ${active ? COLORS.accent : COLORS.border}`,
-      borderRadius: 100,
-      padding: '8px 18px',
-      fontSize: 13,
-      fontWeight: 500,
-      fontFamily: "'DM Sans', sans-serif",
-      cursor: 'pointer',
-      transition: 'all 0.18s ease',
-      whiteSpace: 'nowrap',
-      flexShrink: 0,
-    }}>
-      {label}
-    </button>
-  );
-}
-
-function PriceChangePill({ change }: { change: number }) {
-  const isDown = change < 0;
-  const isFlat = change === 0;
-  const bg = isDown ? COLORS.successBg : isFlat ? COLORS.warningBg : COLORS.dangerBg;
-  const color = isDown ? COLORS.success : isFlat ? COLORS.warning : COLORS.danger;
-  const Icon = isDown ? TrendingDown : isFlat ? Minus : TrendingUp;
-  const text = isFlat ? 'stable' : `${Math.abs(change)}%`;
-
-  return (
-    <span style={{
-      display: 'inline-flex', alignItems: 'center', gap: 4,
-      background: bg, color: color,
-      borderRadius: 100, padding: '4px 10px',
-      fontFamily: "'JetBrains Mono', monospace",
-      fontSize: 12, fontWeight: 600,
-    }}>
-      <Icon size={12} /> {text}
-    </span>
-  );
-}
-
-function SectionLabel({ children, right }: { children: React.ReactNode; right?: string }) {
-  return (
-    <div style={{
-      display: 'flex', justifyContent: 'space-between', alignItems: 'center',
-      marginBottom: 14, marginTop: 36,
-    }}>
-      <span style={{
-        fontFamily: "'DM Sans', sans-serif",
-        fontSize: 11, fontWeight: 700,
-        color: COLORS.textTertiary,
-        letterSpacing: '0.1em',
-        textTransform: 'uppercase',
-      }}>{children}</span>
-      {right && <span style={{
-        fontFamily: "'DM Sans', sans-serif",
-        fontSize: 13, fontWeight: 600,
-        color: COLORS.accent, cursor: 'pointer',
-        display: 'flex', alignItems: 'center', gap: 2,
-      }}>{right} <ChevronRight size={14} /></span>}
-    </div>
-  );
-}
-
-function Card({ children, delay = 0, leftBorder, style = {} }: { children: React.ReactNode; delay?: number; leftBorder?: boolean; style?: React.CSSProperties }) {
-  const [visible, setVisible] = useState(false);
-  useEffect(() => {
-    const t = setTimeout(() => setVisible(true), delay);
-    return () => clearTimeout(t);
-  }, [delay]);
-
-  return (
-    <div style={{
-      background: COLORS.bgSurface,
-      border: `1px solid ${COLORS.border}`,
-      borderLeft: leftBorder ? `3px solid ${COLORS.accent}` : `1px solid ${COLORS.border}`,
-      borderRadius: 12,
-      padding: 16,
-      marginBottom: 10,
-      cursor: 'pointer',
-      transition: 'all 0.25s ease',
-      opacity: visible ? 1 : 0,
-      transform: visible ? 'translateY(0)' : 'translateY(12px)',
-      ...style,
-    }}
-      onMouseEnter={e => {
-        e.currentTarget.style.background = COLORS.bgSurfaceHover;
-        e.currentTarget.style.transform = 'translateY(-1px)';
-        e.currentTarget.style.boxShadow = '0 4px 16px rgba(26,26,26,0.05)';
-      }}
-      onMouseLeave={e => {
-        e.currentTarget.style.background = COLORS.bgSurface;
-        e.currentTarget.style.transform = 'translateY(0)';
-        e.currentTarget.style.boxShadow = 'none';
-      }}
-    >
-      {children}
-    </div>
-  );
-}
-
-interface SearchParams {
-  origin: string; destination: string; date: string; cabin: string;
-  passengers: number; returnDate?: string | null; alternatives?: string[];
-  label?: string;
-}
-
-interface ChatMessage {
-  role: 'user' | 'assistant';
-  content: string;
-  searchParams?: SearchParams | null;
-  searches?: SearchParams[];
-}
-
-export default function TravelCheckpoint() {
+export default function Home() {
   const router = useRouter();
-  const [activeChip, setActiveChip] = useState(0);
   const [query, setQuery] = useState('');
-  const [searchFocused, setSearchFocused] = useState(false);
-  const [activeTab, setActiveTab] = useState(0);
-  const [chatMessages, setChatMessages] = useState<ChatMessage[]>([]);
-  const [chatOpen, setChatOpen] = useState(false);
-  const [chatLoading, setChatLoading] = useState(false);
+  const [loading, setLoading] = useState(false);
 
-  const handleSearch = async () => {
-    if (!query.trim()) return;
-    const userMsg: ChatMessage = { role: 'user', content: query };
-    const newMessages = [...chatMessages, userMsg];
-    setChatMessages(newMessages);
-    setChatOpen(true);
-    setQuery('');
-    setChatLoading(true);
-
-    try {
-      const res = await fetch('/api/chat', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ messages: newMessages.map(m => ({ role: m.role, content: m.content })) }),
-      });
-      const data = await res.json();
-      const searches: SearchParams[] = data.searches || (data.searchParams ? [data.searchParams] : []);
-      const assistantMsg: ChatMessage = {
-        role: 'assistant',
-        content: data.message || 'Sorry, something went wrong.',
-        searchParams: searches.length === 1 ? searches[0] : null,
-        searches: searches.length > 1 ? searches : undefined,
-      };
-      setChatMessages(prev => [...prev, assistantMsg]);
-
-      // If single search, auto-navigate after a brief pause
-      if (searches.length === 1) {
-        const p = searches[0];
-        setTimeout(() => {
-          const searchQ = `${p.origin} to ${p.destination} ${p.cabin} ${p.passengers > 1 ? p.passengers + ' people' : ''}`.trim();
-          router.push(`/search?q=${encodeURIComponent(searchQ)}&origin=${p.origin}&dest=${p.destination}&date=${p.date}&cabin=${p.cabin}&pax=${p.passengers}${p.alternatives?.length ? '&alt=' + p.alternatives.join(',') : ''}`);
-        }, 2000);
-      }
-    } catch {
-      setChatMessages(prev => [...prev, { role: 'assistant', content: 'Connection error. Try again.' }]);
-    }
-    setChatLoading(false);
+  const handleSearch = async (searchQuery?: string) => {
+    const q = (searchQuery || query).trim();
+    if (!q) return;
+    setLoading(true);
+    router.push(`/search?q=${encodeURIComponent(q)}`);
   };
-
-  const [showMore, setShowMore] = useState(false);
-
-  const handleTab = (i: number) => {
-    setActiveTab(i);
-    setShowMore(false);
-    if (i === 0) {
-      window.scrollTo({ top: 0, behavior: 'smooth' });
-      setTimeout(() => document.getElementById('search-input')?.focus(), 400);
-    } else if (i === 1) {
-      router.push('/stays');
-    } else if (i === 2) {
-      document.getElementById('price-alerts')?.scrollIntoView({ behavior: 'smooth', block: 'start' });
-    } else if (i === 3) {
-      setShowMore(prev => !prev);
-    }
-  };
-
-  const tabItems = [
-    { icon: Plane, label: 'Search' },
-    { icon: Building2, label: 'Stay' },
-    { icon: Bell, label: 'Alerts' },
-    { icon: Settings, label: 'More' },
-  ];
 
   return (
     <div style={{
-      fontFamily: "'DM Sans', sans-serif",
-      background: COLORS.bgPage,
-      minHeight: '100vh',
-      maxWidth: 430,
-      margin: '0 auto',
-      position: 'relative',
-      paddingBottom: 90,
+      minHeight: '100vh', background: C.bg,
+      display: 'flex', flexDirection: 'column', alignItems: 'center',
+      fontFamily: "'DM Sans', system-ui, sans-serif",
     }}>
-      <style>{`
-        @import url('https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,300;9..144,400;9..144,500;9..144,600;9..144,700&family=DM+Sans:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500;600;700&family=Space+Grotesk:wght@300;400;500;600;700&display=swap');
-        * { box-sizing: border-box; margin: 0; padding: 0; }
-        input::placeholder { color: ${COLORS.textTertiary}; font-style: italic; }
-        ::-webkit-scrollbar { display: none; }
-        @keyframes fadeIn { from { opacity: 0; } to { opacity: 1; } }
-        @keyframes subtleFloat { 0%, 100% { transform: translateY(0); } 50% { transform: translateY(-3px); } }
-      `}</style>
-
-      {/* Subtle paper texture overlay */}
-      <div style={{
-        position: 'fixed', inset: 0,
-        background: 'radial-gradient(ellipse at 50% 0%, rgba(13,124,114,0.02) 0%, transparent 70%)',
-        pointerEvents: 'none', zIndex: 0,
-      }} />
-
       {/* Header */}
       <header style={{
+        width: '100%', padding: '16px 24px',
         display: 'flex', justifyContent: 'space-between', alignItems: 'center',
-        padding: '16px 20px',
-        position: 'relative', zIndex: 10,
+        maxWidth: 800,
       }}>
-        <span style={{
-          fontFamily: "'Space Grotesk', 'DM Sans', sans-serif",
-          fontSize: 18,
-          letterSpacing: '-0.03em',
-          color: COLORS.textPrimary,
-        }}>
+        <span style={{ fontFamily: "'Space Grotesk', system-ui", fontSize: 18, letterSpacing: '-0.03em', color: C.text }}>
           <span style={{ fontWeight: 400 }}>Travel</span><span style={{ fontWeight: 700 }}>Checkpoint</span>
         </span>
-        <div style={{
-          width: 36, height: 36, borderRadius: '50%',
-          background: COLORS.accentLight,
-          border: `2px solid ${COLORS.accent}`,
-          display: 'flex', alignItems: 'center', justifyContent: 'center',
-          color: COLORS.accent, fontWeight: 700, fontSize: 14,
-          fontFamily: "'Fraunces', serif",
-        }}>G</div>
+        <Plane size={18} style={{ color: C.textMuted }} />
       </header>
 
-      {/* Main Content */}
-      <main style={{ padding: '0 20px', position: 'relative', zIndex: 5 }}>
-
-        {/* Hero */}
-        <div style={{ marginTop: 40, marginBottom: 28 }}>
-          <h1 style={{
-            fontFamily: "'Fraunces', serif",
-            fontSize: 38, fontWeight: 600,
-            color: COLORS.textPrimary,
-            lineHeight: 1.1,
-            letterSpacing: '-0.02em',
-            animation: 'fadeIn 0.5s ease both',
-          }}>
-            Where to?
-          </h1>
-          <p style={{
-            marginTop: 10,
-            fontSize: 15, lineHeight: 1.5,
-            color: COLORS.textSecondary,
-            animation: 'fadeIn 0.5s ease 0.1s both',
-          }}>
-            Search flights, hotels, and private jets in one place.
-          </p>
-        </div>
-
-        {/* Search Input */}
-        <div style={{
-          position: 'relative',
-          marginBottom: 16,
-          animation: 'fadeIn 0.5s ease 0.15s both',
+      {/* Hero */}
+      <main style={{
+        flex: 1, width: '100%', maxWidth: 640,
+        padding: '60px 24px 40px',
+        display: 'flex', flexDirection: 'column', alignItems: 'center',
+      }}>
+        <h1 style={{
+          fontFamily: "'Space Grotesk', system-ui", fontSize: 32, fontWeight: 700,
+          color: C.text, letterSpacing: '-0.04em', textAlign: 'center', marginBottom: 8,
         }}>
-          <div style={{
-            display: 'flex', alignItems: 'center',
-            background: COLORS.bgSurface,
-            border: `1.5px solid ${searchFocused ? COLORS.accent : COLORS.border}`,
-            borderRadius: 16,
-            padding: '6px 6px 6px 18px',
-            transition: 'all 0.2s ease',
-            boxShadow: searchFocused ? '0 0 0 3px rgba(13,124,114,0.08)' : 'none',
-          }}>
-            <Search size={18} color={COLORS.textTertiary} style={{ flexShrink: 0 }} />
+          Where to?
+        </h1>
+        <p style={{ fontSize: 15, color: C.textSub, textAlign: 'center', marginBottom: 32, lineHeight: 1.5 }}>
+          Type naturally. We search cash fares, award flights, and empty legs — all at once.
+        </p>
+
+        {/* Search bar */}
+        <div style={{
+          width: '100%', position: 'relative',
+          background: '#fff', borderRadius: 16,
+          border: `1px solid ${C.border}`,
+          boxShadow: '0 2px 12px rgba(0,0,0,0.06)',
+          transition: 'all 0.2s',
+        }}>
+          <div style={{ display: 'flex', alignItems: 'center', padding: '4px 4px 4px 16px' }}>
+            <Search size={18} style={{ color: C.textMuted, flexShrink: 0 }} />
             <input
-              type="text"
-              id="search-input"
-              placeholder="Dubai to anywhere..."
               value={query}
               onChange={e => setQuery(e.target.value)}
-              onFocus={() => setSearchFocused(true)}
-              onBlur={() => setSearchFocused(false)}
-              onKeyDown={e => e.key === 'Enter' && handleSearch()}
+              onKeyDown={e => { if (e.key === 'Enter') handleSearch(); }}
+              placeholder="Dubai to Europe, business class, next week..."
+              autoFocus
               style={{
-                flex: 1, border: 'none', background: 'transparent',
-                padding: '12px 10px',
-                fontSize: 16, fontFamily: "'DM Sans', sans-serif",
-                color: COLORS.textPrimary,
-                outline: 'none', width: '100%',
+                flex: 1, border: 'none', outline: 'none', background: 'transparent',
+                fontSize: 15, color: C.text, padding: '14px 12px',
+                fontFamily: "'DM Sans', system-ui",
               }}
             />
-            <button style={{
-              background: 'transparent', border: `1px solid ${COLORS.border}`,
-              borderRadius: 10, padding: '8px 10px',
-              cursor: 'pointer', display: 'flex', alignItems: 'center',
-              color: COLORS.textTertiary, marginRight: 6,
-              transition: 'all 0.15s ease',
-            }}>
-              <Mic size={16} />
-            </button>
             <button
-              onClick={handleSearch}
+              onClick={() => handleSearch()}
+              disabled={loading || !query.trim()}
               style={{
-                background: COLORS.accent,
-                border: 'none', borderRadius: 10,
-                padding: '10px 18px',
-                cursor: 'pointer', display: 'flex', alignItems: 'center', gap: 6,
-                color: '#fff', fontSize: 14, fontWeight: 600,
-                fontFamily: "'DM Sans', sans-serif",
-                transition: 'all 0.15s ease',
+                background: loading ? C.textMuted : C.accent,
+                color: '#fff', border: 'none', borderRadius: 12,
+                padding: '12px 20px', cursor: 'pointer',
+                display: 'flex', alignItems: 'center', gap: 6,
+                fontSize: 14, fontWeight: 600, flexShrink: 0,
+                opacity: !query.trim() ? 0.5 : 1,
+                transition: 'all 0.15s',
               }}
-              onMouseEnter={e => e.currentTarget.style.background = COLORS.accentHover}
-              onMouseLeave={e => e.currentTarget.style.background = COLORS.accent}
             >
-              <ArrowRight size={16} />
+              {loading ? 'Searching...' : 'Search'}
+              {!loading && <ArrowRight size={16} />}
             </button>
           </div>
         </div>
 
-        {/* Filter Chips */}
-        <div style={{
-          display: 'flex', gap: 8, overflowX: 'auto',
-          paddingBottom: 4, marginBottom: 8,
-          animation: 'fadeIn 0.5s ease 0.2s both',
-        }}>
-          {chips.map((c, i) => (
-            <Chip key={c} label={c} active={activeChip === i} onClick={() => setActiveChip(i)} />
-          ))}
+        {/* Example searches */}
+        <div style={{ marginTop: 20, width: '100%' }}>
+          <div style={{ fontSize: 11, fontWeight: 600, color: C.textMuted, textTransform: 'uppercase', letterSpacing: '0.08em', marginBottom: 10 }}>
+            Try these
+          </div>
+          <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8 }}>
+            {EXAMPLES.map((ex, i) => (
+              <button
+                key={i}
+                onClick={() => { setQuery(ex); handleSearch(ex); }}
+                style={{
+                  background: C.surface, border: `1px solid ${C.border}`,
+                  borderRadius: 10, padding: '8px 14px', cursor: 'pointer',
+                  fontSize: 13, color: C.textSub, transition: 'all 0.15s',
+                  fontFamily: "'DM Sans', system-ui",
+                }}
+                onMouseEnter={e => { e.currentTarget.style.background = C.surfaceHover; e.currentTarget.style.borderColor = C.accent; e.currentTarget.style.color = C.accent; }}
+                onMouseLeave={e => { e.currentTarget.style.background = C.surface; e.currentTarget.style.borderColor = C.border; e.currentTarget.style.color = C.textSub; }}
+              >
+                {ex}
+              </button>
+            ))}
+          </div>
         </div>
 
-        {/* AI Chat Panel */}
-        {chatOpen && (
-          <div style={{
-            background: COLORS.bgSurface,
-            border: `1px solid ${COLORS.border}`,
-            borderRadius: 16,
-            marginTop: 12,
-            marginBottom: 8,
-            overflow: 'hidden',
-            animation: 'fadeIn 0.3s ease both',
-          }}>
-            <div style={{
-              padding: '12px 16px 8px',
-              borderBottom: `1px solid ${COLORS.border}`,
-              display: 'flex', justifyContent: 'space-between', alignItems: 'center',
-            }}>
-              <span style={{
-                fontSize: 11, fontWeight: 700, letterSpacing: '0.08em',
-                textTransform: 'uppercase', color: COLORS.accent,
-              }}>AI Search Assistant</span>
-              <button onClick={() => { setChatOpen(false); setChatMessages([]); }} style={{
-                background: 'none', border: 'none', cursor: 'pointer',
-                fontSize: 13, color: COLORS.textTertiary, fontWeight: 600,
-              }}>Clear ✕</button>
-            </div>
-            <div style={{ padding: '12px 16px', maxHeight: 320, overflowY: 'auto' }}>
-              {chatMessages.map((msg, i) => (
-                <div key={i} style={{
-                  marginBottom: 12,
-                  display: 'flex',
-                  justifyContent: msg.role === 'user' ? 'flex-end' : 'flex-start',
-                }}>
-                  <div style={{
-                    maxWidth: '85%',
-                    padding: '10px 14px',
-                    borderRadius: msg.role === 'user' ? '14px 14px 4px 14px' : '14px 14px 14px 4px',
-                    background: msg.role === 'user' ? COLORS.accent : '#fff',
-                    color: msg.role === 'user' ? '#fff' : COLORS.textPrimary,
-                    fontSize: 14, lineHeight: 1.5,
-                    fontFamily: "'DM Sans', sans-serif",
-                    border: msg.role === 'assistant' ? `1px solid ${COLORS.border}` : 'none',
-                  }}>
-                    {msg.content}
-                    {/* Single search — auto-navigates */}
-                    {msg.searchParams && (
-                      <div style={{
-                        marginTop: 10, padding: '10px 12px',
-                        background: COLORS.accentLight,
-                        borderRadius: 10,
-                        fontFamily: "'JetBrains Mono', monospace",
-                        fontSize: 12,
-                        color: COLORS.accent,
-                      }}>
-                        <div style={{ fontWeight: 700, marginBottom: 4 }}>✈ Searching now...</div>
-                        <div>{msg.searchParams.origin} → {msg.searchParams.destination}</div>
-                        <div>{msg.searchParams.date} · {msg.searchParams.cabin} · {msg.searchParams.passengers} pax</div>
-                        {msg.searchParams.alternatives && msg.searchParams.alternatives.length > 0 && (
-                          <div style={{ marginTop: 4, fontSize: 11, opacity: 0.8 }}>
-                            Also checking: {msg.searchParams.alternatives.join(', ')}
-                          </div>
-                        )}
-                      </div>
-                    )}
-                    {/* Multiple searches — show clickable cards */}
-                    {msg.searches && msg.searches.length > 1 && (
-                      <div style={{ marginTop: 10, display: 'flex', flexDirection: 'column', gap: 6 }}>
-                        <div style={{ fontSize: 11, fontWeight: 700, color: COLORS.accent, marginBottom: 2 }}>
-                          ✈ {msg.searches.length} destinations found — tap to search:
-                        </div>
-                        {msg.searches.map((s, si) => (
-                          <button
-                            key={si}
-                            onClick={() => {
-                              const searchQ = `${s.origin} to ${s.destination} ${s.cabin} ${s.passengers > 1 ? s.passengers + ' people' : ''}`.trim();
-                              router.push(`/search?q=${encodeURIComponent(searchQ)}&origin=${s.origin}&dest=${s.destination}&date=${s.date}&cabin=${s.cabin}&pax=${s.passengers}${s.alternatives?.length ? '&alt=' + s.alternatives.join(',') : ''}`);
-                            }}
-                            style={{
-                              display: 'flex', justifyContent: 'space-between', alignItems: 'center',
-                              padding: '10px 12px', background: COLORS.accentLight,
-                              borderRadius: 10, border: `1px solid ${COLORS.accent}22`,
-                              cursor: 'pointer', textAlign: 'left', width: '100%',
-                              transition: 'all 0.15s',
-                            }}
-                            onMouseEnter={e => { e.currentTarget.style.background = COLORS.accent; e.currentTarget.style.color = '#fff'; }}
-                            onMouseLeave={e => { e.currentTarget.style.background = COLORS.accentLight; e.currentTarget.style.color = COLORS.accent; }}
-                          >
-                            <div style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: 12, color: 'inherit' }}>
-                              <span style={{ fontWeight: 700 }}>{s.label || s.destination}</span>
-                              <span style={{ opacity: 0.7, marginLeft: 6 }}>{s.origin} → {s.destination}</span>
-                            </div>
-                            <ArrowRight size={14} style={{ opacity: 0.6 }} />
-                          </button>
-                        ))}
-                        <button
-                          onClick={() => {
-                            // Search all destinations sequentially — open first, let user tap others
-                            const first = msg.searches![0];
-                            const searchQ = `${first.origin} to ${first.destination} ${first.cabin} ${first.passengers > 1 ? first.passengers + ' people' : ''}`.trim();
-                            router.push(`/search?q=${encodeURIComponent(searchQ)}&origin=${first.origin}&dest=${first.destination}&date=${first.date}&cabin=${first.cabin}&pax=${first.passengers}`);
-                          }}
-                          style={{
-                            marginTop: 4, padding: '10px 12px',
-                            background: COLORS.accent, color: '#fff',
-                            borderRadius: 10, border: 'none',
-                            cursor: 'pointer', fontSize: 13,
-                            fontFamily: "'DM Sans', sans-serif", fontWeight: 600,
-                          }}
-                        >
-                          Search all {msg.searches.length} destinations →
-                        </button>
-                      </div>
-                    )}
-                  </div>
-                </div>
-              ))}
-              {chatLoading && (
-                <div style={{
-                  display: 'flex', justifyContent: 'flex-start', marginBottom: 12,
-                }}>
-                  <div style={{
-                    padding: '12px 18px', borderRadius: '14px 14px 14px 4px',
-                    background: '#fff', border: `1px solid ${COLORS.border}`,
-                  }}>
-                    <div style={{
-                      display: 'flex', gap: 6, alignItems: 'center',
-                    }}>
-                      {[0, 1, 2].map(j => (
-                        <div key={j} style={{
-                          width: 7, height: 7, borderRadius: '50%',
-                          background: COLORS.accent, opacity: 0.4,
-                          animation: `subtleFloat 1s ease ${j * 0.15}s infinite`,
-                        }} />
-                      ))}
-                    </div>
-                  </div>
-                </div>
-              )}
-            </div>
-          </div>
-        )}
-
-        {/* Divider */}
-        <div style={{
-          borderBottom: `1px dashed ${COLORS.border}`,
-          margin: '20px 0 0',
-        }} />
-
-        {/* Recent Searches */}
-        <SectionLabel right="See all">Recent</SectionLabel>
-        {recentSearches.map((s, i) => (
-          <Card key={i} delay={300 + i * 80} leftBorder={s.status === 'tracked'}>
-            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
-              <div>
-                <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-                  <span style={{
-                    fontFamily: "'JetBrains Mono', monospace",
-                    fontSize: 15, fontWeight: 600,
-                    color: COLORS.textPrimary,
-                  }}>{s.from}</span>
-                  <ArrowRight size={14} color={COLORS.textTertiary} />
-                  <span style={{
-                    fontFamily: "'JetBrains Mono', monospace",
-                    fontSize: 15, fontWeight: 600,
-                    color: COLORS.textPrimary,
-                  }}>{s.to}</span>
-                </div>
-                <span style={{
-                  fontSize: 13, color: COLORS.textSecondary, marginTop: 4,
-                  display: 'block',
-                }}>{s.date} · {s.cabin}</span>
-              </div>
-              <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
-                {s.status && (
-                  <span style={{
-                    fontSize: 11, fontWeight: 600,
-                    color: s.status === 'new results' ? COLORS.accent : COLORS.textTertiary,
-                    background: s.status === 'new results' ? COLORS.accentLight : 'transparent',
-                    padding: s.status === 'new results' ? '3px 8px' : 0,
-                    borderRadius: 100,
-                  }}>{s.status}</span>
-                )}
-                <ChevronRight size={16} color={COLORS.textTertiary} />
-              </div>
-            </div>
-          </Card>
-        ))}
-
-        {/* Price Alerts */}
-        <div id="price-alerts" style={{ scrollMarginTop: 20 }} />
-        <SectionLabel right="3 active">Price Alerts</SectionLabel>
-        {priceAlerts.map((a, i) => (
-          <Card key={i} delay={600 + i * 80}>
-            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-              <div>
-                <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 4 }}>
-                  <span style={{
-                    fontFamily: "'JetBrains Mono', monospace",
-                    fontSize: 14, fontWeight: 600,
-                    color: COLORS.textPrimary,
-                  }}>{a.from}</span>
-                  <ArrowRight size={12} color={COLORS.textTertiary} />
-                  <span style={{
-                    fontFamily: "'JetBrains Mono', monospace",
-                    fontSize: 14, fontWeight: 600,
-                    color: COLORS.textPrimary,
-                  }}>{a.to}</span>
-                </div>
-                <span style={{
-                  fontFamily: "'JetBrains Mono', monospace",
-                  fontSize: 18, fontWeight: 700,
-                  color: COLORS.textPrimary,
-                }}>{a.price}</span>
-              </div>
-              <PriceChangePill change={a.change} />
-            </div>
-          </Card>
-        ))}
-
-        {/* Empty Legs */}
-        <SectionLabel right="3 nearby">Private Jets</SectionLabel>
-        {emptyLegs.map((leg, i) => (
-          <Card key={i} delay={900 + i * 80}>
-            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
-              <div>
-                <span style={{
-                  fontSize: 11, fontWeight: 600,
-                  color: COLORS.accent,
-                  textTransform: 'uppercase',
-                  letterSpacing: '0.05em',
-                }}>{leg.broker}</span>
-                <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginTop: 4 }}>
-                  <span style={{
-                    fontFamily: "'JetBrains Mono', monospace",
-                    fontSize: 15, fontWeight: 600,
-                    color: COLORS.textPrimary,
-                  }}>{leg.from}</span>
-                  <div style={{
-                    flex: '0 0 auto',
-                    display: 'flex', alignItems: 'center', gap: 4,
-                  }}>
-                    <div style={{ width: 20, height: 1, background: COLORS.border }} />
-                    <Plane size={14} color={COLORS.textTertiary} style={{ transform: 'rotate(45deg)' }} />
-                    <div style={{ width: 20, height: 1, background: COLORS.border }} />
-                  </div>
-                  <span style={{
-                    fontSize: 14, fontWeight: 500,
-                    color: COLORS.textPrimary,
-                  }}>{leg.to}</span>
-                </div>
-              </div>
-              <div style={{ textAlign: 'right' }}>
-                <span style={{
-                  fontFamily: "'JetBrains Mono', monospace",
-                  fontSize: 18, fontWeight: 700,
-                  color: COLORS.textPrimary,
-                }}>{leg.price}</span>
-                <span style={{
-                  display: 'block',
-                  fontSize: 11, color: COLORS.textTertiary, marginTop: 2,
-                }}>{leg.when}</span>
-              </div>
-            </div>
-
-            {/* Details row */}
-            <div style={{
-              display: 'flex', justifyContent: 'space-between', alignItems: 'center',
-              paddingTop: 10, marginTop: 10,
-              borderTop: `1px solid ${COLORS.border}`,
-            }}>
-              <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
-                <span style={{ fontSize: 12, color: COLORS.textSecondary, display: 'flex', alignItems: 'center', gap: 4 }}>
-                  <Plane size={12} /> {leg.aircraft}
-                </span>
-                <span style={{ fontSize: 12, color: COLORS.textSecondary, display: 'flex', alignItems: 'center', gap: 4 }}>
-                  <Users size={12} /> {leg.pax} pax
-                </span>
-              </div>
-              <span style={{
-                fontSize: 12, fontWeight: 600,
-                color: COLORS.success,
-                background: COLORS.successBg,
-                padding: '3px 8px',
-                borderRadius: 100,
+        {/* What it searches */}
+        <div style={{ marginTop: 48, width: '100%' }}>
+          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(160px, 1fr))', gap: 12 }}>
+            {[
+              { icon: '💰', title: 'Cash Fares', desc: 'Google Flights prices across all airlines' },
+              { icon: '✈️', title: 'Award Flights', desc: '12 loyalty programs searched simultaneously' },
+              { icon: '🌍', title: 'Region Search', desc: 'Say "Europe" — we check every major city' },
+              { icon: '⚡', title: 'Instant', desc: 'Natural language, no forms to fill' },
+            ].map((item, i) => (
+              <div key={i} style={{
+                background: C.surface, borderRadius: 12, padding: '16px',
+                border: `1px solid ${C.border}`,
               }}>
-                {leg.perPerson}/person
-              </span>
-            </div>
-          </Card>
-        ))}
-
-        {/* Spacer for bottom nav */}
-        <div style={{ height: 20 }} />
+                <div style={{ fontSize: 20, marginBottom: 8 }}>{item.icon}</div>
+                <div style={{ fontSize: 13, fontWeight: 600, color: C.text, marginBottom: 4 }}>{item.title}</div>
+                <div style={{ fontSize: 12, color: C.textSub, lineHeight: 1.4 }}>{item.desc}</div>
+              </div>
+            ))}
+          </div>
+        </div>
       </main>
 
-      {/* Bottom Navigation — Frosted Glass */}
-      <nav style={{
-        position: 'fixed',
-        bottom: 0, left: '50%',
-        transform: 'translateX(-50%)',
-        width: '100%', maxWidth: 430,
-        background: 'rgba(250, 250, 247, 0.88)',
-        backdropFilter: 'blur(24px)',
-        WebkitBackdropFilter: 'blur(24px)',
-        borderTop: `1px solid ${COLORS.border}`,
-        display: 'flex', justifyContent: 'space-around',
-        padding: '10px 0 18px',
-        zIndex: 100,
-      }}>
-        {tabItems.map((tab, i) => {
-          const Icon = tab.icon;
-          const isActive = activeTab === i;
-          return (
-            <button key={i} onClick={() => handleTab(i)} style={{
-              display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 4,
-              background: 'transparent', border: 'none', cursor: 'pointer',
-              padding: '4px 16px',
-              transition: 'all 0.15s ease',
-            }}>
-              <div style={{
-                padding: '6px 16px',
-                borderRadius: 100,
-                background: isActive ? COLORS.accentLight : 'transparent',
-                transition: 'all 0.2s ease',
-                display: 'flex', alignItems: 'center', justifyContent: 'center',
-              }}>
-                <Icon
-                  size={20}
-                  color={isActive ? COLORS.accent : COLORS.textTertiary}
-                  strokeWidth={isActive ? 2.2 : 1.5}
-                />
-              </div>
-              <span style={{
-                fontSize: 11, fontWeight: isActive ? 600 : 500,
-                color: isActive ? COLORS.accent : COLORS.textTertiary,
-                fontFamily: "'DM Sans', sans-serif",
-              }}>{tab.label}</span>
-            </button>
-          );
-        })}
-      </nav>
+      {/* Footer */}
+      <footer style={{ padding: '20px 24px', fontSize: 12, color: C.textMuted, textAlign: 'center' }}>
+        TravelCheckpoint — personal flight search tool
+      </footer>
     </div>
   );
 }
