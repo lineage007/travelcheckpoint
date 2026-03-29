@@ -109,45 +109,48 @@ interface CashResult {
 
 async function searchCashFlights(origin: string, destination: string, date: string, cabin: string): Promise<CashResult[]> {
   const departDate = date || new Date(Date.now() + 7 * 86400000).toISOString().split('T')[0];
-  const cabinCode = cabin === 'business' ? 3 : cabin === 'first' ? 4 : cabin === 'premium' ? 2 : 1;
+  const serpApiKey = process.env.SERPAPI_KEY || '';
   
-  // Try the local cash-flights Python API if available (dev/self-hosted)
-  const localApiUrl = process.env.CASH_FLIGHTS_API_URL;
-  if (localApiUrl) {
+  // SerpAPI Google Flights — real prices from Google Flights
+  if (serpApiKey) {
     try {
-      const res = await fetch(`${localApiUrl}/search?origin=${origin}&destination=${destination}&date=${departDate}&cabin=${cabin}`, {
-        signal: AbortSignal.timeout(15000),
-      });
+      const travelClass = cabin === 'first' ? 4 : cabin === 'business' ? 3 : cabin === 'premium' ? 2 : 1;
+      const url = `https://serpapi.com/search.json?engine=google_flights&departure_id=${origin}&arrival_id=${destination}&outbound_date=${departDate}&type=2&travel_class=${travelClass}&currency=USD&hl=en&api_key=${serpApiKey}`;
+      const res = await fetch(url, { signal: AbortSignal.timeout(15000) });
       if (res.ok) {
         const data = await res.json();
-        return (data.flights || []).map((f: Record<string, unknown>, i: number) => {
-          const priceStr = String(f.price || '').replace(/\xa0/g, ' ');
-          const priceMatch = priceStr.match(/([\d,]+)/);
-          const priceNum = priceMatch ? parseInt(priceMatch[1].replace(/,/g, '')) : 0;
-          const currency = priceStr.match(/([A-Z]{3})/)?.[1] || 'USD';
+        const allFlights = [...(data.best_flights || []), ...(data.other_flights || [])];
+        return allFlights.map((f: Record<string, unknown>, i: number): CashResult => {
+          const legs = (f.flights as Record<string, unknown>[]) || [];
+          const firstLeg = legs[0] || {};
+          const lastLeg = legs[legs.length - 1] || {};
+          const airline = String(firstLeg.airline || 'Unknown');
+          const flightNums = legs.map((l: Record<string, unknown>) => `${l.airline || ''} ${l.flight_number || ''}`).join(', ');
+          const depAirport = (firstLeg.departure_airport as Record<string, string>) || {};
+          const arrAirport = (lastLeg.arrival_airport as Record<string, string>) || {};
           return {
             id: `cash-${i}`,
             type: 'cash' as const,
-            airline: String(f.name || 'Multiple Airlines'),
-            flights: '',
+            airline,
+            flights: flightNums,
             route: `${origin} → ${destination}`,
             origin, destination,
-            price: priceNum,
-            currency,
-            departureTime: String(f.departure || ''),
-            arrivalTime: String(f.arrival || ''),
-            duration: String(f.duration || ''),
-            stops: typeof f.stops === 'number' ? f.stops : 0,
+            price: (f.price as number) || 0,
+            currency: 'USD',
+            departureTime: depAirport.time || '',
+            arrivalTime: arrAirport.time || '',
+            duration: `${(f.total_duration as number) || 0} min`,
+            stops: legs.length - 1,
             date: departDate,
             cabin: cabin.charAt(0).toUpperCase() + cabin.slice(1),
             bookingUrl: `https://www.google.com/travel/flights?q=${origin}+to+${destination}+${departDate}+${cabin}`,
           };
         }).filter((f: CashResult) => f.price > 0).sort((a: CashResult, b: CashResult) => a.price - b.price);
       }
-    } catch { /* fall through to Google Flights link */ }
+    } catch { /* fall through to links */ }
   }
   
-  // Fallback: generate a Google Flights deep link
+  // Fallback: deep links to search engines
   const googleUrl = `https://www.google.com/travel/flights?q=${origin}+to+${destination}+on+${departDate}+${cabin}+class`;
   const skyUrl = `https://www.skyscanner.ae/transport/flights/${origin.toLowerCase()}/${destination.toLowerCase()}/${departDate.replace(/-/g, '').slice(2)}/?adultsv2=1&cabinclass=${cabin}&ref=home`;
   
