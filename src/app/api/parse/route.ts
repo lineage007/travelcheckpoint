@@ -256,12 +256,14 @@ export async function POST(request: NextRequest) {
 
   // If region search → return multiple destinations
   if (destRegion && destRegion.length > 1) {
+    // Extract just the region name (remove cabin/date/pax words)
+    const cleanRegion = destText.replace(/\b(tomorrow|today|next week|next month|business|economy|first|premium|class|cheap|cheapest|\d+\s*people|\d+\s*pax|family of \d+)\b/gi, '').trim();
     return NextResponse.json({
       parsed: {
         origin: origin.code,
         originCity: origin.city,
         isRegionSearch: true,
-        regionName: destText.trim(),
+        regionName: cleanRegion || destText.trim(),
         destinations: destRegion.map(d => ({ code: d.code, city: d.city })),
         departDate,
         cabin,
