@@ -143,6 +143,19 @@ export default function HomePage() {
           </div>
         </div>
 
+        {/* Mode tabs: Flights vs Stays */}
+        <div style={{ display: 'flex', gap: '8px', marginBottom: '20px' }}>
+          <Link href="/" style={{ background: ACCENT, border: 'none', borderRadius: '10px', padding: '10px 20px', fontSize: '13px', fontWeight: 700, color: '#fff', textDecoration: 'none', display: 'flex', alignItems: 'center', gap: '6px' }}>
+            ✈️ Flights
+          </Link>
+          <Link href="/stays?destination=Bali" style={{ background: BG_CARD, border: `1px solid ${BORDER}`, borderRadius: '10px', padding: '10px 20px', fontSize: '13px', fontWeight: 500, color: TEXT_MID, textDecoration: 'none', display: 'flex', alignItems: 'center', gap: '6px' }}>
+            🏨 Stays
+          </Link>
+          <Link href="/" style={{ background: BG_CARD, border: `1px solid ${BORDER}`, borderRadius: '10px', padding: '10px 20px', fontSize: '13px', fontWeight: 500, color: TEXT_MID, textDecoration: 'none', display: 'flex', alignItems: 'center', gap: '6px' }}>
+            📦 Packages
+          </Link>
+        </div>
+
         {/* Quick filters */}
         <div style={{ display: 'flex', gap: '8px', marginBottom: '28px', flexWrap: 'wrap' }}>
           {['Cash Fares', 'Award Flights', 'Hidden City', 'Empty Legs', 'Multi-City'].map(f => (
