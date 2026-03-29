@@ -32,7 +32,7 @@ export default function Home() {
       <div style={{ padding: '60px 20px 32px', maxWidth: '600px', margin: '0 auto' }}>
         <h1 style={{
           fontFamily: 'var(--font-display)', fontSize: '36px', fontWeight: 600,
-          color: 'var(--text-primary)', lineHeight: 1.15, marginBottom: '8px',
+          color: '#C4A265', fontStyle: 'italic', lineHeight: 1.15, marginBottom: '8px',
         }}>
           Where to?
         </h1>
