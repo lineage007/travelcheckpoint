@@ -219,7 +219,7 @@ function SearchResults() {
       
       if (parseRes.ok) {
         const parseData = await parseRes.json();
-        if (parseData.parsed) {
+        if (parseData.parsed && parseData.parsed.origin) {
           const p = parseData.parsed;
           setParsed(p);
           origin = p.origin || 'DXB';
@@ -228,9 +228,17 @@ function SearchResults() {
           pax = p.passengers || 1;
           setPassengers(pax);
           setParseStatus('done');
+        } else {
+          // Parse returned but no data — fall through to basic parsing
+          console.log('Parse response:', parseData);
+          setParseStatus('error');
         }
+      } else {
+        console.log('Parse failed:', parseRes.status);
+        setParseStatus('error');
       }
-    } catch {
+    } catch (e) {
+      console.log('Parse error:', e);
       setParseStatus('error');
       // Fallback to basic parsing
       const upperQ = q.toUpperCase();

@@ -76,13 +76,18 @@ JSON only, no explanation:`
       }),
     });
 
+    if (!res.ok) {
+      const errText = await res.text();
+      return NextResponse.json({ error: 'Anthropic API error', status: res.status, details: errText.slice(0, 200) }, { status: 500 });
+    }
+
     const data = await res.json();
     const text = data.content?.[0]?.text || '{}';
     
     // Extract JSON from response
     const jsonMatch = text.match(/\{[\s\S]*\}/);
     if (!jsonMatch) {
-      return NextResponse.json({ error: 'Failed to parse query' }, { status: 500 });
+      return NextResponse.json({ error: 'Failed to parse query', raw_response: text.slice(0, 200) }, { status: 500 });
     }
 
     const parsed: ParsedQuery = JSON.parse(jsonMatch[0]);
