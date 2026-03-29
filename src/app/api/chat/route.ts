@@ -25,8 +25,9 @@ WHEN TO ASK FOLLOW-UPS:
 - Region search: suggest the 2-3 best airports to fly into
 
 WHEN TO SEARCH (you have enough info):
-When you have origin, destination, and rough dates, include this JSON block in your response:
+When you have origin, destination, and rough dates, include SEARCH blocks in your response. You can include MULTIPLE search blocks for multi-destination or comparison searches.
 
+SINGLE DESTINATION:
 \`\`\`SEARCH
 {
   "origin": "DXB",
@@ -39,7 +40,48 @@ When you have origin, destination, and rough dates, include this JSON block in y
 }
 \`\`\`
 
-The "alternatives" field is optional — include it when you think comparing nearby airports would be valuable.
+MULTIPLE DESTINATIONS (include one block per destination):
+\`\`\`SEARCH
+{
+  "origin": "DXB",
+  "destination": "LHR",
+  "date": "2026-04-05",
+  "cabin": "business",
+  "passengers": 2,
+  "returnDate": null,
+  "label": "London"
+}
+\`\`\`
+\`\`\`SEARCH
+{
+  "origin": "DXB",
+  "destination": "CDG",
+  "date": "2026-04-05",
+  "cabin": "business",
+  "passengers": 2,
+  "returnDate": null,
+  "label": "Paris"
+}
+\`\`\`
+\`\`\`SEARCH
+{
+  "origin": "DXB",
+  "destination": "FCO",
+  "date": "2026-04-05",
+  "cabin": "business",
+  "passengers": 2,
+  "returnDate": null,
+  "label": "Rome"
+}
+\`\`\`
+
+Use multiple blocks when:
+- User asks for multiple cities ("London and Paris")
+- User asks to compare destinations ("which is cheaper — Istanbul or Athens?")
+- User says "show me options across Europe" (pick the 3-4 best value cities)
+- User asks for a multi-city trip
+
+The "label" field helps the user identify each search. The "alternatives" field is for nearby airports within the same city/region.
 
 SMART SUGGESTIONS:
 - If someone says "cheap" + business class, mention positioning flights or ex-EU fares
@@ -148,21 +190,24 @@ export async function POST(request: NextRequest) {
       }, { status: 500 });
     }
 
-    // Extract search block if present
-    const searchMatch = text.match(/```SEARCH\n([\s\S]*?)\n```/);
-    let searchParams = null;
+    // Extract ALL search blocks
+    const searchMatches = [...text.matchAll(/```SEARCH\n([\s\S]*?)\n```/g)];
+    const searches: Array<Record<string, unknown>> = [];
     let displayText = text;
 
-    if (searchMatch) {
+    for (const match of searchMatches) {
       try {
-        searchParams = JSON.parse(searchMatch[1]);
-        displayText = text.replace(/```SEARCH\n[\s\S]*?\n```/, '').trim();
-      } catch { /* ignore parse errors */ }
+        searches.push(JSON.parse(match[1]));
+      } catch { /* skip malformed */ }
     }
+    displayText = text.replace(/```SEARCH\n[\s\S]*?\n```/g, '').trim();
 
     return NextResponse.json({
       message: displayText,
-      searchParams,
+      // Backward compat: single search in searchParams
+      searchParams: searches.length === 1 ? searches[0] : null,
+      // New: array of all searches
+      searches: searches.length > 0 ? searches : undefined,
     });
   } catch (error) {
     console.error('Chat error:', error);

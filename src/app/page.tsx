@@ -146,13 +146,17 @@ function Card({ children, delay = 0, leftBorder, style = {} }: { children: React
   );
 }
 
+interface SearchParams {
+  origin: string; destination: string; date: string; cabin: string;
+  passengers: number; returnDate?: string | null; alternatives?: string[];
+  label?: string;
+}
+
 interface ChatMessage {
   role: 'user' | 'assistant';
   content: string;
-  searchParams?: {
-    origin: string; destination: string; date: string; cabin: string;
-    passengers: number; returnDate?: string | null; alternatives?: string[];
-  } | null;
+  searchParams?: SearchParams | null;
+  searches?: SearchParams[];
 }
 
 export default function TravelCheckpoint() {
@@ -181,16 +185,18 @@ export default function TravelCheckpoint() {
         body: JSON.stringify({ messages: newMessages.map(m => ({ role: m.role, content: m.content })) }),
       });
       const data = await res.json();
+      const searches: SearchParams[] = data.searches || (data.searchParams ? [data.searchParams] : []);
       const assistantMsg: ChatMessage = {
         role: 'assistant',
         content: data.message || 'Sorry, something went wrong.',
-        searchParams: data.searchParams || null,
+        searchParams: searches.length === 1 ? searches[0] : null,
+        searches: searches.length > 1 ? searches : undefined,
       };
       setChatMessages(prev => [...prev, assistantMsg]);
 
-      // If search params returned, auto-navigate after a brief pause
-      if (data.searchParams) {
-        const p = data.searchParams;
+      // If single search, auto-navigate after a brief pause
+      if (searches.length === 1) {
+        const p = searches[0];
         setTimeout(() => {
           const searchQ = `${p.origin} to ${p.destination} ${p.cabin} ${p.passengers > 1 ? p.passengers + ' people' : ''}`.trim();
           router.push(`/search?q=${encodeURIComponent(searchQ)}&origin=${p.origin}&dest=${p.destination}&date=${p.date}&cabin=${p.cabin}&pax=${p.passengers}${p.alternatives?.length ? '&alt=' + p.alternatives.join(',') : ''}`);
@@ -416,6 +422,7 @@ export default function TravelCheckpoint() {
                     border: msg.role === 'assistant' ? `1px solid ${COLORS.border}` : 'none',
                   }}>
                     {msg.content}
+                    {/* Single search — auto-navigates */}
                     {msg.searchParams && (
                       <div style={{
                         marginTop: 10, padding: '10px 12px',
@@ -433,6 +440,55 @@ export default function TravelCheckpoint() {
                             Also checking: {msg.searchParams.alternatives.join(', ')}
                           </div>
                         )}
+                      </div>
+                    )}
+                    {/* Multiple searches — show clickable cards */}
+                    {msg.searches && msg.searches.length > 1 && (
+                      <div style={{ marginTop: 10, display: 'flex', flexDirection: 'column', gap: 6 }}>
+                        <div style={{ fontSize: 11, fontWeight: 700, color: COLORS.accent, marginBottom: 2 }}>
+                          ✈ {msg.searches.length} destinations found — tap to search:
+                        </div>
+                        {msg.searches.map((s, si) => (
+                          <button
+                            key={si}
+                            onClick={() => {
+                              const searchQ = `${s.origin} to ${s.destination} ${s.cabin} ${s.passengers > 1 ? s.passengers + ' people' : ''}`.trim();
+                              router.push(`/search?q=${encodeURIComponent(searchQ)}&origin=${s.origin}&dest=${s.destination}&date=${s.date}&cabin=${s.cabin}&pax=${s.passengers}${s.alternatives?.length ? '&alt=' + s.alternatives.join(',') : ''}`);
+                            }}
+                            style={{
+                              display: 'flex', justifyContent: 'space-between', alignItems: 'center',
+                              padding: '10px 12px', background: COLORS.accentLight,
+                              borderRadius: 10, border: `1px solid ${COLORS.accent}22`,
+                              cursor: 'pointer', textAlign: 'left', width: '100%',
+                              transition: 'all 0.15s',
+                            }}
+                            onMouseEnter={e => { e.currentTarget.style.background = COLORS.accent; e.currentTarget.style.color = '#fff'; }}
+                            onMouseLeave={e => { e.currentTarget.style.background = COLORS.accentLight; e.currentTarget.style.color = COLORS.accent; }}
+                          >
+                            <div style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: 12, color: 'inherit' }}>
+                              <span style={{ fontWeight: 700 }}>{s.label || s.destination}</span>
+                              <span style={{ opacity: 0.7, marginLeft: 6 }}>{s.origin} → {s.destination}</span>
+                            </div>
+                            <ArrowRight size={14} style={{ opacity: 0.6 }} />
+                          </button>
+                        ))}
+                        <button
+                          onClick={() => {
+                            // Search all destinations sequentially — open first, let user tap others
+                            const first = msg.searches![0];
+                            const searchQ = `${first.origin} to ${first.destination} ${first.cabin} ${first.passengers > 1 ? first.passengers + ' people' : ''}`.trim();
+                            router.push(`/search?q=${encodeURIComponent(searchQ)}&origin=${first.origin}&dest=${first.destination}&date=${first.date}&cabin=${first.cabin}&pax=${first.passengers}`);
+                          }}
+                          style={{
+                            marginTop: 4, padding: '10px 12px',
+                            background: COLORS.accent, color: '#fff',
+                            borderRadius: 10, border: 'none',
+                            cursor: 'pointer', fontSize: 13,
+                            fontFamily: "'DM Sans', sans-serif", fontWeight: 600,
+                          }}
+                        >
+                          Search all {msg.searches.length} destinations →
+                        </button>
                       </div>
                     )}
                   </div>
