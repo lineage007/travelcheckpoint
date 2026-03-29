@@ -197,66 +197,55 @@ function SearchResults() {
   const [cashResults, setCashResults] = useState<Array<{ id: string; airline: string; flights: string; price: number; currency: string; route: string; departureTime: string; arrivalTime: string; duration: string; stops: number; date: string; cabin: string; bookingUrl: string }>>([]);
   const [meta, setMeta] = useState<{ totalAwards: number; sourcesSearched: number; timestamp: string } | null>(null);
   const [passengers, setPassengers] = useState(1);
+  const [parsed, setParsed] = useState<{ origin: string; destination: string; originCity: string; destinationCity: string; departDate: string; returnDate: string; cabin: string; passengers: number; tripType: string; flexible: boolean; maxBudget: number | null; maxPoints: number | null; preferences: string[] } | null>(null);
+  const [parseStatus, setParseStatus] = useState<'parsing' | 'done' | 'error'>('parsing');
 
-  // Parse passenger count from query
-  useEffect(() => {
-    const paxMatch = q.match(/(\d+)\s*(people|pax|passengers|person|adults?|travellers?)/i);
-    if (paxMatch) setPassengers(parseInt(paxMatch[1]));
-    const familyMatch = q.match(/family\s*(?:of\s*)?(\d+)/i);
-    if (familyMatch) setPassengers(parseInt(familyMatch[1]));
-  }, [q]);
-
-  // Parse origin/destination from query and search
   const doSearch = useCallback(async () => {
     setLoading(true);
+    setParseStatus('parsing');
     
-    // Simple parser — extract airport codes or city names
-    const upperQ = q.toUpperCase();
-    
-    // Try to find 3-letter airport codes
-    const codeMatch = upperQ.match(/\b([A-Z]{3})\b.*?\b(?:TO|→|->)\b.*?\b([A-Z]{3})\b/);
+    // Step 1: Parse the natural language query with Claude
     let origin = 'DXB';
     let destination = 'LHR';
-    
-    if (codeMatch) {
-      origin = codeMatch[1];
-      destination = codeMatch[2];
-    } else {
-      // City name mapping
-      const cityMap: Record<string, string> = {
-        'DUBAI': 'DXB', 'LONDON': 'LHR', 'SYDNEY': 'SYD', 'TOKYO': 'NRT', 'BALI': 'DPS',
-        'NEW YORK': 'JFK', 'PARIS': 'CDG', 'ISTANBUL': 'IST', 'SINGAPORE': 'SIN', 'BANGKOK': 'BKK',
-        'MELBOURNE': 'MEL', 'HONG KONG': 'HKG', 'KUALA LUMPUR': 'KUL', 'DOHA': 'DOH',
-        'ABU DHABI': 'AUH', 'RIYADH': 'RUH', 'JEDDAH': 'JED', 'CAIRO': 'CAI',
-        'MUMBAI': 'BOM', 'DELHI': 'DEL', 'COLOMBO': 'CMB', 'MALE': 'MLE', 'MALDIVES': 'MLE',
-        'LOS ANGELES': 'LAX', 'SAN FRANCISCO': 'SFO', 'MIAMI': 'MIA', 'ROME': 'FCO',
-        'MILAN': 'MXP', 'BARCELONA': 'BCN', 'MADRID': 'MAD', 'AMSTERDAM': 'AMS',
-        'FRANKFURT': 'FRA', 'ZURICH': 'ZRH', 'ATHENS': 'ATH', 'PHUKET': 'HKT',
-        'MANILA': 'MNL', 'JAKARTA': 'CGK', 'SEOUL': 'ICN', 'OSAKA': 'KIX',
-        'TORONTO': 'YYZ', 'VANCOUVER': 'YVR', 'AUCKLAND': 'AKL',
-      };
-      
-      for (const [city, code] of Object.entries(cityMap)) {
-        if (upperQ.includes(city)) {
-          // Determine if it's origin or destination based on position
-          const idx = upperQ.indexOf(city);
-          const toIdx = upperQ.search(/\bTO\b|\b→\b|\b->\b/);
-          if (toIdx > -1 && idx < toIdx) origin = code;
-          else if (toIdx > -1) destination = code;
-          else if (!codeMatch) destination = code; // Default: if only one city mentioned, it's destination
-        }
-      }
-    }
-
-    // Detect cabin
     let cabin = 'business';
-    if (/economy|eco\b/i.test(q)) cabin = 'economy';
-    if (/first\s*class|first\b/i.test(q)) cabin = 'first';
-    if (/premium\s*eco/i.test(q)) cabin = 'premium';
+    let pax = 1;
 
     try {
-      const res = await fetch(`/api/search?origin=${origin}&destination=${destination}&cabin=${cabin}`);
-      const data = await res.json();
+      const parseRes = await fetch('/api/parse', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ query: q }),
+      });
+      
+      if (parseRes.ok) {
+        const parseData = await parseRes.json();
+        if (parseData.parsed) {
+          const p = parseData.parsed;
+          setParsed(p);
+          origin = p.origin || 'DXB';
+          destination = p.destination || 'LHR';
+          cabin = p.cabin || 'business';
+          pax = p.passengers || 1;
+          setPassengers(pax);
+          setParseStatus('done');
+        }
+      }
+    } catch {
+      setParseStatus('error');
+      // Fallback to basic parsing
+      const upperQ = q.toUpperCase();
+      const codeMatch = upperQ.match(/\b([A-Z]{3})\b.*?\b(?:TO|→|->)\b.*?\b([A-Z]{3})\b/);
+      if (codeMatch) { origin = codeMatch[1]; destination = codeMatch[2]; }
+      if (/economy/i.test(q)) cabin = 'economy';
+      if (/first/i.test(q)) cabin = 'first';
+      const paxMatch = q.match(/(\d+)\s*(people|pax|passengers|family)/i);
+      if (paxMatch) { pax = parseInt(paxMatch[1]); setPassengers(pax); }
+    }
+
+    // Step 2: Search with structured params
+    try {
+      const searchRes = await fetch(`/api/search?origin=${origin}&destination=${destination}&cabin=${cabin}`);
+      const data = await searchRes.json();
       setResults(data.results?.awards || []);
       setCashResults(data.results?.cash || []);
       setMeta(data.meta || null);
@@ -269,9 +258,9 @@ function SearchResults() {
   useEffect(() => { doSearch(); }, [doSearch]);
 
   // Derive origin/destination for display
-  const displayOrigin = results[0]?.origin || 'DXB';
-  const displayDest = results[0]?.destination || '???';
-  const displayCabin = results[0]?.cabin || 'Business';
+  const displayOrigin = parsed?.origin || results[0]?.origin || 'DXB';
+  const displayDest = parsed?.destination || results[0]?.destination || '???';
+  const displayCabin = parsed?.cabin || results[0]?.cabin || 'Business';
 
   const TABS_DATA: { key: ResultTab; label: string; color: string; count: number }[] = [
     { key: 'points', label: 'Award Flights', color: GOLD, count: results.length },
@@ -296,9 +285,25 @@ function SearchResults() {
       </header>
 
       {/* Query interpretation */}
-      <div style={{ padding: '10px 20px', background: BG_CARD, borderBottom: `1px solid ${BORDER}`, fontSize: '12px', color: TEXT_DIM }}>
-        <span style={{ color: TEXT_MID }}>Search:</span> &ldquo;{q}&rdquo;
-        {meta && <span style={{ marginLeft: '12px' }}>· {meta.sourcesSearched} programs searched</span>}
+      <div style={{ padding: '10px 20px', background: BG_CARD, borderBottom: `1px solid ${BORDER}`, fontSize: '12px' }}>
+        <div style={{ color: TEXT_DIM, marginBottom: parsed ? '6px' : '0' }}>&ldquo;{q}&rdquo;</div>
+        {parsed && parseStatus === 'done' && (
+          <div style={{ display: 'flex', gap: '8px', flexWrap: 'wrap', alignItems: 'center' }}>
+            <span style={{ color: ACCENT, fontWeight: 600 }}>{parsed.originCity || parsed.origin}</span>
+            <span style={{ color: TEXT_DIM }}>→</span>
+            <span style={{ color: ACCENT, fontWeight: 600 }}>{parsed.destinationCity || parsed.destination}</span>
+            <span style={{ color: TEXT_DIM }}>·</span>
+            <span style={{ color: GOLD }}>{parsed.cabin}</span>
+            {parsed.passengers > 1 && <><span style={{ color: TEXT_DIM }}>·</span><span style={{ color: TEXT_MID }}>{parsed.passengers} pax</span></>}
+            {parsed.departDate && <><span style={{ color: TEXT_DIM }}>·</span><span style={{ color: TEXT_MID }}>{parsed.departDate}</span></>}
+            {parsed.tripType === 'round-trip' && parsed.returnDate && <><span style={{ color: TEXT_DIM }}>→</span><span style={{ color: TEXT_MID }}>{parsed.returnDate}</span></>}
+            {parsed.flexible && <span style={{ color: GREEN, fontSize: '10px', fontWeight: 600 }}>FLEXIBLE</span>}
+            {parsed.maxBudget && <span style={{ color: GREEN, fontSize: '11px' }}>≤ ${parsed.maxBudget.toLocaleString()}</span>}
+            {parsed.maxPoints && <span style={{ color: GOLD, fontSize: '11px' }}>≤ {parsed.maxPoints.toLocaleString()} pts</span>}
+          </div>
+        )}
+        {parseStatus === 'parsing' && <span style={{ color: TEXT_DIM }}>🧠 Understanding your search...</span>}
+        {meta && <div style={{ color: TEXT_DIM, marginTop: '4px' }}>{meta.sourcesSearched} programs searched · {meta.totalAwards} award results</div>}
       </div>
 
       {/* Disclaimer */}
