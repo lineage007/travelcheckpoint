@@ -1,8 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 
+const GROQ_KEY = process.env.GROQ_API_KEY || '';
 const GOOGLE_AI_KEY = process.env.GOOGLE_AI_API_KEY || '';
-const ANTHROPIC_KEY = process.env.ANTHROPIC_API_KEY || '';
-const OPENROUTER_KEY = process.env.OPENROUTER_API_KEY || '';
 
 interface Message {
   role: 'user' | 'assistant';
@@ -56,26 +55,49 @@ AIRPORT KNOWLEDGE:
 
 TONE: Knowledgeable, direct, slightly enthusiastic about finding deals. Like a friend who's obsessed with travel hacking.`;
 
-async function callGemini(messages: Message[]): Promise<{ text: string }> {
-  // Build Gemini-style contents
+async function callGroq(messages: Message[]): Promise<string> {
+  const res = await fetch('https://api.groq.com/openai/v1/chat/completions', {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+      'Authorization': `Bearer ${GROQ_KEY}`,
+    },
+    body: JSON.stringify({
+      model: 'llama-3.3-70b-versatile',
+      messages: [
+        { role: 'system', content: SYSTEM_PROMPT },
+        ...messages.map(m => ({ role: m.role, content: m.content })),
+      ],
+      max_tokens: 300,
+      temperature: 0.7,
+    }),
+  });
+
+  if (!res.ok) {
+    const err = await res.text();
+    throw new Error(`Groq error ${res.status}: ${err}`);
+  }
+
+  const data = await res.json();
+  return data.choices?.[0]?.message?.content || '';
+}
+
+async function callGemini(messages: Message[]): Promise<string> {
   const contents = messages.map(m => ({
     role: m.role === 'assistant' ? 'model' : 'user',
     parts: [{ text: m.content }],
   }));
-  
-  // Prepend system instruction as first user message if needed
-  const body = {
-    system_instruction: { parts: [{ text: SYSTEM_PROMPT }] },
-    contents,
-    generationConfig: { maxOutputTokens: 300, temperature: 0.7 },
-  };
 
   const res = await fetch(
     `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent?key=${GOOGLE_AI_KEY}`,
     {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify(body),
+      body: JSON.stringify({
+        system_instruction: { parts: [{ text: SYSTEM_PROMPT }] },
+        contents,
+        generationConfig: { maxOutputTokens: 300, temperature: 0.7 },
+      }),
     }
   );
 
@@ -85,77 +107,52 @@ async function callGemini(messages: Message[]): Promise<{ text: string }> {
   }
 
   const data = await res.json();
-  const text = data.candidates?.[0]?.content?.parts?.[0]?.text || '';
-  return { text };
-}
-
-async function callAnthropic(messages: Message[]): Promise<{ text: string }> {
-  const res = await fetch('https://api.anthropic.com/v1/messages', {
-    method: 'POST',
-    headers: {
-      'Content-Type': 'application/json',
-      'x-api-key': ANTHROPIC_KEY,
-      'anthropic-version': '2023-06-01',
-    },
-    body: JSON.stringify({
-      model: 'claude-haiku-4-5-20251001',
-      max_tokens: 300,
-      system: SYSTEM_PROMPT,
-      messages: messages.map(m => ({ role: m.role, content: m.content })),
-    }),
-  });
-
-  if (!res.ok) {
-    const err = await res.text();
-    throw new Error(`Anthropic error ${res.status}: ${err}`);
-  }
-
-  const data = await res.json();
-  const text = data.content?.[0]?.text || '';
-  return { text };
+  return data.candidates?.[0]?.content?.parts?.[0]?.text || '';
 }
 
 export async function POST(request: NextRequest) {
   try {
     const { messages }: { messages: Message[] } = await request.json();
-    
+
     if (!messages || !messages.length) {
       return NextResponse.json({ error: 'No messages provided' }, { status: 400 });
     }
 
-    // Try Gemini first (free), fall back to Anthropic
     let text = '';
     let lastError = '';
-    
-    if (GOOGLE_AI_KEY) {
+
+    // Priority 1: Groq (fast, free, generous limits)
+    if (!text && GROQ_KEY) {
       try {
-        const result = await callGemini(messages);
-        text = result.text;
+        text = await callGroq(messages);
       } catch (e) {
         lastError = String(e);
-        console.error('Gemini failed, trying Anthropic:', lastError);
+        console.error('Groq failed:', lastError);
       }
     }
-    
-    if (!text && ANTHROPIC_KEY) {
+
+    // Priority 2: Gemini (free tier)
+    if (!text && GOOGLE_AI_KEY) {
       try {
-        const result = await callAnthropic(messages);
-        text = result.text;
+        text = await callGemini(messages);
       } catch (e) {
         lastError = String(e);
-        console.error('Anthropic also failed:', lastError);
+        console.error('Gemini failed:', lastError);
       }
     }
-    
+
     if (!text) {
-      return NextResponse.json({ error: 'AI service unavailable', details: lastError }, { status: 500 });
+      return NextResponse.json({
+        error: 'AI service unavailable',
+        details: lastError,
+      }, { status: 500 });
     }
 
     // Extract search block if present
     const searchMatch = text.match(/```SEARCH\n([\s\S]*?)\n```/);
     let searchParams = null;
     let displayText = text;
-    
+
     if (searchMatch) {
       try {
         searchParams = JSON.parse(searchMatch[1]);
