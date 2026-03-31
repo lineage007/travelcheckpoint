@@ -84,8 +84,11 @@ function SearchResults() {
     if (saved) setPassport(saved);
   }, []);
 
+  const [error, setError] = useState<string | null>(null);
+
   const doSearch = useCallback(async () => {
     setLoading(true);
+    setError(null);
     setDestinations([]);
     setSelectedDest(null);
     setHiddenCity([]);
@@ -98,6 +101,7 @@ function SearchResults() {
     setRoomResults([]);
     setLiteHotels([]);
 
+    try {
     // 1. Parse the query
     let parseData: Record<string, unknown> = {};
     try {
@@ -114,7 +118,9 @@ function SearchResults() {
     const cabin = (parseData.cabin as string) || 'business';
     const pax = (parseData.passengers as number) || 1;
     const maxStops = parseData.maxStops as number | null;
-    const departDates = (parseData.departDates as string[]) || [parseData.departDate as string || ''];
+    const rawDates = (parseData.departDates as string[]) || [parseData.departDate as string || ''];
+    const departDates = rawDates.filter(d => d && d.length > 0);
+    if (departDates.length === 0) departDates.push(new Date(Date.now() + 7 * 86400000).toISOString().split('T')[0]);
     const isRegion = parseData.isRegionSearch === true;
     const destList: { code: string; city: string }[] = isRegion
       ? (parseData.destinations as { code: string; city: string }[]) || []
@@ -173,16 +179,18 @@ function SearchResults() {
       const dest = destList[0].code;
       const date = (parseData.date as string) || new Date(Date.now() + 7 * 86400000).toISOString().split('T')[0];
 
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      const safeFetch = (url: string): Promise<any> => fetch(url).then(r => { if (!r.ok) return {}; return r.json().catch(() => ({})); }).catch(() => ({}));
       const extras = await Promise.allSettled([
-        fetch(`/api/skiplagged?from=${origin}&to=${dest}&depart=${date}`).then(r => r.json()),
-        fetch(`/api/kiwi?from=${origin}&to=${dest}&depart=${date}&cabin=${cabin}`).then(r => r.json()),
-        fetch(`/api/visa?passport=${passport}&destination=${dest}`).then(r => r.json()),
-        fetch(`/api/currency?from=aed&destination=${dest}`).then(r => r.json()),
-        fetch(`/api/gems?destination=${dest}`).then(r => r.json()),
-        fetch(`/api/hotels?city=${destList[0].city}`).then(r => r.json()),
-        fetch(`/api/duffel?origin=${origin}&destination=${dest}&date=${date}&cabin=${cabin}&passengers=${passengers}`).then(r => r.json()),
-        fetch(`/api/rooms?destination=${dest}&checkin=${date}`).then(r => r.json()),
-        fetch(`/api/liteapi?destination=${dest}&checkin=${date}`).then(r => r.json()),
+        safeFetch(`/api/skiplagged?from=${origin}&to=${dest}&depart=${date}`),
+        safeFetch(`/api/kiwi?from=${origin}&to=${dest}&depart=${date}&cabin=${cabin}`),
+        safeFetch(`/api/visa?passport=${passport}&destination=${dest}`),
+        safeFetch(`/api/currency?from=aed&destination=${dest}`),
+        safeFetch(`/api/gems?destination=${dest}`),
+        safeFetch(`/api/hotels?city=${destList[0].city}`),
+        safeFetch(`/api/duffel?origin=${origin}&destination=${dest}&date=${date}&cabin=${cabin}&passengers=${pax}`),
+        safeFetch(`/api/rooms?destination=${dest}&checkin=${date}`),
+        safeFetch(`/api/liteapi?destination=${dest}&checkin=${date}`),
       ]);
 
       if (extras[0].status === 'fulfilled') setHiddenCity((extras[0].value.results || []).filter((r: HiddenCityResult) => r.price > 0));
@@ -195,6 +203,11 @@ function SearchResults() {
       if (extras[7].status === 'fulfilled') setRoomResults(extras[7].value.results || []);
       if (extras[8].status === 'fulfilled') setLiteHotels(extras[8].value.results || []);
       setLoadingExtra(false);
+    }
+    } catch (err) {
+      console.error('Search error:', err);
+      setError('Something went wrong. Please try again.');
+      setLoading(false);
     }
   }, [q, passport]);
 
@@ -294,6 +307,13 @@ function SearchResults() {
       </div>
 
       <div style={{ maxWidth: '900px', margin: '0 auto', padding: '16px' }}>
+        {error && (
+          <div style={{ background: 'rgba(239,68,68,0.1)', border: '1px solid rgba(239,68,68,0.2)', borderRadius: '10px', padding: '14px 16px', marginBottom: '16px', display: 'flex', alignItems: 'center', gap: '10px' }}>
+            <span style={{ fontSize: '16px' }}>⚠️</span>
+            <span style={{ fontFamily: "'DM Sans'", fontSize: '13px', color: '#FCA5A5' }}>{error}</span>
+            <button onClick={() => doSearch()} style={{ marginLeft: 'auto', fontFamily: "'DM Sans'", fontSize: '12px', fontWeight: 600, color: COLORS.accent, background: 'none', border: 'none', cursor: 'pointer' }}>Retry</button>
+          </div>
+        )}
         {/* ═══════════════ FLIGHTS TAB ═══════════════ */}
         {mainTab === 'flights' && (
           <>
@@ -309,10 +329,10 @@ function SearchResults() {
             {/* Multi-destination overview */}
             {isMulti && !selectedDest && (
               <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(200px, 1fr))', gap: '10px', marginBottom: '16px' }}>
-                {destinations.sort((a, b) => (a.cheapestCash || 99999) - (b.cheapestCash || 99999)).map(d => (
+                {[...destinations].sort((a, b) => (a.cheapestCash || 99999) - (b.cheapestCash || 99999)).map((d, di) => (
                   <button key={d.code} onClick={() => setSelectedDest(d.code)} style={{
                     background: 'rgba(255,255,255,0.04)', border: `1px solid ${COLORS.border}`, borderRadius: '12px', padding: '16px', cursor: 'pointer', textAlign: 'left',
-                    borderLeft: d === destinations.sort((a, b) => (a.cheapestCash || 99999) - (b.cheapestCash || 99999))[0] ? `3px solid ${COLORS.accent}` : undefined,
+                    borderLeft: di === 0 ? `3px solid ${COLORS.accent}` : undefined,
                   }}>
                     <div style={{ fontFamily: "'DM Sans'", fontSize: '14px', fontWeight: 600, color: COLORS.text }}>{d.city}</div>
                     <div style={{ fontFamily: "'JetBrains Mono'", fontSize: '11px', color: COLORS.sub, marginTop: '2px' }}>{d.code}</div>
@@ -632,5 +652,5 @@ function SearchResults() {
 }
 
 export default function SearchPage() {
-  return <Suspense fallback={<div style={{ minHeight: '100vh', background: '#FAFAF7', display: 'flex', alignItems: 'center', justifyContent: 'center' }}><div style={{ fontFamily: "'DM Sans'", color: '#9C958C' }}>Loading...</div></div>}><SearchResults /></Suspense>;
+  return <Suspense fallback={<div style={{ minHeight: '100vh', background: '#06060a', display: 'flex', alignItems: 'center', justifyContent: 'center' }}><div style={{ fontFamily: "'DM Sans'", color: 'rgba(255,255,255,0.4)' }}>Loading...</div></div>}><SearchResults /></Suspense>;
 }
