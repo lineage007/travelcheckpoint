@@ -235,18 +235,51 @@ function SearchResults() {
           </div>
         </div>
 
-        {/* Parsed query display */}
+        {/* Interactive refinement bar */}
         {parsed && (
-          <div style={{ maxWidth: '900px', margin: '8px auto 0', display: 'flex', gap: '8px', flexWrap: 'wrap', fontSize: '11px', fontFamily: "'JetBrains Mono', monospace", color: COLORS.sub }}>
-            <span style={{ background: COLORS.card, padding: '3px 8px', borderRadius: '4px' }}>{origin} → {isMulti ? `${destinations.length} cities` : dest0?.code}</span>
-            {parsed.cabin ? <span style={{ background: COLORS.card, padding: '3px 8px', borderRadius: '4px' }}>{String(parsed.cabin)}</span> : null}
-            {passengers > 1 && <span style={{ background: COLORS.card, padding: '3px 8px', borderRadius: '4px' }}>{passengers} pax</span>}
-            {visa && (
-              <span style={{ padding: '3px 8px', borderRadius: '4px', background: visa.status === 'visa-free' ? '#ECFDF5' : visa.status === 'e-visa' || visa.status === 'visa-on-arrival' ? '#FFF7ED' : '#FEF2F2', color: visa.status === 'visa-free' ? '#065F46' : visa.status === 'visa-required' ? '#991B1B' : '#92400E' }}>
-                {visa.status === 'visa-free' ? '✓' : visa.status === 'visa-required' ? '✕' : '⚡'} {visa.status.replace('-', ' ')}{visa.days ? ` (${visa.days}d)` : ''}
-              </span>
-            )}
-            {currency && <span style={{ background: COLORS.card, padding: '3px 8px', borderRadius: '4px' }}>{currency.display}</span>}
+          <div style={{ maxWidth: '900px', margin: '8px auto 0' }}>
+            {/* Row 1: Origin, Dest, Date, Pax — compact inline controls */}
+            <div style={{ display: 'flex', gap: '6px', flexWrap: 'wrap', alignItems: 'center', marginBottom: '6px' }}>
+              <input defaultValue={origin} placeholder="From" onBlur={e => { if (e.target.value && e.target.value.toUpperCase() !== origin) { const newQ = (searchInput || q).replace(new RegExp(origin, 'i'), e.target.value.toUpperCase()); router.push(`/search?q=${encodeURIComponent(newQ)}`); } }}
+                style={{ width: '60px', fontFamily: "'JetBrains Mono', monospace", fontSize: '12px', fontWeight: 700, background: COLORS.card, border: `1px solid ${COLORS.border}`, borderRadius: '6px', padding: '5px 8px', color: COLORS.text, textAlign: 'center', textTransform: 'uppercase', outline: 'none' }} />
+              <span style={{ fontSize: '12px', color: COLORS.sub }}>→</span>
+              <input defaultValue={isMulti ? (parsed.regionName as string || 'Multiple') : (dest0?.code || '')} placeholder="To"
+                onBlur={e => { if (e.target.value) { const destStr = isMulti ? (parsed.regionName as string || '') : (dest0?.code || ''); const newQ = destStr ? (searchInput || q).replace(new RegExp(destStr, 'i'), e.target.value) : `${origin} to ${e.target.value}`; router.push(`/search?q=${encodeURIComponent(newQ)}`); } }}
+                style={{ width: isMulti ? '90px' : '60px', fontFamily: "'JetBrains Mono', monospace", fontSize: '12px', fontWeight: 700, background: COLORS.card, border: `1px solid ${COLORS.border}`, borderRadius: '6px', padding: '5px 8px', color: COLORS.text, textAlign: 'center', textTransform: 'uppercase', outline: 'none' }} />
+              <input type="date" defaultValue={(parsed.departDates as string[])?.[0] || ''} onChange={e => { if (e.target.value) { const base = searchInput || q; const newQ = base.replace(/\d{4}-\d{2}-\d{2}|tomorrow|next week|next month|this week|today/i, e.target.value); router.push(`/search?q=${encodeURIComponent(newQ === base ? `${base} ${e.target.value}` : newQ)}`); } }}
+                style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: '11px', background: COLORS.card, border: `1px solid ${COLORS.border}`, borderRadius: '6px', padding: '5px 8px', color: COLORS.text, outline: 'none' }} />
+              <select defaultValue={passengers} onChange={e => { const pax = parseInt(e.target.value); const base = searchInput || q; const newQ = base.replace(/\d+\s*(people|person|pax|passengers?|adults?)/i, `${pax} people`); router.push(`/search?q=${encodeURIComponent(newQ === base ? `${base}, ${pax} people` : newQ)}`); }}
+                style={{ fontFamily: "'DM Sans', sans-serif", fontSize: '12px', background: COLORS.card, border: `1px solid ${COLORS.border}`, borderRadius: '6px', padding: '5px 8px', color: COLORS.text, outline: 'none', cursor: 'pointer' }}>
+                {[1,2,3,4,5,6,7,8,9,10].map(n => <option key={n} value={n}>{n} pax</option>)}
+              </select>
+              {visa && (
+                <span style={{ padding: '3px 8px', borderRadius: '4px', fontSize: '11px', fontFamily: "'JetBrains Mono', monospace", background: visa.status === 'visa-free' ? '#ECFDF5' : visa.status === 'e-visa' || visa.status === 'visa-on-arrival' ? '#FFF7ED' : '#FEF2F2', color: visa.status === 'visa-free' ? '#065F46' : visa.status === 'visa-required' ? '#991B1B' : '#92400E' }}>
+                  {visa.status === 'visa-free' ? '✓' : visa.status === 'visa-required' ? '✕' : '⚡'} {visa.status.replace('-', ' ')}{visa.days ? ` (${visa.days}d)` : ''}
+                </span>
+              )}
+              {currency && <span style={{ background: COLORS.card, padding: '3px 8px', borderRadius: '4px', fontSize: '11px', fontFamily: "'JetBrains Mono', monospace", color: COLORS.sub }}>{currency.display}</span>}
+            </div>
+            {/* Row 2: Cabin class + stops — pill toggles that re-search on click */}
+            <div style={{ display: 'flex', gap: '4px', flexWrap: 'wrap', alignItems: 'center' }}>
+              <span style={{ fontSize: '10px', color: COLORS.sub, fontWeight: 600, textTransform: 'uppercase', letterSpacing: '0.05em', marginRight: '4px' }}>Cabin</span>
+              {['economy', 'premium-economy', 'business', 'first'].map(c => {
+                const active = (parsed.cabin as string || 'business') === c;
+                return <button key={c} onClick={() => { if (!active) { const base = searchInput || q; const cabins = ['economy','premium-economy','business','first']; const oldCabin = cabins.find(cb => base.toLowerCase().includes(cb)) || ''; const newQ = oldCabin ? base.replace(new RegExp(oldCabin, 'i'), c) : `${base}, ${c}`; router.push(`/search?q=${encodeURIComponent(newQ)}`); } }}
+                  style={{ fontFamily: "'DM Sans', sans-serif", fontSize: '11px', fontWeight: active ? 600 : 400, padding: '4px 10px', borderRadius: '100px', border: 'none', cursor: 'pointer', background: active ? COLORS.accent : COLORS.card, color: active ? '#fff' : COLORS.sub, transition: 'all 0.15s' }}>
+                  {c === 'premium-economy' ? 'Premium' : c.charAt(0).toUpperCase() + c.slice(1)}
+                </button>;
+              })}
+              <span style={{ width: '1px', height: '16px', background: COLORS.border, margin: '0 6px' }} />
+              <span style={{ fontSize: '10px', color: COLORS.sub, fontWeight: 600, textTransform: 'uppercase', letterSpacing: '0.05em', marginRight: '4px' }}>Stops</span>
+              {[{ label: 'Any', val: 'any' }, { label: 'Direct', val: '0' }, { label: '1 stop', val: '1' }, { label: '2 stops', val: '2' }].map(s => {
+                const curStops = parsed.maxStops === null || parsed.maxStops === undefined ? 'any' : String(parsed.maxStops);
+                const active = curStops === s.val;
+                return <button key={s.val} onClick={() => { if (!active) { const base = searchInput || q; let newQ = base.replace(/\b(direct|nonstop|non-stop|no stops?|max \d stops?|one stop|two stops?|\d stops?|all the options|any stops?)\b/gi, '').trim(); if (s.val === 'any') newQ += ', all the options'; else if (s.val === '0') newQ += ', direct'; else newQ += `, max ${s.val} stop${s.val === '1' ? '' : 's'}`; router.push(`/search?q=${encodeURIComponent(newQ)}`); } }}
+                  style={{ fontFamily: "'DM Sans', sans-serif", fontSize: '11px', fontWeight: active ? 600 : 400, padding: '4px 10px', borderRadius: '100px', border: 'none', cursor: 'pointer', background: active ? COLORS.accent : COLORS.card, color: active ? '#fff' : COLORS.sub, transition: 'all 0.15s' }}>
+                  {s.label}
+                </button>;
+              })}
+            </div>
           </div>
         )}
       </div>
