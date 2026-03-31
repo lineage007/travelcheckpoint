@@ -25,6 +25,37 @@ function getBookUrl(airline: string): string {
   return AIRLINE_BOOK_URLS[airline] || `https://www.google.com/search?q=${encodeURIComponent(airline + ' redeem miles')}`;
 }
 
+// IATA code map for airline logo CDN
+const AIRLINE_IATA: Record<string, string> = {
+  'Emirates': 'EK', 'Etihad': 'EY', 'Qatar Airways': 'QR', 'Turkish Airlines': 'TK',
+  'Singapore Airlines': 'SQ', 'British Airways': 'BA', 'Virgin Atlantic': 'VS',
+  'Air Canada': 'AC', 'United': 'UA', 'American Airlines': 'AA', 'Qantas': 'QF',
+  'Cathay Pacific': 'CX', 'Lufthansa': 'LH', 'ANA': 'NH', 'Thai Airways': 'TG',
+  'Japan Airlines': 'JL', 'Korean Air': 'KE', 'Asiana': 'OZ', 'EVA Air': 'BR',
+  'Malaysia Airlines': 'MH', 'Garuda Indonesia': 'GA', 'Philippine Airlines': 'PR',
+  'Vietnam Airlines': 'VN', 'Air France': 'AF', 'KLM': 'KL', 'Swiss': 'LX',
+  'Austrian': 'OS', 'SAS': 'SK', 'Finnair': 'AY', 'Iberia': 'IB', 'TAP': 'TP',
+  'Aegean': 'A3', 'LOT': 'LO', 'Delta': 'DL', 'JetBlue': 'B6', 'Alaska Airlines': 'AS',
+  'Air India': 'AI', 'IndiGo': '6E', 'SriLankan': 'UL', 'Gulf Air': 'GF',
+  'Oman Air': 'WY', 'Saudia': 'SV', 'Royal Jordanian': 'RJ', 'EgyptAir': 'MS',
+  'Kenya Airways': 'KQ', 'Ethiopian': 'ET', 'South African': 'SA', 'Aeroflot': 'SU',
+  'China Southern': 'CZ', 'Air China': 'CA', 'China Eastern': 'MU', 'Hainan Airlines': 'HU',
+  'Air New Zealand': 'NZ', 'Fiji Airways': 'FJ', 'Hawaiian Airlines': 'HA',
+  'MEA': 'ME', 'Royal Air Maroc': 'AT', 'Avianca': 'AV', 'LATAM': 'LA', 'Copa': 'CM',
+};
+
+function airlineLogo(airline: string, size: number = 32): string {
+  const code = AIRLINE_IATA[airline] || (airline.length === 2 ? airline : '');
+  if (!code) return '';
+  return `https://pics.avs.io/${size}/${size}/${code}.png`;
+}
+
+function AirlineLogo({ airline, size = 32 }: { airline: string; size?: number }) {
+  const src = airlineLogo(airline, size);
+  if (!src) return <div style={{ width: size, height: size, borderRadius: '50%', background: '#F5F3EE', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: size * 0.4, color: '#9C958C', fontWeight: 700, flexShrink: 0 }}>{airline.charAt(0)}</div>;
+  return <img src={src} alt={airline} width={size} height={size} style={{ borderRadius: '50%', flexShrink: 0, objectFit: 'contain', background: '#fff' }} onError={(e) => { (e.target as HTMLImageElement).style.display = 'none'; }} />;
+}
+
 interface AwardResult {
   id: string; airline: string; airlineCode: string; route: string; origin: string; destination: string;
   date: string; cabin: string; miles: number; taxes: number; taxesCurrency: string;
@@ -353,15 +384,18 @@ function SearchResults() {
                     borderRadius: 14, padding: 16, marginBottom: 8,
                   }}>
                     <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: 8 }}>
-                      <div>
-                        <div style={{ fontSize: 15, fontWeight: 600, color: '#1A1A1A' }}>
-                          {i === 0 && <span style={{ color: '#0D7C72', marginRight: 6 }}>★</span>}{f.airline}
-                        </div>
-                        {f.departureTime && (
-                          <div style={{ fontSize: 12, color: '#6B6560', marginTop: 2 }}>
-                            {f.departureTime} · {f.duration} · {f.stops === 0 ? 'Nonstop' : `${f.stops} stop${f.stops > 1 ? 's' : ''}`}
+                      <div style={{ display: 'flex', gap: 10, alignItems: 'flex-start' }}>
+                        <AirlineLogo airline={f.airline} size={36} />
+                        <div>
+                          <div style={{ fontSize: 15, fontWeight: 600, color: '#1A1A1A' }}>
+                            {i === 0 && <span style={{ color: '#0D7C72', marginRight: 6 }}>★</span>}{f.airline}
                           </div>
-                        )}
+                          {f.departureTime && (
+                            <div style={{ fontSize: 12, color: '#6B6560', marginTop: 2 }}>
+                              {f.departureTime} · {f.duration} · {f.stops === 0 ? 'Nonstop' : `${f.stops} stop${f.stops > 1 ? 's' : ''}`}
+                            </div>
+                          )}
+                        </div>
                       </div>
                       <div style={{ textAlign: 'right' }}>
                         <div style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: 18, fontWeight: 700, color: '#1A1A1A' }}>
@@ -396,12 +430,15 @@ function SearchResults() {
                       borderRadius: 14, padding: 16, marginBottom: 8,
                     }}>
                       <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 6 }}>
-                        <div>
-                          <div style={{ fontSize: 15, fontWeight: 600, color: '#1A1A1A' }}>
-                            {i === 0 && <span style={{ color: '#0D7C72', marginRight: 6 }}>★</span>}{r.airline}
-                          </div>
-                          <div style={{ fontSize: 12, color: '#6B6560', marginTop: 2 }}>
-                            {r.isDirect ? 'Nonstop' : '1+ stops'} · {r.cabin} · {r.seats} seat{r.seats !== 1 ? 's' : ''}
+                        <div style={{ display: 'flex', gap: 10, alignItems: 'flex-start' }}>
+                          <AirlineLogo airline={r.airline} size={36} />
+                          <div>
+                            <div style={{ fontSize: 15, fontWeight: 600, color: '#1A1A1A' }}>
+                              {i === 0 && <span style={{ color: '#0D7C72', marginRight: 6 }}>★</span>}{r.airline}
+                            </div>
+                            <div style={{ fontSize: 12, color: '#6B6560', marginTop: 2 }}>
+                              {r.isDirect ? 'Nonstop' : '1+ stops'} · {r.cabin} · {r.seats} seat{r.seats !== 1 ? 's' : ''}
+                            </div>
                           </div>
                         </div>
                         <div style={{ textAlign: 'right' }}>
