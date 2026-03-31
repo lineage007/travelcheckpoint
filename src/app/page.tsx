@@ -21,12 +21,14 @@ const T = {
 
 /* ─── Destination cards ─── */
 const destinations = [
-  { name: 'London', code: 'LHR', region: 'United Kingdom', price: '342', gradient: 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)' },
-  { name: 'Tokyo', code: 'NRT', region: 'Japan', price: '489', gradient: 'linear-gradient(135deg, #f093fb 0%, #f5576c 100%)' },
-  { name: 'Bali', code: 'DPS', region: 'Indonesia', price: '378', gradient: 'linear-gradient(135deg, #4facfe 0%, #00f2fe 100%)' },
-  { name: 'Istanbul', code: 'IST', region: 'Türkiye', price: '195', gradient: 'linear-gradient(135deg, #43e97b 0%, #38f9d7 100%)' },
-  { name: 'Maldives', code: 'MLE', region: 'Indian Ocean', price: '520', gradient: 'linear-gradient(135deg, #fa709a 0%, #fee140 100%)' },
-  { name: 'New York', code: 'JFK', region: 'United States', price: '612', gradient: 'linear-gradient(135deg, #a18cd1 0%, #fbc2eb 100%)' },
+  { name: 'London', code: 'LHR', region: 'United Kingdom', price: '342', img: 'https://images.unsplash.com/photo-1513635269975-59663e0ac1ad?w=400&h=500&fit=crop' },
+  { name: 'Istanbul', code: 'IST', region: 'Türkiye', price: '195', img: 'https://images.unsplash.com/photo-1524231757912-21f4fe3a7200?w=400&h=500&fit=crop' },
+  { name: 'Bangkok', code: 'BKK', region: 'Thailand', price: '289', img: 'https://images.unsplash.com/photo-1508009603885-50cf7c579365?w=400&h=500&fit=crop' },
+  { name: 'Bali', code: 'DPS', region: 'Indonesia', price: '378', img: 'https://images.unsplash.com/photo-1537996194471-e657df975ab4?w=400&h=500&fit=crop' },
+  { name: 'Tokyo', code: 'NRT', region: 'Japan', price: '489', img: 'https://images.unsplash.com/photo-1540959733332-eab4deabeeaf?w=400&h=500&fit=crop' },
+  { name: 'Maldives', code: 'MLE', region: 'Indian Ocean', price: '520', img: 'https://images.unsplash.com/photo-1514282401047-d79a71a590e8?w=400&h=500&fit=crop' },
+  { name: 'Singapore', code: 'SIN', region: 'Southeast Asia', price: '310', img: 'https://images.unsplash.com/photo-1525625293386-3f8f99389edd?w=400&h=500&fit=crop' },
+  { name: 'Kuala Lumpur', code: 'KUL', region: 'Malaysia', price: '245', img: 'https://images.unsplash.com/photo-1596422846543-75c6fc197f07?w=400&h=500&fit=crop' },
 ];
 
 const quickSearches = [
@@ -133,13 +135,13 @@ export default function Home() {
       <div style={{ position: 'relative', zIndex: 1, maxWidth: 640, margin: '0 auto', padding: '0 20px' }}>
         {/* Header */}
         <header style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '20px 0', opacity: loaded ? 1 : 0, transition: 'opacity 0.5s' }}>
-          <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
-            <img src="/logo-white.png" alt="TravelCheckpoint" style={{ height: 28, width: 'auto' }} onError={e => { (e.target as HTMLImageElement).style.display = 'none'; }} />
-            <span style={{ fontWeight: 600, fontSize: 17, letterSpacing: '-0.02em' }}>
-              <span style={{ fontWeight: 300, opacity: 0.7 }}>Travel</span>Checkpoint
-            </span>
+          <div style={{ flex: 1 }} />
+          <span style={{ fontWeight: 600, fontSize: 20, letterSpacing: '-0.02em', textAlign: 'center' }}>
+            <span style={{ fontWeight: 300, opacity: 0.7 }}>Travel</span>Checkpoint
+          </span>
+          <div style={{ flex: 1, display: 'flex', justifyContent: 'flex-end' }}>
+            <button onClick={() => router.push('/settings')} style={{ background: T.surface, border: `1px solid ${T.border}`, borderRadius: '50%', width: 36, height: 36, cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', color: T.textSub, fontSize: 14 }}>⚙</button>
           </div>
-          <button onClick={() => router.push('/settings')} style={{ background: T.surface, border: `1px solid ${T.border}`, borderRadius: '50%', width: 36, height: 36, cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', color: T.textSub, fontSize: 14 }}>⚙</button>
         </header>
 
         {/* Hero */}
@@ -158,14 +160,14 @@ export default function Home() {
 
         {/* Search bar */}
         <div style={{ opacity: loaded ? 1 : 0, transform: loaded ? 'none' : 'translateY(16px)', transition: 'all 0.5s ease 200ms' }}>
+          <div style={{ position: 'relative', borderRadius: 18, padding: 2, background: focused ? 'linear-gradient(135deg, #f97316, #ec4899, #8B5CF6)' : 'linear-gradient(135deg, rgba(249,115,22,0.5), rgba(236,72,153,0.5), rgba(139,92,246,0.5))', transition: 'all 0.3s' }}>
           <div
             onClick={() => inputRef.current?.focus()}
             style={{
-              background: focused ? 'rgba(255,255,255,0.06)' : T.glass,
-              border: `1px solid ${focused ? 'rgba(139,92,246,0.4)' : T.glassBorder}`,
+              background: focused ? 'rgba(15,15,20,0.95)' : 'rgba(15,15,20,0.9)',
               borderRadius: 16, padding: '4px 4px 4px 18px',
               display: 'flex', alignItems: 'center',
-              boxShadow: focused ? '0 0 0 3px rgba(139,92,246,0.1), 0 8px 32px rgba(0,0,0,0.3)' : '0 4px 24px rgba(0,0,0,0.2)',
+              boxShadow: focused ? '0 0 40px rgba(249,115,22,0.15), 0 0 80px rgba(236,72,153,0.1)' : '0 4px 24px rgba(0,0,0,0.2)',
               transition: 'all 0.3s',
               cursor: 'text',
             }}
@@ -204,6 +206,7 @@ export default function Home() {
               {!loading && <svg width={16} height={16} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2}><line x1="5" y1="12" x2="19" y2="12" /><polyline points="12 5 19 12 12 19" /></svg>}
             </button>
           </div>
+          </div>
 
           {/* Suggestions */}
           <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap', marginTop: 14, justifyContent: 'center' }}>
@@ -223,7 +226,8 @@ export default function Home() {
           <div ref={scrollRef} className="hide-scrollbar" style={{ display: 'flex', gap: 12, overflowX: 'auto', paddingBottom: 8, scrollSnapType: 'x mandatory' }}>
             {destinations.map((d, i) => (
               <button key={i} className="dest-card" onClick={() => { setQuery(`Dubai to ${d.name}, business, next week`); handleSearch(`Dubai to ${d.name}, business, next week`); }}
-                style={{ flex: '0 0 160px', height: 200, borderRadius: 16, position: 'relative', overflow: 'hidden', cursor: 'pointer', border: 'none', background: d.gradient, scrollSnapAlign: 'start', transition: 'all 0.3s', textAlign: 'left' }}>
+                style={{ flex: '0 0 160px', height: 200, borderRadius: 16, position: 'relative', overflow: 'hidden', cursor: 'pointer', border: 'none', background: '#1a1a2e', scrollSnapAlign: 'start', transition: 'all 0.3s', textAlign: 'left' }}>
+                <img src={d.img} alt={d.name} style={{ position: 'absolute', inset: 0, width: '100%', height: '100%', objectFit: 'cover' }} loading="lazy" />
                 <div className="dest-overlay" style={{ position: 'absolute', inset: 0, background: 'linear-gradient(to top, rgba(0,0,0,0.7) 0%, transparent 50%)', opacity: 0.5, transition: 'opacity 0.3s' }} />
                 <div style={{ position: 'absolute', bottom: 0, left: 0, right: 0, padding: 16, zIndex: 1 }}>
                   <div style={{ fontSize: 16, fontWeight: 600, marginBottom: 2 }}>{d.name}</div>
