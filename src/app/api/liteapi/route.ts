@@ -98,9 +98,11 @@ export async function GET(req: NextRequest) {
       currency?: string;
     }
 
-    let ratesData: { data?: LiteRateHotel[] } = { data: [] };
+    let ratesData: { data?: LiteRateHotel[]; error?: { code?: number; message?: string } } = { data: [] };
     if (ratesRes.ok) {
-      ratesData = await ratesRes.json();
+      const ratesJson = await ratesRes.json();
+      // LiteAPI sandbox returns {error: {code, message}} when no rates
+      if (ratesJson.data) ratesData = ratesJson;
     }
 
     // Build a rates lookup
@@ -137,20 +139,26 @@ export async function GET(req: NextRequest) {
         price: rate?.price || 0,
         originalPrice: 0,
         currency: rate?.currency || currency,
-        roomType: rate?.roomType || '',
+        roomType: rate?.roomType || 'Check rates',
         board: rate?.board || '',
         freeCancellation: rate?.freeCancellation || false,
         source: 'liteapi',
       };
-    }).filter(h => h.price > 0).sort((a, b) => a.price - b.price);
+    });
+
+    // If we have rates, sort by price. If sandbox (no rates), still show hotels
+    const withRates = results.filter(h => h.price > 0).sort((a, b) => a.price - b.price);
+    const finalResults = withRates.length > 0 ? withRates : results.slice(0, 10);
+    const sandboxMode = withRates.length === 0 && results.length > 0;
 
     return NextResponse.json({
-      results,
-      count: results.length,
+      results: finalResults,
+      count: finalResults.length,
       city: cityInfo.name,
       checkin,
       checkout,
       currency,
+      sandbox: sandboxMode,
     });
   } catch (e) {
     return NextResponse.json({ results: [], error: String(e) });
