@@ -131,23 +131,63 @@ export default function Home() {
           </div>
         </div>
 
-        {/* What it searches */}
+        {/* Quick searches — each card triggers a real search */}
         <div style={{ marginTop: 48, width: '100%' }}>
+          <div style={{ fontSize: 11, fontWeight: 600, color: C.textMuted, textTransform: 'uppercase', letterSpacing: '0.08em', marginBottom: 12 }}>
+            Quick searches
+          </div>
           <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(160px, 1fr))', gap: 12 }}>
             {[
-              { icon: '💰', title: 'Cash Fares', desc: 'Google Flights prices across all airlines' },
-              { icon: '✈️', title: 'Award Flights', desc: '12 loyalty programs searched simultaneously' },
-              { icon: '🌍', title: 'Region Search', desc: 'Say "Europe" — we check every major city' },
-              { icon: '⚡', title: 'Instant', desc: 'Natural language, no forms to fill' },
+              { icon: '💰', title: 'Cheapest This Week', desc: 'Best cash fares from Dubai', query: 'Dubai to anywhere, cheapest, this week' },
+              { icon: '✈️', title: 'Award Seats', desc: 'Business on points — all programs', query: 'Dubai to Europe on points, business class' },
+              { icon: '🌏', title: 'Asia Explorer', desc: 'Every major city compared', query: 'Dubai to Asia, business, next week, all the options' },
+              { icon: '🇺🇸', title: 'USA Routes', desc: 'Direct & connecting options', query: 'Dubai to USA, business, next month, all the options' },
             ].map((item, i) => (
-              <div key={i} style={{
+              <button key={i} onClick={() => { setQuery(item.query); handleSearch(item.query); }} style={{
                 background: C.surface, borderRadius: 12, padding: '16px',
-                border: `1px solid ${C.border}`,
-              }}>
-                <div style={{ fontSize: 20, marginBottom: 8 }}>{item.icon}</div>
+                border: `1px solid ${C.border}`, cursor: 'pointer', textAlign: 'left',
+                transition: 'all 0.2s', position: 'relative', overflow: 'hidden',
+              }}
+              onMouseEnter={e => { e.currentTarget.style.borderColor = C.accent; e.currentTarget.style.transform = 'translateY(-2px)'; e.currentTarget.style.boxShadow = '0 4px 16px rgba(13,124,114,0.1)'; }}
+              onMouseLeave={e => { e.currentTarget.style.borderColor = C.border; e.currentTarget.style.transform = 'none'; e.currentTarget.style.boxShadow = 'none'; }}
+              >
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
+                  <div style={{ fontSize: 20, marginBottom: 8 }}>{item.icon}</div>
+                  <ArrowRight size={14} style={{ color: C.textMuted, marginTop: 2 }} />
+                </div>
                 <div style={{ fontSize: 13, fontWeight: 600, color: C.text, marginBottom: 4 }}>{item.title}</div>
                 <div style={{ fontSize: 12, color: C.textSub, lineHeight: 1.4 }}>{item.desc}</div>
-              </div>
+              </button>
+            ))}
+          </div>
+        </div>
+
+        {/* Region shortcuts */}
+        <div style={{ marginTop: 24, width: '100%' }}>
+          <div style={{ fontSize: 11, fontWeight: 600, color: C.textMuted, textTransform: 'uppercase', letterSpacing: '0.08em', marginBottom: 10 }}>
+            Search by region
+          </div>
+          <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8 }}>
+            {[
+              { label: '🇪🇺 Europe', q: 'Dubai to Europe, business, next week' },
+              { label: '🌏 SE Asia', q: 'Dubai to Southeast Asia, business, next week' },
+              { label: '🇬🇧 UK', q: 'Dubai to UK, business, next week' },
+              { label: '🇹🇷 Turkey', q: 'Dubai to Turkey, next week' },
+              { label: '🇦🇺 Australia', q: 'Dubai to Australia, business, next month' },
+              { label: '🌍 Africa', q: 'Dubai to Africa, business, next week' },
+              { label: '🇯🇵 Japan', q: 'Dubai to Tokyo, business, next month' },
+              { label: '🏝️ Maldives', q: 'Dubai to Maldives, business, this weekend' },
+            ].map((r, i) => (
+              <button key={i} onClick={() => { setQuery(r.q); handleSearch(r.q); }} style={{
+                background: '#fff', border: `1px solid ${C.border}`, borderRadius: 10,
+                padding: '8px 14px', cursor: 'pointer', fontSize: 13, color: C.textSub,
+                transition: 'all 0.15s', fontFamily: "'DM Sans', system-ui",
+              }}
+              onMouseEnter={e => { e.currentTarget.style.background = C.accentLight; e.currentTarget.style.borderColor = C.accent; e.currentTarget.style.color = C.accent; }}
+              onMouseLeave={e => { e.currentTarget.style.background = '#fff'; e.currentTarget.style.borderColor = C.border; e.currentTarget.style.color = C.textSub; }}
+              >
+                {r.label}
+              </button>
             ))}
           </div>
         </div>
