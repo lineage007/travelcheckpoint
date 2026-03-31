@@ -39,6 +39,8 @@ interface HiddenCityResult { airline: string; price: number; from: string; to: s
 interface KiwiResult { price: number; airlines: string[]; from: string; to: string; departure: string; duration: number; stops: number; isVirtualInterline: boolean; bookingLink: string }
 interface VisaInfo { status: string; days?: number; note?: string; passport: string; destination: string }
 interface CurrencyInfo { from: string; to: string; name: string; symbol: string; rate: number; display: string }
+interface DuffelResult { id: string; price: number; currency: string; airlines: string[]; from: string; to: string; departure: string; duration: string; stops: number; segments: { airline: string; flightNo: string; from: string; to: string }[]; bookable: boolean; offerId: string; source: string }
+interface RoomResult { hotel: string; chain: string; location: string; pointsPerNight: number; cashRate: number; centsPerPoint: number; roomType: string; availability: boolean }
 interface GemInfo { name: string; desc: string; type: string }
 interface HotelLinks { [key: string]: { url: string; name: string; color: string } }
 interface DestResult { code: string; city: string; cheapestCash: number | null; cheapestAward: number | null; cashResults: CashResult[]; awardResults: AwardResult[]; loading: boolean }
@@ -69,6 +71,8 @@ function SearchResults() {
   const [currency, setCurrency] = useState<CurrencyInfo | null>(null);
   const [gems, setGems] = useState<GemInfo[]>([]);
   const [hotelLinks, setHotelLinks] = useState<HotelLinks | null>(null);
+  const [duffelResults, setDuffelResults] = useState<DuffelResult[]>([]);
+  const [roomResults, setRoomResults] = useState<RoomResult[]>([]);
   const [loadingExtra, setLoadingExtra] = useState(false);
 
   // Load passport from localStorage
@@ -88,6 +92,8 @@ function SearchResults() {
     setCurrency(null);
     setGems([]);
     setHotelLinks(null);
+    setDuffelResults([]);
+    setRoomResults([]);
 
     // 1. Parse the query
     let parseData: Record<string, unknown> = {};
@@ -145,6 +151,8 @@ function SearchResults() {
         fetch(`/api/currency?from=aed&destination=${dest}`).then(r => r.json()),
         fetch(`/api/gems?destination=${dest}`).then(r => r.json()),
         fetch(`/api/hotels?city=${destList[0].city}`).then(r => r.json()),
+        fetch(`/api/duffel?origin=${origin}&destination=${dest}&date=${date}&cabin=${cabin}&passengers=${passengers}`).then(r => r.json()),
+        fetch(`/api/rooms?destination=${dest}&checkin=${date}`).then(r => r.json()),
       ]);
 
       if (extras[0].status === 'fulfilled') setHiddenCity((extras[0].value.results || []).filter((r: HiddenCityResult) => r.price > 0));
@@ -153,6 +161,8 @@ function SearchResults() {
       if (extras[3].status === 'fulfilled' && extras[3].value.display) setCurrency(extras[3].value);
       if (extras[4].status === 'fulfilled') setGems(extras[4].value.gems || []);
       if (extras[5].status === 'fulfilled') setHotelLinks(extras[5].value.deepLinks || null);
+      if (extras[6].status === 'fulfilled') setDuffelResults(extras[6].value.results || []);
+      if (extras[7].status === 'fulfilled') setRoomResults(extras[7].value.results || []);
       setLoadingExtra(false);
     }
   }, [q, passport]);
@@ -339,6 +349,30 @@ function SearchResults() {
               </div>
             )}
 
+            {/* Duffel bookable flights */}
+            {(flightFilter === 'all' || flightFilter === 'cash') && duffelResults.length > 0 && (
+              <div style={{ marginBottom: '20px' }}>
+                <h3 style={{ fontFamily: "'Space Grotesk'", fontSize: '15px', fontWeight: 600, color: COLORS.text, marginBottom: '4px' }}>Bookable Fares <span style={{ fontSize: '11px', fontWeight: 400, color: COLORS.sub }}>via Duffel</span></h3>
+                <p style={{ fontFamily: "'DM Sans'", fontSize: '11px', color: COLORS.sub, marginBottom: '10px' }}>Real-time airline prices — book directly through TravelCheckpoint.</p>
+                {duffelResults.slice(0, 8).map((f, i) => (
+                  <div key={f.id || i} style={{ background: '#fff', border: `1px solid ${COLORS.border}`, borderRadius: '10px', padding: '14px', marginBottom: '8px', display: 'flex', alignItems: 'center', gap: '12px', borderLeft: `3px solid #6366F1`, animation: `fadeIn 0.3s ease ${i * 0.05}s both` }}>
+                    <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '2px' }}>
+                      {f.airlines.slice(0, 2).map((a, j) => <AirlineLogo key={j} airline={a} size={20} />)}
+                    </div>
+                    <div style={{ flex: 1 }}>
+                      <div style={{ fontFamily: "'DM Sans'", fontSize: '13px', fontWeight: 600, color: COLORS.text }}>{f.airlines.join(' + ')}</div>
+                      <div style={{ fontFamily: "'JetBrains Mono'", fontSize: '11px', color: COLORS.sub }}>{f.from}→{f.to} · {f.duration} · {f.stops === 0 ? 'Direct' : `${f.stops} stop${f.stops > 1 ? 's' : ''}`}</div>
+                      <span style={{ fontSize: '10px', background: '#EEF2FF', color: '#4338CA', padding: '1px 6px', borderRadius: '4px' }}>Bookable</span>
+                    </div>
+                    <div style={{ textAlign: 'right' }}>
+                      <div style={{ fontFamily: "'JetBrains Mono'", fontSize: '15px', fontWeight: 700, color: COLORS.text }}>{f.currency === 'GBP' ? '£' : '$'}{f.price.toLocaleString()}</div>
+                      {passengers > 1 && <div style={{ fontFamily: "'JetBrains Mono'", fontSize: '10px', color: COLORS.sub }}>{f.currency === 'GBP' ? '£' : '$'}{(f.price * passengers).toLocaleString()} total</div>}
+                    </div>
+                  </div>
+                ))}
+              </div>
+            )}
+
             {loading && (
               <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
                 {[1,2,3,4].map(i => <div key={i} style={{ background: COLORS.card, borderRadius: '10px', height: '72px', animation: 'shimmer 1.5s infinite' }} />)}
@@ -373,6 +407,30 @@ function SearchResults() {
               <div style={{ background: COLORS.card, borderRadius: '12px', padding: '40px', textAlign: 'center' }}>
                 <Hotel size={32} color={COLORS.sub} style={{ marginBottom: '12px' }} />
                 <p style={{ fontFamily: "'DM Sans'", fontSize: '14px', color: COLORS.sub }}>Search for a specific destination to see hotel options</p>
+              </div>
+            )}
+
+            {/* Hotel points via rooms.aero */}
+            {roomResults.length > 0 && (
+              <div style={{ marginTop: '20px' }}>
+                <h3 style={{ fontFamily: "'Space Grotesk'", fontSize: '16px', fontWeight: 600, color: COLORS.text, marginBottom: '4px' }}>Book with Points <span style={{ fontSize: '11px', fontWeight: 400, color: COLORS.sub }}>via rooms.aero</span></h3>
+                <p style={{ fontFamily: "'DM Sans'", fontSize: '12px', color: COLORS.sub, marginBottom: '12px' }}>Use hotel loyalty points — sorted by best value (cents per point).</p>
+                {roomResults.slice(0, 8).map((r, i) => (
+                  <div key={i} style={{ background: '#fff', border: `1px solid ${COLORS.border}`, borderRadius: '10px', padding: '14px', marginBottom: '8px', display: 'flex', alignItems: 'center', gap: '12px' }}>
+                    <div style={{ width: 36, height: 36, borderRadius: '10px', background: COLORS.card, display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
+                      <Hotel size={18} color={COLORS.accent} />
+                    </div>
+                    <div style={{ flex: 1, minWidth: 0 }}>
+                      <div style={{ fontFamily: "'DM Sans'", fontSize: '13px', fontWeight: 600, color: COLORS.text, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{r.hotel}</div>
+                      <div style={{ fontFamily: "'JetBrains Mono'", fontSize: '11px', color: COLORS.sub }}>{r.chain} · {r.roomType}</div>
+                    </div>
+                    <div style={{ textAlign: 'right', flexShrink: 0 }}>
+                      <div style={{ fontFamily: "'JetBrains Mono'", fontSize: '14px', fontWeight: 700, color: COLORS.accent }}>{(r.pointsPerNight / 1000).toFixed(0)}K pts</div>
+                      <div style={{ fontFamily: "'JetBrains Mono'", fontSize: '10px', color: COLORS.sub }}>vs ${r.cashRate}/night</div>
+                      {r.centsPerPoint > 0 && <div style={{ fontFamily: "'JetBrains Mono'", fontSize: '10px', color: r.centsPerPoint >= 1 ? '#065F46' : '#92400E' }}>{r.centsPerPoint.toFixed(1)}¢/pt</div>}
+                    </div>
+                  </div>
+                ))}
               </div>
             )}
 
