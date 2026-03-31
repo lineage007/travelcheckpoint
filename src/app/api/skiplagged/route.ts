@@ -1,55 +1,64 @@
 import { NextRequest, NextResponse } from 'next/server';
+import { callMcpTool } from '@/lib/mcp-client';
 
 export async function GET(req: NextRequest) {
   const { searchParams } = new URL(req.url);
   const from = searchParams.get('from') || 'DXB';
   const to = searchParams.get('to') || 'LHR';
   const depart = searchParams.get('depart') || new Date(Date.now() + 7 * 86400000).toISOString().split('T')[0];
-  const adults = searchParams.get('adults') || '1';
+  const adults = parseInt(searchParams.get('adults') || '1');
+  const cabin = searchParams.get('cabin') || 'economy';
 
   try {
-    const url = `https://skiplagged.com/api/search.php?from=${from}&to=${to}&depart=${depart}&return=&format=v3&counts[adults]=${adults}&counts[children]=0`;
-    const res = await fetch(url, {
-      headers: { 'User-Agent': 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36' },
-      signal: AbortSignal.timeout(15000),
+    const result = await callMcpTool('skiplagged', 'sk_flights_search', {
+      from_iata: from,
+      to_iata: to,
+      depart_date: depart,
+      num_adults: adults,
+      cabin_class: cabin === 'business' ? 'business' : cabin === 'first' ? 'first' : 'economy',
+      sort_by: 'price',
+      max_results: 20,
     });
 
-    if (!res.ok) return NextResponse.json({ results: [], error: 'Skiplagged unavailable' });
+    // MCP returns content as text blocks
+    const textContent = (result.content || [])
+      .filter((c: { type: string }) => c.type === 'text')
+      .map((c: { text: string }) => c.text)
+      .join('\n');
 
-    const data = await res.json();
-    const flights = data?.itineraries?.outbound || [];
+    // Try to parse the response
+    let flights: Array<{
+      airline?: string; price?: number; departure_time?: string;
+      duration_minutes?: number; stops?: number; legs?: Array<{
+        from?: string; to?: string; airline?: string;
+        departure?: string; arrival?: string; flight_number?: string;
+      }>;
+      is_hidden_city?: boolean; actual_destination?: string;
+    }> = [];
+    try {
+      const parsed = JSON.parse(textContent);
+      flights = Array.isArray(parsed) ? parsed : (parsed.flights || parsed.results || []);
+    } catch {
+      // MCP might return formatted text — extract what we can
+      return NextResponse.json({ results: [], raw: textContent.slice(0, 2000), source: 'skiplagged-mcp' });
+    }
 
-    interface SkipLeg { airline?: string; from?: string; to?: string; departure?: string; arrival?: string; flight_number?: string }
-    interface SkipFlight { legs?: SkipLeg[]; price?: number; duration?: number }
+    const results = flights.map(f => ({
+      airline: f.airline || '',
+      price: f.price || 0,
+      from,
+      to,
+      actualDestination: f.actual_destination || to,
+      isHiddenCity: f.is_hidden_city || false,
+      duration: f.duration_minutes || 0,
+      stops: f.stops || 0,
+      departure: f.departure_time || '',
+      legs: f.legs || [],
+      source: 'skiplagged',
+    }));
 
-    const results = (flights as SkipFlight[]).slice(0, 20).map((f) => {
-      const legs = f.legs || [];
-      const firstLeg = legs[0] || {};
-      const lastLeg = legs[legs.length - 1] || {};
-      const airline = firstLeg.airline || '';
-      const actualDest = lastLeg.to || to;
-      const isHiddenCity = actualDest !== to;
-
-      return {
-        airline,
-        price: (f.price || 0) / 100,
-        from,
-        to,
-        actualDestination: actualDest,
-        isHiddenCity,
-        duration: Math.round((f.duration || 0) / 60),
-        stops: legs.length - 1,
-        departure: firstLeg.departure || '',
-        legs: legs.map((l) => ({
-          from: l.from, to: l.to, airline: l.airline,
-          departure: l.departure, arrival: l.arrival,
-          flightNo: l.flight_number,
-        })),
-      };
-    });
-
-    return NextResponse.json({ results, count: results.length });
+    return NextResponse.json({ results, count: results.length, source: 'skiplagged-mcp' });
   } catch (e) {
-    return NextResponse.json({ results: [], error: String(e) });
+    return NextResponse.json({ results: [], error: String(e), source: 'skiplagged-mcp' });
   }
 }
