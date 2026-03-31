@@ -333,6 +333,8 @@ export async function GET(request: NextRequest) {
   const destination = (searchParams.get('destination') || 'LHR').toUpperCase();
   const cabin = searchParams.get('cabin') || 'business';
   const date = searchParams.get('date') || '';
+  const passengers = parseInt(searchParams.get('passengers') || '1') || 1;
+  const maxStops = searchParams.get('maxStops') !== null ? parseInt(searchParams.get('maxStops')!) : null;
 
   const startTime = Date.now();
 
@@ -345,32 +347,46 @@ export async function GET(request: NextRequest) {
       searchHiddenCity(origin, destination, date, cabin),
     ]);
 
+    // Filter by max stops if specified
+    const filteredCash = maxStops !== null && !isNaN(maxStops) 
+      ? cash.filter(f => f.stops <= maxStops) 
+      : cash;
+    const filteredAwards = maxStops !== null && !isNaN(maxStops) 
+      ? awards.filter(a => maxStops === 0 ? a.isDirect : true) 
+      : awards;
+
+    // Multiply prices by passengers for display
+    const cashWithPax = filteredCash.map(f => ({ ...f, pricePerPerson: f.price, totalPrice: f.price * passengers }));
+    const awardsWithPax = filteredAwards.map(a => ({ ...a, milesPerPerson: a.miles, totalMiles: a.miles * passengers }));
+
     const elapsed = Date.now() - startTime;
 
     // Calculate best value across all types
     const allResults = [
-      ...awards.map(a => ({ ...a, sortValue: a.miles / 100 })), // rough miles-to-dollar conversion
-      ...cash.map(c => ({ ...c, sortValue: c.price })),
+      ...awardsWithPax.map(a => ({ ...a, sortValue: a.miles / 100 })),
+      ...cashWithPax.map(c => ({ ...c, sortValue: c.price })),
       ...hiddenCity.map(h => ({ ...h, sortValue: h.price })),
     ];
     allResults.sort((a, b) => a.sortValue - b.sortValue);
 
     return NextResponse.json({
-      query: { origin, destination, cabin, date },
+      query: { origin, destination, cabin, date, passengers, maxStops },
       results: {
         bestValue: allResults.slice(0, 10),
-        awards: awards.slice(0, 30),
-        cash: cash.slice(0, 20),
+        awards: awardsWithPax.slice(0, 30),
+        cash: cashWithPax.slice(0, 20),
         hiddenCity: hiddenCity.slice(0, 10),
         emptyLegs,
       },
       meta: {
-        totalResults: awards.length + cash.length + hiddenCity.length + emptyLegs.length,
-        awardResults: awards.length,
-        cashResults: cash.length,
+        totalResults: awardsWithPax.length + cashWithPax.length + hiddenCity.length + emptyLegs.length,
+        awardResults: awardsWithPax.length,
+        cashResults: cashWithPax.length,
         hiddenCityResults: hiddenCity.length,
         emptyLegResults: emptyLegs.length,
-        sourcesSearched: SOURCES.length + 1, // +1 for Google Flights
+        passengers,
+        maxStops,
+        sourcesSearched: SOURCES.length + 1,
         elapsed: `${elapsed}ms`,
         timestamp: new Date().toISOString(),
       },

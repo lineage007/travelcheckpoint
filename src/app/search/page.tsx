@@ -34,7 +34,7 @@ function AirlineLogo({ airline, size = 28 }: { airline: string; size?: number })
 }
 
 interface AwardResult { id: string; airline: string; route: string; origin: string; destination: string; date: string; cabin: string; miles: number; taxes: number; seats: number; isDirect: boolean; source: string; program: string; transferFrom: string[] }
-interface CashResult { id: string; airline: string; price: number; route: string; origin: string; destination: string; departureTime: string; duration: string; stops: number; cabin: string; bookingUrl: string }
+interface CashResult { id: string; airline: string; price: number; pricePerPerson?: number; totalPrice?: number; route: string; origin: string; destination: string; departureTime: string; duration: string; stops: number; cabin: string; bookingUrl: string; date?: string }
 interface HiddenCityResult { airline: string; price: number; from: string; to: string; actualDestination: string; isHiddenCity: boolean; duration: number; stops: number; departure: string }
 interface KiwiResult { price: number; airlines: string[]; from: string; to: string; departure: string; duration: number; stops: number; isVirtualInterline: boolean; bookingLink: string }
 interface VisaInfo { status: string; days?: number; note?: string; passport: string; destination: string }
@@ -112,6 +112,9 @@ function SearchResults() {
 
     const origin = (parseData.origin as string) || 'DXB';
     const cabin = (parseData.cabin as string) || 'business';
+    const pax = (parseData.passengers as number) || 1;
+    const maxStops = parseData.maxStops as number | null;
+    const departDates = (parseData.departDates as string[]) || [parseData.departDate as string || ''];
     const isRegion = parseData.isRegionSearch === true;
     const destList: { code: string; city: string }[] = isRegion
       ? (parseData.destinations as { code: string; city: string }[]) || []
@@ -121,19 +124,42 @@ function SearchResults() {
     setDestinations(initDests);
     setLoading(false);
 
-    // 2. Search flights for all destinations in parallel
+    // 2. Search flights for all destinations in parallel — search each date in range
     const promises = destList.map(async (dest, idx) => {
       try {
-        const res = await fetch(`/api/search?origin=${origin}&destination=${dest.code}&cabin=${cabin}`);
-        const data = await res.json();
-        const awards: AwardResult[] = data.results?.awards || [];
-        const cash: CashResult[] = data.results?.cash || [];
-        const cheapestCash = cash.filter(c => c.price > 0).sort((a, b) => a.price - b.price)[0]?.price || null;
-        const cheapestAward = awards.filter(a => a.miles > 0).sort((a, b) => a.miles - b.miles)[0]?.miles || null;
+        // Search all dates and merge results (dedup by price+airline)
+        const allCash: CashResult[] = [];
+        const allAwards: AwardResult[] = [];
+        const seen = new Set<string>();
+
+        // Search each date (max 3 for performance)
+        const searchDates = departDates.slice(0, 3);
+        const dateSearches = searchDates.map(async (date) => {
+          const stopsParam = maxStops !== null && maxStops !== undefined ? `&maxStops=${maxStops}` : '';
+          const res = await fetch(`/api/search?origin=${origin}&destination=${dest.code}&cabin=${cabin}&date=${date}&passengers=${pax}${stopsParam}`);
+          const data = await res.json();
+          const awards: AwardResult[] = data.results?.awards || [];
+          const cash: CashResult[] = data.results?.cash || [];
+          
+          for (const c of cash) {
+            const key = `${c.airline}-${c.price}-${c.departureTime}`;
+            if (!seen.has(key)) { seen.add(key); allCash.push({ ...c, date }); }
+          }
+          for (const a of awards) {
+            const key = `${a.airline}-${a.miles}-${a.date}`;
+            if (!seen.has(key)) { seen.add(key); allAwards.push(a); }
+          }
+        });
+        await Promise.all(dateSearches);
+
+        allCash.sort((a, b) => a.price - b.price);
+        allAwards.sort((a, b) => a.miles - b.miles);
+        const cheapestCash = allCash.filter(c => c.price > 0)[0]?.price || null;
+        const cheapestAward = allAwards.filter(a => a.miles > 0)[0]?.miles || null;
 
         setDestinations(prev => {
           const updated = [...prev];
-          updated[idx] = { ...updated[idx], cashResults: cash, awardResults: awards, cheapestCash, cheapestAward, loading: false };
+          updated[idx] = { ...updated[idx], cashResults: allCash, awardResults: allAwards, cheapestCash, cheapestAward, loading: false };
           return updated;
         });
       } catch { setDestinations(prev => { const u = [...prev]; u[idx] = { ...u[idx], loading: false }; return u; }); }

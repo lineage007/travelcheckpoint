@@ -178,17 +178,42 @@ function findRegion(text: string): { code: string; city: string }[] | null {
   return null;
 }
 
-function parseDate(text: string): string {
+function parseDates(text: string): { dates: string[]; isRange: boolean } {
   const now = new Date();
   const lower = text.toLowerCase();
-  if (lower.includes('today')) return now.toISOString().split('T')[0];
-  if (lower.includes('tomorrow')) return new Date(now.getTime() + 86400000).toISOString().split('T')[0];
-  if (lower.includes('next week')) return new Date(now.getTime() + 7 * 86400000).toISOString().split('T')[0];
-  if (lower.includes('next month')) { const d = new Date(now); d.setMonth(d.getMonth() + 1); return d.toISOString().split('T')[0]; }
+  const fmt = (d: Date) => d.toISOString().split('T')[0];
+  
+  // "next X days" / "within X days" / "in the next X days"
+  const nextDays = lower.match(/(?:next|within|in the next|coming)\s+(\d+)\s*days?/);
+  if (nextDays) {
+    const n = parseInt(nextDays[1]);
+    const dates = [];
+    for (let i = 0; i < n; i++) dates.push(fmt(new Date(now.getTime() + (i + 1) * 86400000)));
+    return { dates, isRange: true };
+  }
+  
+  // "this week" / "this weekend"
+  if (/\bthis\s*week\b/.test(lower)) {
+    const dates = [];
+    for (let i = 0; i < 7; i++) dates.push(fmt(new Date(now.getTime() + i * 86400000)));
+    return { dates, isRange: true };
+  }
+  if (/\bthis\s*weekend\b/.test(lower)) {
+    const dayOfWeek = now.getDay();
+    const fri = new Date(now.getTime() + ((5 - dayOfWeek + 7) % 7) * 86400000);
+    return { dates: [fmt(fri), fmt(new Date(fri.getTime() + 86400000)), fmt(new Date(fri.getTime() + 2 * 86400000))], isRange: true };
+  }
+  
+  if (lower.includes('today')) return { dates: [fmt(now)], isRange: false };
+  if (lower.includes('tomorrow')) return { dates: [fmt(new Date(now.getTime() + 86400000))], isRange: false };
+  if (lower.includes('next week')) return { dates: [fmt(new Date(now.getTime() + 7 * 86400000))], isRange: false };
+  if (lower.includes('next month')) { const d = new Date(now); d.setMonth(d.getMonth() + 1); return { dates: [fmt(d)], isRange: false }; }
+  
   const inDays = lower.match(/in (\d+)\s*days?/);
-  if (inDays) return new Date(now.getTime() + parseInt(inDays[1]) * 86400000).toISOString().split('T')[0];
+  if (inDays) return { dates: [fmt(new Date(now.getTime() + parseInt(inDays[1]) * 86400000))], isRange: false };
   const inWeeks = lower.match(/in (\d+)\s*weeks?/);
-  if (inWeeks) return new Date(now.getTime() + parseInt(inWeeks[1]) * 7 * 86400000).toISOString().split('T')[0];
+  if (inWeeks) return { dates: [fmt(new Date(now.getTime() + parseInt(inWeeks[1]) * 7 * 86400000))], isRange: false };
+  
   const months = ['january','february','march','april','may','june','july','august','september','october','november','december'];
   const monthMatch = lower.match(new RegExp(`(\\d{1,2})\\s*(?:st|nd|rd|th)?\\s*(${months.join('|')})|(${months.join('|')})\\s*(\\d{1,2})`));
   if (monthMatch) {
@@ -196,19 +221,19 @@ function parseDate(text: string): string {
     const month = months.indexOf((monthMatch[2] || monthMatch[3]).toLowerCase());
     const d = new Date(now.getFullYear(), month, day);
     if (d < now) d.setFullYear(now.getFullYear() + 1);
-    return d.toISOString().split('T')[0];
+    return { dates: [fmt(d)], isRange: false };
   }
   const isoMatch = text.match(/(\d{4}-\d{2}-\d{2})/);
-  if (isoMatch) return isoMatch[1];
+  if (isoMatch) return { dates: [isoMatch[1]], isRange: false };
   const slashMatch = text.match(/(\d{1,2})[\/\-](\d{1,2})(?:[\/\-](\d{2,4}))?/);
   if (slashMatch) {
     const a = parseInt(slashMatch[1]), b = parseInt(slashMatch[2]);
     const year = slashMatch[3] ? (parseInt(slashMatch[3]) < 100 ? 2000 + parseInt(slashMatch[3]) : parseInt(slashMatch[3])) : now.getFullYear();
     const d = new Date(year, b - 1, a);
     if (d < now && !slashMatch[3]) d.setFullYear(year + 1);
-    return d.toISOString().split('T')[0];
+    return { dates: [fmt(d)], isRange: false };
   }
-  return new Date(now.getTime() + 7 * 86400000).toISOString().split('T')[0];
+  return { dates: [fmt(new Date(now.getTime() + 7 * 86400000))], isRange: false };
 }
 
 export async function POST(request: NextRequest) {
@@ -246,13 +271,24 @@ export async function POST(request: NextRequest) {
   const pointsMatch = lower.match(/([\d,]+)\s*k?\s*(points|miles|pts)/);
   if (pointsMatch) { maxPoints = parseInt(pointsMatch[1].replace(/,/g, '')); if (lower.includes('k') && maxPoints < 1000) maxPoints *= 1000; }
   
-  const departDate = parseDate(query);
+  const { dates: departDates, isRange: isDateRange } = parseDates(query);
+  const departDate = departDates[0];
   const flexible = /\b(flexible|anytime|any\s*date|whenever|no fixed)\b/.test(lower);
   
+  // Parse max stops
+  let maxStops: number | null = null;
+  if (/\b(direct|nonstop|non-stop|no stops?)\b/.test(lower)) maxStops = 0;
+  else if (/\b(one stop|1 stop|max 1 stop)\b/.test(lower)) maxStops = 1;
+  else if (/\b(two stops?|2 stops?|max 2 stops?)\b/.test(lower)) maxStops = 2;
+  // "all the options" / "any stops" / "one stop or two stops" → show everything but tag it
+  const wantsAllStops = /\b(all\s*(?:the\s*)?options|any\s*stops?|one\s*stop\s*or\s*two|1\s*stop\s*or\s*2)\b/.test(lower);
+  if (wantsAllStops) maxStops = null; // no filter, show all
+
   const preferences: string[] = [];
-  if (/\b(direct|nonstop|non-stop)\b/.test(lower)) preferences.push('direct');
+  if (/\b(direct|nonstop|non-stop)\b/.test(lower) && !wantsAllStops) preferences.push('direct');
   if (/\b(cheap|cheapest|budget|value)\b/.test(lower)) preferences.push('cheapest');
   if (/\b(points|miles|award)\b/.test(lower)) preferences.push('points');
+  if (wantsAllStops) preferences.push('allStops');
 
   // If region search → return multiple destinations
   if (destRegion && destRegion.length > 1) {
@@ -266,8 +302,11 @@ export async function POST(request: NextRequest) {
         regionName: cleanRegion || destText.trim(),
         destinations: destRegion.map(d => ({ code: d.code, city: d.city })),
         departDate,
+        departDates,
+        isDateRange,
         cabin,
         passengers,
+        maxStops,
         flexible,
         maxBudget,
         maxPoints,
@@ -289,8 +328,11 @@ export async function POST(request: NextRequest) {
       destinationCity: destination.city,
       isRegionSearch: false,
       departDate,
+      departDates,
+      isDateRange,
       cabin,
       passengers,
+      maxStops,
       flexible,
       maxBudget,
       maxPoints,
