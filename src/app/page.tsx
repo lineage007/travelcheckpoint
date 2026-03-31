@@ -119,7 +119,7 @@ export default function Home() {
         .hide-scrollbar { -ms-overflow-style:none; scrollbar-width:none; }
         @media (hover:hover) {
           .dest-card:hover { transform:translateY(-4px) scale(1.02) !important; }
-          .dest-card:hover .dest-overlay { opacity:0.3 !important; }
+          .dest-card:hover .dest-overlay { opacity:0.85 !important; }
           .quick-card:hover { transform:translateY(-2px) !important; border-color:rgba(255,255,255,0.15) !important; }
           .region-pill:hover { transform:translateY(-1px) !important; }
         }
@@ -228,13 +228,13 @@ export default function Home() {
               <button key={i} className="dest-card" onClick={() => { setQuery(`Dubai to ${d.name}, business, next week`); handleSearch(`Dubai to ${d.name}, business, next week`); }}
                 style={{ flex: '0 0 160px', height: 200, borderRadius: 16, position: 'relative', overflow: 'hidden', cursor: 'pointer', border: 'none', background: '#1a1a2e', scrollSnapAlign: 'start', transition: 'all 0.3s', textAlign: 'left' }}>
                 <img src={d.img} alt={d.name} style={{ position: 'absolute', inset: 0, width: '100%', height: '100%', objectFit: 'cover' }} loading="lazy" />
-                <div className="dest-overlay" style={{ position: 'absolute', inset: 0, background: 'linear-gradient(to top, rgba(0,0,0,0.7) 0%, transparent 50%)', opacity: 0.5, transition: 'opacity 0.3s' }} />
-                <div style={{ position: 'absolute', bottom: 0, left: 0, right: 0, padding: 16, zIndex: 1 }}>
-                  <div style={{ fontSize: 16, fontWeight: 600, marginBottom: 2 }}>{d.name}</div>
-                  <div style={{ fontSize: 11, color: 'rgba(255,255,255,0.6)' }}>{d.region}</div>
+                <div className="dest-overlay" style={{ position: 'absolute', inset: 0, background: 'linear-gradient(to top, rgba(0,0,0,0.85) 0%, rgba(0,0,0,0.4) 40%, transparent 65%)', transition: 'opacity 0.3s' }} />
+                <div style={{ position: 'absolute', bottom: 0, left: 0, right: 0, padding: 16, zIndex: 1, textShadow: '0 1px 4px rgba(0,0,0,0.6)' }}>
+                  <div style={{ fontSize: 16, fontWeight: 700, marginBottom: 2, color: '#fff' }}>{d.name}</div>
+                  <div style={{ fontSize: 11, color: 'rgba(255,255,255,0.75)' }}>{d.region}</div>
                   <div style={{ marginTop: 8, display: 'flex', alignItems: 'baseline', gap: 4 }}>
-                    <span style={{ fontSize: 11, color: 'rgba(255,255,255,0.5)' }}>from</span>
-                    <span style={{ fontSize: 18, fontWeight: 700 }}>${d.price}</span>
+                    <span style={{ fontSize: 11, color: 'rgba(255,255,255,0.65)' }}>from</span>
+                    <span style={{ fontSize: 18, fontWeight: 700, color: '#fff' }}>${d.price}</span>
                   </div>
                 </div>
                 <div className="dest-arrow" style={{ position: 'absolute', top: 12, right: 12, width: 28, height: 28, borderRadius: '50%', background: 'rgba(255,255,255,0.2)', display: 'flex', alignItems: 'center', justifyContent: 'center', opacity: 0, transform: 'translateX(-4px)', transition: 'all 0.3s', backdropFilter: 'blur(8px)' }}>
