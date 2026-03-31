@@ -39,6 +39,7 @@ interface HiddenCityResult { airline: string; price: number; from: string; to: s
 interface KiwiResult { price: number; airlines: string[]; from: string; to: string; departure: string; duration: number; stops: number; isVirtualInterline: boolean; bookingLink: string }
 interface VisaInfo { status: string; days?: number; note?: string; passport: string; destination: string }
 interface CurrencyInfo { from: string; to: string; name: string; symbol: string; rate: number; display: string }
+interface LiteHotelResult { id: string; name: string; stars: number; address: string; rating: number; reviews: number; image: string; price: number; originalPrice: number; currency: string; roomType: string; board: string; freeCancellation: boolean }
 interface DuffelResult { id: string; price: number; currency: string; airlines: string[]; from: string; to: string; departure: string; duration: string; stops: number; segments: { airline: string; flightNo: string; from: string; to: string }[]; bookable: boolean; offerId: string; source: string }
 interface RoomResult { hotel: string; chain: string; location: string; pointsPerNight: number; cashRate: number; centsPerPoint: number; roomType: string; availability: boolean }
 interface GemInfo { name: string; desc: string; type: string }
@@ -73,6 +74,7 @@ function SearchResults() {
   const [hotelLinks, setHotelLinks] = useState<HotelLinks | null>(null);
   const [duffelResults, setDuffelResults] = useState<DuffelResult[]>([]);
   const [roomResults, setRoomResults] = useState<RoomResult[]>([]);
+  const [liteHotels, setLiteHotels] = useState<LiteHotelResult[]>([]);
   const [loadingExtra, setLoadingExtra] = useState(false);
 
   // Load passport from localStorage
@@ -94,6 +96,7 @@ function SearchResults() {
     setHotelLinks(null);
     setDuffelResults([]);
     setRoomResults([]);
+    setLiteHotels([]);
 
     // 1. Parse the query
     let parseData: Record<string, unknown> = {};
@@ -153,6 +156,7 @@ function SearchResults() {
         fetch(`/api/hotels?city=${destList[0].city}`).then(r => r.json()),
         fetch(`/api/duffel?origin=${origin}&destination=${dest}&date=${date}&cabin=${cabin}&passengers=${passengers}`).then(r => r.json()),
         fetch(`/api/rooms?destination=${dest}&checkin=${date}`).then(r => r.json()),
+        fetch(`/api/liteapi?destination=${dest}&checkin=${date}`).then(r => r.json()),
       ]);
 
       if (extras[0].status === 'fulfilled') setHiddenCity((extras[0].value.results || []).filter((r: HiddenCityResult) => r.price > 0));
@@ -163,6 +167,7 @@ function SearchResults() {
       if (extras[5].status === 'fulfilled') setHotelLinks(extras[5].value.deepLinks || null);
       if (extras[6].status === 'fulfilled') setDuffelResults(extras[6].value.results || []);
       if (extras[7].status === 'fulfilled') setRoomResults(extras[7].value.results || []);
+      if (extras[8].status === 'fulfilled') setLiteHotels(extras[8].value.results || []);
       setLoadingExtra(false);
     }
   }, [q, passport]);
@@ -407,6 +412,41 @@ function SearchResults() {
               <div style={{ background: COLORS.card, borderRadius: '12px', padding: '40px', textAlign: 'center' }}>
                 <Hotel size={32} color={COLORS.sub} style={{ marginBottom: '12px' }} />
                 <p style={{ fontFamily: "'DM Sans'", fontSize: '14px', color: COLORS.sub }}>Search for a specific destination to see hotel options</p>
+              </div>
+            )}
+
+            {/* Real hotel prices via LiteAPI */}
+            {liteHotels.length > 0 && (
+              <div style={{ marginBottom: '24px' }}>
+                <h3 style={{ fontFamily: "'Space Grotesk'", fontSize: '16px', fontWeight: 600, color: COLORS.text, marginBottom: '4px' }}>Hotels <span style={{ fontSize: '11px', fontWeight: 400, color: COLORS.sub }}>real-time prices · 2M+ properties</span></h3>
+                <p style={{ fontFamily: "'DM Sans'", fontSize: '12px', color: COLORS.sub, marginBottom: '12px' }}>Cheapest rates compared across all major OTAs.</p>
+                <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(260px, 1fr))', gap: '10px' }}>
+                  {liteHotels.slice(0, 8).map((h, i) => (
+                    <div key={h.id || i} style={{ background: '#fff', border: `1px solid ${COLORS.border}`, borderRadius: '12px', overflow: 'hidden', animation: `fadeIn 0.3s ease ${i * 0.05}s both` }}>
+                      {h.image && <img src={h.image} alt={h.name} style={{ width: '100%', height: '140px', objectFit: 'cover' }} onError={e => { (e.target as HTMLImageElement).style.display = 'none'; }} />}
+                      <div style={{ padding: '12px 14px' }}>
+                        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', gap: '8px' }}>
+                          <div style={{ minWidth: 0 }}>
+                            <div style={{ fontFamily: "'DM Sans'", fontSize: '13px', fontWeight: 600, color: COLORS.text, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{h.name}</div>
+                            <div style={{ fontFamily: "'DM Sans'", fontSize: '11px', color: COLORS.sub, marginTop: '2px' }}>
+                              {'★'.repeat(h.stars)}{'☆'.repeat(5 - h.stars)}
+                              {h.rating > 0 && <span style={{ marginLeft: '6px' }}>{h.rating}/10 ({h.reviews})</span>}
+                            </div>
+                          </div>
+                          <div style={{ textAlign: 'right', flexShrink: 0 }}>
+                            <div style={{ fontFamily: "'JetBrains Mono'", fontSize: '16px', fontWeight: 700, color: COLORS.text }}>${h.price}</div>
+                            {h.originalPrice > h.price && <div style={{ fontFamily: "'JetBrains Mono'", fontSize: '11px', color: COLORS.sub, textDecoration: 'line-through' }}>${h.originalPrice}</div>}
+                            <div style={{ fontFamily: "'DM Sans'", fontSize: '10px', color: COLORS.sub }}>/night</div>
+                          </div>
+                        </div>
+                        <div style={{ display: 'flex', gap: '4px', marginTop: '8px', flexWrap: 'wrap' }}>
+                          {h.board && <span style={{ fontSize: '10px', background: COLORS.card, color: COLORS.sub, padding: '2px 6px', borderRadius: '4px' }}>{h.board}</span>}
+                          {h.freeCancellation && <span style={{ fontSize: '10px', background: '#ECFDF5', color: '#065F46', padding: '2px 6px', borderRadius: '4px' }}>Free cancellation</span>}
+                        </div>
+                      </div>
+                    </div>
+                  ))}
+                </div>
               </div>
             )}
 
