@@ -44,7 +44,7 @@ const LOYALTY_PROGRAMS = [
   { id: 'citi', name: 'Citi ThankYou', type: 'card' },
 ];
 
-const COLORS = { bg: '#FAFAF7', card: '#F5F3EE', border: '#E8E3DB', accent: '#0D7C72', text: '#1A1714', sub: '#9C958C' };
+const COLORS = { bg: '#06060a', card: 'rgba(255,255,255,0.04)', border: 'rgba(255,255,255,0.06)', accent: '#8B5CF6', text: '#ffffff', sub: 'rgba(255,255,255,0.4)' };
 
 export default function SettingsPage() {
   const router = useRouter();
@@ -74,11 +74,11 @@ export default function SettingsPage() {
     setLoyaltyPrograms(prev => prev.includes(id) ? prev.filter(p => p !== id) : [...prev, id]);
   };
 
-  const selectStyle = { fontFamily: "'DM Sans', sans-serif", fontSize: '14px', padding: '10px 14px', borderRadius: '10px', border: `1px solid ${COLORS.border}`, background: '#fff', color: COLORS.text, width: '100%', outline: 'none' };
+  const selectStyle = { fontFamily: "'DM Sans', sans-serif", fontSize: '14px', padding: '10px 14px', borderRadius: '10px', border: `1px solid ${COLORS.border}`, background: 'rgba(255,255,255,0.04)', color: COLORS.text, width: '100%', outline: 'none' };
 
   return (
     <div style={{ minHeight: '100vh', background: COLORS.bg }}>
-      <div style={{ background: '#fff', borderBottom: `1px solid ${COLORS.border}`, padding: '14px 16px' }}>
+      <div style={{ background: 'rgba(255,255,255,0.04)', borderBottom: `1px solid ${COLORS.border}`, padding: '14px 16px' }}>
         <div style={{ maxWidth: '600px', margin: '0 auto', display: 'flex', alignItems: 'center', gap: '12px' }}>
           <button onClick={() => router.back()} style={{ background: 'none', border: 'none', cursor: 'pointer', color: COLORS.sub }}><ArrowLeft size={20} /></button>
           <span style={{ fontFamily: "'Space Grotesk', sans-serif", fontSize: '18px', fontWeight: 600, color: COLORS.text }}>Settings</span>
@@ -87,7 +87,7 @@ export default function SettingsPage() {
 
       <div style={{ maxWidth: '600px', margin: '0 auto', padding: '20px 16px' }}>
         {/* Passport */}
-        <div style={{ background: '#fff', border: `1px solid ${COLORS.border}`, borderRadius: '12px', padding: '16px', marginBottom: '12px' }}>
+        <div style={{ background: 'rgba(255,255,255,0.04)', border: `1px solid ${COLORS.border}`, borderRadius: '12px', padding: '16px', marginBottom: '12px' }}>
           <label style={{ fontFamily: "'DM Sans'", fontSize: '12px', fontWeight: 600, color: COLORS.sub, textTransform: 'uppercase', letterSpacing: '0.05em', display: 'block', marginBottom: '8px' }}>Passport Country</label>
           <select value={passport} onChange={e => setPassport(e.target.value)} style={selectStyle}>
             {PASSPORTS.map(p => <option key={p.code} value={p.code}>{p.name} ({p.code})</option>)}
@@ -96,7 +96,7 @@ export default function SettingsPage() {
         </div>
 
         {/* Home Airport */}
-        <div style={{ background: '#fff', border: `1px solid ${COLORS.border}`, borderRadius: '12px', padding: '16px', marginBottom: '12px' }}>
+        <div style={{ background: 'rgba(255,255,255,0.04)', border: `1px solid ${COLORS.border}`, borderRadius: '12px', padding: '16px', marginBottom: '12px' }}>
           <label style={{ fontFamily: "'DM Sans'", fontSize: '12px', fontWeight: 600, color: COLORS.sub, textTransform: 'uppercase', letterSpacing: '0.05em', display: 'block', marginBottom: '8px' }}>Home Airport</label>
           <select value={homeAirport} onChange={e => setHomeAirport(e.target.value)} style={selectStyle}>
             {HOME_AIRPORTS.map(a => <option key={a.code} value={a.code}>{a.name} ({a.code})</option>)}
@@ -105,7 +105,7 @@ export default function SettingsPage() {
         </div>
 
         {/* Cabin Class */}
-        <div style={{ background: '#fff', border: `1px solid ${COLORS.border}`, borderRadius: '12px', padding: '16px', marginBottom: '12px' }}>
+        <div style={{ background: 'rgba(255,255,255,0.04)', border: `1px solid ${COLORS.border}`, borderRadius: '12px', padding: '16px', marginBottom: '12px' }}>
           <label style={{ fontFamily: "'DM Sans'", fontSize: '12px', fontWeight: 600, color: COLORS.sub, textTransform: 'uppercase', letterSpacing: '0.05em', display: 'block', marginBottom: '8px' }}>Preferred Cabin</label>
           <div style={{ display: 'flex', gap: '8px' }}>
             {['economy', 'business', 'first'].map(c => (
@@ -119,7 +119,7 @@ export default function SettingsPage() {
         </div>
 
         {/* Loyalty Programs */}
-        <div style={{ background: '#fff', border: `1px solid ${COLORS.border}`, borderRadius: '12px', padding: '16px', marginBottom: '20px' }}>
+        <div style={{ background: 'rgba(255,255,255,0.04)', border: `1px solid ${COLORS.border}`, borderRadius: '12px', padding: '16px', marginBottom: '20px' }}>
           <label style={{ fontFamily: "'DM Sans'", fontSize: '12px', fontWeight: 600, color: COLORS.sub, textTransform: 'uppercase', letterSpacing: '0.05em', display: 'block', marginBottom: '12px' }}>Loyalty Programs</label>
           <div style={{ display: 'flex', flexDirection: 'column', gap: '2px' }}>
             {LOYALTY_PROGRAMS.map(p => {

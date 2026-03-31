@@ -30,7 +30,7 @@ const AIRLINE_IATA: Record<string, string> = {
 function AirlineLogo({ airline, size = 28 }: { airline: string; size?: number }) {
   const code = AIRLINE_IATA[airline] || (airline.length === 2 ? airline : '');
   if (!code) return <div style={{ width: size, height: size, borderRadius: '50%', background: '#F5F3EE', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 11, color: '#9C958C', fontWeight: 700, flexShrink: 0 }}>{airline.charAt(0)}</div>;
-  return <img src={`https://pics.avs.io/${size}/${size}/${code}.png`} alt={airline} width={size} height={size} style={{ borderRadius: '50%', flexShrink: 0, background: '#fff' }} onError={(e) => { (e.target as HTMLImageElement).style.display = 'none'; }} />;
+  return <img src={`https://pics.avs.io/${size}/${size}/${code}.png`} alt={airline} width={size} height={size} style={{ borderRadius: '50%', flexShrink: 0, background: 'rgba(255,255,255,0.04)' }} onError={(e) => { (e.target as HTMLImageElement).style.display = 'none'; }} />;
 }
 
 interface AwardResult { id: string; airline: string; route: string; origin: string; destination: string; date: string; cabin: string; miles: number; taxes: number; seats: number; isDirect: boolean; source: string; program: string; transferFrom: string[] }
@@ -49,7 +49,7 @@ interface DestResult { code: string; city: string; cheapestCash: number | null; 
 type MainTab = 'flights' | 'stay' | 'explore';
 type FlightFilter = 'all' | 'cash' | 'points' | 'hidden' | 'creative';
 
-const COLORS = { bg: '#FAFAF7', card: '#F5F3EE', border: '#E8E3DB', accent: '#0D7C72', text: '#1A1714', sub: '#9C958C', warm: '#F2EFE8' };
+const COLORS = { bg: '#06060a', card: 'rgba(255,255,255,0.04)', border: 'rgba(255,255,255,0.06)', accent: '#8B5CF6', text: '#ffffff', sub: 'rgba(255,255,255,0.4)', warm: 'rgba(255,255,255,0.03)' };
 
 function SearchResults() {
   const router = useRouter();
@@ -214,9 +214,9 @@ function SearchResults() {
   });
 
   const tabStyle = (active: boolean) => ({
-    fontFamily: "'DM Sans', sans-serif", fontSize: '13px', fontWeight: 600,
+    fontFamily: "'Outfit', 'DM Sans', sans-serif", fontSize: '13px', fontWeight: 600,
     padding: '10px 20px', border: 'none', cursor: 'pointer', borderRadius: '10px 10px 0 0',
-    background: active ? '#fff' : 'transparent', color: active ? COLORS.accent : COLORS.sub,
+    background: active ? 'rgba(139,92,246,0.1)' : 'transparent', color: active ? COLORS.accent : COLORS.sub,
     borderBottom: active ? `2px solid ${COLORS.accent}` : '2px solid transparent',
     transition: 'all 0.15s',
   });
@@ -224,14 +224,14 @@ function SearchResults() {
   return (
     <div style={{ minHeight: '100vh', background: COLORS.bg }}>
       {/* Header */}
-      <div style={{ background: '#fff', borderBottom: `1px solid ${COLORS.border}`, padding: '12px 16px' }}>
+      <div style={{ background: 'rgba(6,6,10,0.95)', backdropFilter: 'blur(20px)', borderBottom: `1px solid ${COLORS.border}`, padding: '12px 16px' }}>
         <div style={{ maxWidth: '900px', margin: '0 auto', display: 'flex', alignItems: 'center', gap: '12px' }}>
           <button onClick={() => router.push('/')} style={{ background: 'none', border: 'none', cursor: 'pointer', color: COLORS.sub }}><ArrowLeft size={20} /></button>
-          <div style={{ flex: 1, display: 'flex', alignItems: 'center', background: COLORS.card, borderRadius: '10px', padding: '8px 14px', gap: '8px' }}>
+          <div style={{ flex: 1, display: 'flex', alignItems: 'center', background: 'rgba(255,255,255,0.05)', border: `1px solid rgba(255,255,255,0.08)`, borderRadius: '10px', padding: '8px 14px', gap: '8px' }}>
             <Search size={16} color={COLORS.sub} />
             <input value={searchInput || q} onChange={e => setSearchInput(e.target.value)}
               onKeyDown={e => { if (e.key === 'Enter' && searchInput.trim()) router.push(`/search?q=${encodeURIComponent(searchInput)}`); }}
-              placeholder="Search again..." style={{ flex: 1, border: 'none', background: 'none', outline: 'none', fontFamily: "'DM Sans', sans-serif", fontSize: '14px', color: COLORS.text }} />
+              placeholder="Search again..." style={{ flex: 1, border: 'none', background: 'none', outline: 'none', fontFamily: "'Outfit', 'DM Sans', sans-serif", fontSize: '14px', color: COLORS.text }} />
           </div>
         </div>
 
@@ -285,7 +285,7 @@ function SearchResults() {
       </div>
 
       {/* Main Tabs */}
-      <div style={{ background: '#fff', borderBottom: `1px solid ${COLORS.border}` }}>
+      <div style={{ background: 'rgba(6,6,10,0.95)', backdropFilter: 'blur(20px)', borderBottom: `1px solid ${COLORS.border}` }}>
         <div style={{ maxWidth: '900px', margin: '0 auto', display: 'flex', gap: '4px', padding: '0 16px' }}>
           <button style={tabStyle(mainTab === 'flights')} onClick={() => setMainTab('flights')}><Plane size={14} style={{ marginRight: 6 }} />Flights</button>
           <button style={tabStyle(mainTab === 'stay')} onClick={() => setMainTab('stay')}><Hotel size={14} style={{ marginRight: 6 }} />Stay</button>
@@ -311,7 +311,7 @@ function SearchResults() {
               <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(200px, 1fr))', gap: '10px', marginBottom: '16px' }}>
                 {destinations.sort((a, b) => (a.cheapestCash || 99999) - (b.cheapestCash || 99999)).map(d => (
                   <button key={d.code} onClick={() => setSelectedDest(d.code)} style={{
-                    background: '#fff', border: `1px solid ${COLORS.border}`, borderRadius: '12px', padding: '16px', cursor: 'pointer', textAlign: 'left',
+                    background: 'rgba(255,255,255,0.04)', border: `1px solid ${COLORS.border}`, borderRadius: '12px', padding: '16px', cursor: 'pointer', textAlign: 'left',
                     borderLeft: d === destinations.sort((a, b) => (a.cheapestCash || 99999) - (b.cheapestCash || 99999))[0] ? `3px solid ${COLORS.accent}` : undefined,
                   }}>
                     <div style={{ fontFamily: "'DM Sans'", fontSize: '14px', fontWeight: 600, color: COLORS.text }}>{d.city}</div>
@@ -334,7 +334,7 @@ function SearchResults() {
               <div style={{ marginBottom: '20px' }}>
                 <h3 style={{ fontFamily: "'Space Grotesk'", fontSize: '15px', fontWeight: 600, color: COLORS.text, marginBottom: '10px' }}>Cash Fares</h3>
                 {selectedResults.cashResults.slice(0, 8).map((f, i) => (
-                  <div key={f.id || i} style={{ background: '#fff', border: `1px solid ${COLORS.border}`, borderRadius: '10px', padding: '14px', marginBottom: '8px', display: 'flex', alignItems: 'center', gap: '12px', animation: `fadeIn 0.3s ease ${i * 0.05}s both` }}>
+                  <div key={f.id || i} style={{ background: 'rgba(255,255,255,0.04)', border: `1px solid ${COLORS.border}`, borderRadius: '10px', padding: '14px', marginBottom: '8px', display: 'flex', alignItems: 'center', gap: '12px', animation: `fadeIn 0.3s ease ${i * 0.05}s both` }}>
                     <AirlineLogo airline={f.airline} />
                     <div style={{ flex: 1, minWidth: 0 }}>
                       <div style={{ fontFamily: "'DM Sans'", fontSize: '13px', fontWeight: 600, color: COLORS.text }}>{f.airline}</div>
@@ -354,7 +354,7 @@ function SearchResults() {
               <div style={{ marginBottom: '20px' }}>
                 <h3 style={{ fontFamily: "'Space Grotesk'", fontSize: '15px', fontWeight: 600, color: COLORS.text, marginBottom: '10px' }}>Award Seats</h3>
                 {selectedResults.awardResults.slice(0, 8).map((f, i) => (
-                  <div key={f.id || i} style={{ background: '#fff', border: `1px solid ${COLORS.border}`, borderRadius: '10px', padding: '14px', marginBottom: '8px', display: 'flex', alignItems: 'center', gap: '12px', animation: `fadeIn 0.3s ease ${i * 0.05}s both` }}>
+                  <div key={f.id || i} style={{ background: 'rgba(255,255,255,0.04)', border: `1px solid ${COLORS.border}`, borderRadius: '10px', padding: '14px', marginBottom: '8px', display: 'flex', alignItems: 'center', gap: '12px', animation: `fadeIn 0.3s ease ${i * 0.05}s both` }}>
                     <AirlineLogo airline={f.airline} />
                     <div style={{ flex: 1, minWidth: 0 }}>
                       <div style={{ fontFamily: "'DM Sans'", fontSize: '13px', fontWeight: 600, color: COLORS.text }}>{f.airline} <span style={{ fontSize: '11px', color: COLORS.sub, fontWeight: 400 }}>via {f.program}</span></div>
@@ -377,7 +377,7 @@ function SearchResults() {
                 <h3 style={{ fontFamily: "'Space Grotesk'", fontSize: '15px', fontWeight: 600, color: COLORS.text, marginBottom: '4px' }}>Hidden City Fares <span style={{ fontSize: '11px', fontWeight: 400, color: COLORS.sub }}>via Skiplagged</span></h3>
                 <p style={{ fontFamily: "'DM Sans'", fontSize: '11px', color: COLORS.sub, marginBottom: '10px' }}>Get off at the layover — often 30-60% cheaper. Carry-on only, no checked bags.</p>
                 {hiddenCity.slice(0, 6).map((f, i) => (
-                  <div key={i} style={{ background: '#fff', border: `1px solid ${COLORS.border}`, borderRadius: '10px', padding: '14px', marginBottom: '8px', display: 'flex', alignItems: 'center', gap: '12px', borderLeft: f.isHiddenCity ? '3px solid #F59E0B' : undefined }}>
+                  <div key={i} style={{ background: 'rgba(255,255,255,0.04)', border: `1px solid ${COLORS.border}`, borderRadius: '10px', padding: '14px', marginBottom: '8px', display: 'flex', alignItems: 'center', gap: '12px', borderLeft: f.isHiddenCity ? '3px solid #F59E0B' : undefined }}>
                     <div style={{ width: 28, height: 28, borderRadius: '50%', background: '#FFF7ED', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '14px', flexShrink: 0 }}>🎭</div>
                     <div style={{ flex: 1 }}>
                       <div style={{ fontFamily: "'DM Sans'", fontSize: '13px', fontWeight: 600, color: COLORS.text }}>{f.airline}</div>
@@ -395,7 +395,7 @@ function SearchResults() {
                 <h3 style={{ fontFamily: "'Space Grotesk'", fontSize: '15px', fontWeight: 600, color: COLORS.text, marginBottom: '4px' }}>Creative Routes <span style={{ fontSize: '11px', fontWeight: 400, color: COLORS.sub }}>via Kiwi.com</span></h3>
                 <p style={{ fontFamily: "'DM Sans'", fontSize: '11px', color: COLORS.sub, marginBottom: '10px' }}>Multi-airline combinations with Kiwi Guarantee — if you miss a connection, they rebook you.</p>
                 {kiwiResults.slice(0, 6).map((f, i) => (
-                  <div key={i} style={{ background: '#fff', border: `1px solid ${COLORS.border}`, borderRadius: '10px', padding: '14px', marginBottom: '8px', display: 'flex', alignItems: 'center', gap: '12px', borderLeft: f.isVirtualInterline ? `3px solid ${COLORS.accent}` : undefined }}>
+                  <div key={i} style={{ background: 'rgba(255,255,255,0.04)', border: `1px solid ${COLORS.border}`, borderRadius: '10px', padding: '14px', marginBottom: '8px', display: 'flex', alignItems: 'center', gap: '12px', borderLeft: f.isVirtualInterline ? `3px solid ${COLORS.accent}` : undefined }}>
                     <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '2px' }}>
                       {f.airlines.slice(0, 2).map((a, j) => <AirlineLogo key={j} airline={a} size={20} />)}
                     </div>
@@ -419,7 +419,7 @@ function SearchResults() {
                 <h3 style={{ fontFamily: "'Space Grotesk'", fontSize: '15px', fontWeight: 600, color: COLORS.text, marginBottom: '4px' }}>Bookable Fares <span style={{ fontSize: '11px', fontWeight: 400, color: COLORS.sub }}>via Duffel</span></h3>
                 <p style={{ fontFamily: "'DM Sans'", fontSize: '11px', color: COLORS.sub, marginBottom: '10px' }}>Real-time airline prices — book directly through TravelCheckpoint.</p>
                 {duffelResults.slice(0, 8).map((f, i) => (
-                  <div key={f.id || i} style={{ background: '#fff', border: `1px solid ${COLORS.border}`, borderRadius: '10px', padding: '14px', marginBottom: '8px', display: 'flex', alignItems: 'center', gap: '12px', borderLeft: `3px solid #6366F1`, animation: `fadeIn 0.3s ease ${i * 0.05}s both` }}>
+                  <div key={f.id || i} style={{ background: 'rgba(255,255,255,0.04)', border: `1px solid ${COLORS.border}`, borderRadius: '10px', padding: '14px', marginBottom: '8px', display: 'flex', alignItems: 'center', gap: '12px', borderLeft: `3px solid #6366F1`, animation: `fadeIn 0.3s ease ${i * 0.05}s both` }}>
                     <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '2px' }}>
                       {f.airlines.slice(0, 2).map((a, j) => <AirlineLogo key={j} airline={a} size={20} />)}
                     </div>
@@ -455,7 +455,7 @@ function SearchResults() {
               <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(160px, 1fr))', gap: '10px', marginBottom: '24px' }}>
                 {Object.entries(hotelLinks).map(([key, link]) => (
                   <a key={key} href={link.url} target="_blank" rel="noopener" style={{
-                    background: '#fff', border: `1px solid ${COLORS.border}`, borderRadius: '12px', padding: '20px 16px',
+                    background: 'rgba(255,255,255,0.04)', border: `1px solid ${COLORS.border}`, borderRadius: '12px', padding: '20px 16px',
                     textDecoration: 'none', textAlign: 'center', display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '8px',
                     transition: 'all 0.15s',
                   }}>
@@ -481,7 +481,7 @@ function SearchResults() {
                 <p style={{ fontFamily: "'DM Sans'", fontSize: '12px', color: COLORS.sub, marginBottom: '12px' }}>Cheapest rates compared across all major OTAs.</p>
                 <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(260px, 1fr))', gap: '10px' }}>
                   {liteHotels.slice(0, 8).map((h, i) => (
-                    <div key={h.id || i} style={{ background: '#fff', border: `1px solid ${COLORS.border}`, borderRadius: '12px', overflow: 'hidden', animation: `fadeIn 0.3s ease ${i * 0.05}s both` }}>
+                    <div key={h.id || i} style={{ background: 'rgba(255,255,255,0.04)', border: `1px solid ${COLORS.border}`, borderRadius: '12px', overflow: 'hidden', animation: `fadeIn 0.3s ease ${i * 0.05}s both` }}>
                       {h.image && <img src={h.image} alt={h.name} style={{ width: '100%', height: '140px', objectFit: 'cover' }} onError={e => { (e.target as HTMLImageElement).style.display = 'none'; }} />}
                       <div style={{ padding: '12px 14px' }}>
                         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', gap: '8px' }}>
@@ -515,7 +515,7 @@ function SearchResults() {
                 <h3 style={{ fontFamily: "'Space Grotesk'", fontSize: '16px', fontWeight: 600, color: COLORS.text, marginBottom: '4px' }}>Book with Points <span style={{ fontSize: '11px', fontWeight: 400, color: COLORS.sub }}>via rooms.aero</span></h3>
                 <p style={{ fontFamily: "'DM Sans'", fontSize: '12px', color: COLORS.sub, marginBottom: '12px' }}>Use hotel loyalty points — sorted by best value (cents per point).</p>
                 {roomResults.slice(0, 8).map((r, i) => (
-                  <div key={i} style={{ background: '#fff', border: `1px solid ${COLORS.border}`, borderRadius: '10px', padding: '14px', marginBottom: '8px', display: 'flex', alignItems: 'center', gap: '12px' }}>
+                  <div key={i} style={{ background: 'rgba(255,255,255,0.04)', border: `1px solid ${COLORS.border}`, borderRadius: '10px', padding: '14px', marginBottom: '8px', display: 'flex', alignItems: 'center', gap: '12px' }}>
                     <div style={{ width: 36, height: 36, borderRadius: '10px', background: COLORS.card, display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
                       <Hotel size={18} color={COLORS.accent} />
                     </div>
@@ -534,7 +534,7 @@ function SearchResults() {
             )}
 
             {currency && (
-              <div style={{ background: '#fff', border: `1px solid ${COLORS.border}`, borderRadius: '12px', padding: '16px', marginTop: '16px' }}>
+              <div style={{ background: 'rgba(255,255,255,0.04)', border: `1px solid ${COLORS.border}`, borderRadius: '12px', padding: '16px', marginTop: '16px' }}>
                 <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '4px' }}>
                   <DollarSign size={16} color={COLORS.accent} />
                   <span style={{ fontFamily: "'DM Sans'", fontSize: '13px', fontWeight: 600, color: COLORS.text }}>Currency</span>
@@ -551,7 +551,7 @@ function SearchResults() {
           <div>
             {/* Visa */}
             {visa && (
-              <div style={{ background: '#fff', border: `1px solid ${COLORS.border}`, borderRadius: '12px', padding: '16px', marginBottom: '12px' }}>
+              <div style={{ background: 'rgba(255,255,255,0.04)', border: `1px solid ${COLORS.border}`, borderRadius: '12px', padding: '16px', marginBottom: '12px' }}>
                 <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '8px' }}>
                   <Shield size={16} color={COLORS.accent} />
                   <span style={{ fontFamily: "'DM Sans'", fontSize: '14px', fontWeight: 600, color: COLORS.text }}>Visa Requirements</span>
@@ -572,7 +572,7 @@ function SearchResults() {
 
             {/* Currency */}
             {currency && (
-              <div style={{ background: '#fff', border: `1px solid ${COLORS.border}`, borderRadius: '12px', padding: '16px', marginBottom: '12px' }}>
+              <div style={{ background: 'rgba(255,255,255,0.04)', border: `1px solid ${COLORS.border}`, borderRadius: '12px', padding: '16px', marginBottom: '12px' }}>
                 <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '8px' }}>
                   <DollarSign size={16} color={COLORS.accent} />
                   <span style={{ fontFamily: "'DM Sans'", fontSize: '14px', fontWeight: 600, color: COLORS.text }}>Currency</span>
@@ -584,7 +584,7 @@ function SearchResults() {
 
             {/* Hidden Gems */}
             {gems.length > 0 && (
-              <div style={{ background: '#fff', border: `1px solid ${COLORS.border}`, borderRadius: '12px', padding: '16px', marginBottom: '12px' }}>
+              <div style={{ background: 'rgba(255,255,255,0.04)', border: `1px solid ${COLORS.border}`, borderRadius: '12px', padding: '16px', marginBottom: '12px' }}>
                 <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '12px' }}>
                   <Sparkles size={16} color={COLORS.accent} />
                   <span style={{ fontFamily: "'DM Sans'", fontSize: '14px', fontWeight: 600, color: COLORS.text }}>Hidden Gems</span>
