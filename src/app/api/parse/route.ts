@@ -183,10 +183,14 @@ function parseDates(text: string): { dates: string[]; isRange: boolean } {
   const lower = text.toLowerCase();
   const fmt = (d: Date) => d.toISOString().split('T')[0];
   
+  // Word-to-number map
+  const wordNums: Record<string, number> = { one:1, two:2, three:3, four:4, five:5, six:6, seven:7, eight:8, nine:9, ten:10, couple:2, few:3 };
+  const toNum = (s: string): number => wordNums[s] || parseInt(s) || 0;
+
   // "next X days" / "within X days" / "in the next X days"
-  const nextDays = lower.match(/(?:next|within|in the next|coming)\s+(\d+)\s*days?/);
+  const nextDays = lower.match(/(?:next|within|in the next|coming)\s+(\w+)\s*days?/);
   if (nextDays) {
-    const n = parseInt(nextDays[1]);
+    const n = toNum(nextDays[1]);
     const dates = [];
     for (let i = 0; i < n; i++) dates.push(fmt(new Date(now.getTime() + (i + 1) * 86400000)));
     return { dates, isRange: true };
@@ -271,18 +275,23 @@ export async function POST(request: NextRequest) {
   const pointsMatch = lower.match(/([\d,]+)\s*k?\s*(points|miles|pts)/);
   if (pointsMatch) { maxPoints = parseInt(pointsMatch[1].replace(/,/g, '')); if (lower.includes('k') && maxPoints < 1000) maxPoints *= 1000; }
   
+  // Parse dates from FULL query (not just destination part)
   const { dates: departDates, isRange: isDateRange } = parseDates(query);
   const departDate = departDates[0];
   const flexible = /\b(flexible|anytime|any\s*date|whenever|no fixed)\b/.test(lower);
   
-  // Parse max stops
+  // Parse max stops — check "all options" FIRST (overrides individual stop preferences)
+  const wantsAllStops = /\b(all\s*(?:the\s*)?options|any\s*stops?|one\s*stop\s*or\s*two|1\s*stop\s*or\s*2|direct.*one\s*stop|direct.*two\s*stop)\b/.test(lower);
   let maxStops: number | null = null;
-  if (/\b(direct|nonstop|non-stop|no stops?)\b/.test(lower)) maxStops = 0;
-  else if (/\b(one stop|1 stop|max 1 stop)\b/.test(lower)) maxStops = 1;
-  else if (/\b(two stops?|2 stops?|max 2 stops?)\b/.test(lower)) maxStops = 2;
-  // "all the options" / "any stops" / "one stop or two stops" → show everything but tag it
-  const wantsAllStops = /\b(all\s*(?:the\s*)?options|any\s*stops?|one\s*stop\s*or\s*two|1\s*stop\s*or\s*2)\b/.test(lower);
-  if (wantsAllStops) maxStops = null; // no filter, show all
+  if (wantsAllStops) {
+    maxStops = null; // show all — user explicitly wants every option
+  } else if (/\b(direct|nonstop|non-stop|no stops?)\b/.test(lower)) {
+    maxStops = 0;
+  } else if (/\b(one stop|1 stop|max 1 stop)\b/.test(lower)) {
+    maxStops = 1;
+  } else if (/\b(two stops?|2 stops?|max 2 stops?)\b/.test(lower)) {
+    maxStops = 2;
+  }
 
   const preferences: string[] = [];
   if (/\b(direct|nonstop|non-stop)\b/.test(lower) && !wantsAllStops) preferences.push('direct');
@@ -292,8 +301,16 @@ export async function POST(request: NextRequest) {
 
   // If region search → return multiple destinations
   if (destRegion && destRegion.length > 1) {
-    // Extract just the region name (remove cabin/date/pax words)
-    const cleanRegion = destText.replace(/\b(tomorrow|today|next week|next month|business|economy|first|premium|class|cheap|cheapest|\d+\s*people|\d+\s*pax|family of \d+)\b/gi, '').trim();
+    // Extract just the region name (strip everything except the region/destination keyword)
+    const cleanRegion = destText
+      .replace(/\b(tomorrow|today|next\s+\w+\s*days?|next\s+week|next\s+month|in\s+the\s+next\s+\w+\s*days?|within\s+\w+\s*days?|this\s+week|this\s+weekend)\b/gi, '')
+      .replace(/\b(business|economy|first|premium|class|cheap|cheapest)\b/gi, '')
+      .replace(/\b(\d+\s*(people|pax|passengers|adults|person)|family\s+of\s+\d+)\b/gi, '')
+      .replace(/\b(direct|nonstop|non-stop|one\s+stop|two\s+stops?|all\s+the\s+options|all\s+options|any\s+stops?|\d+\s+stops?)\b/gi, '')
+      .replace(/\b(for|or|and|with|in|on|the)\b/gi, '')
+      .replace(/[,]/g, '')
+      .replace(/\s+/g, ' ')
+      .trim();
     return NextResponse.json({
       parsed: {
         origin: origin.code,
