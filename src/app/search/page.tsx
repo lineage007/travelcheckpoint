@@ -466,33 +466,38 @@ function SearchResults() {
         )}
 
         {/* ═══════════════ STAY TAB ═══════════════ */}
-        {mainTab === 'stay' && (
+        {mainTab === 'stay' && (() => {
+          const stayCity = isMulti
+            ? (selectedDest ? (destinations.find(d => d.code === selectedDest)?.city || destCity) : destCity)
+            : (parsed?.destinationCity as string || destCity || 'Dubai');
+          const stayDate = (parsed?.departDates as string[])?.[0] || (parsed?.departDate as string) || '';
+          const stayLinks = [
+            { name: 'Booking.com', color: '#003580', url: `https://www.booking.com/searchresults.html?ss=${encodeURIComponent(stayCity)}&checkin=${stayDate}&group_adults=2` },
+            { name: 'Expedia', color: '#00355F', url: `https://www.expedia.com/Hotel-Search?destination=${encodeURIComponent(stayCity)}&startDate=${stayDate}&adults=2` },
+            { name: 'Agoda', color: '#5392F9', url: `https://www.agoda.com/search?city=${encodeURIComponent(stayCity)}&checkIn=${stayDate}` },
+            { name: 'Airbnb', color: '#FF5A5F', url: `https://www.airbnb.com/s/${encodeURIComponent(stayCity)}/homes?checkin=${stayDate}&adults=${passengers}` },
+            { name: 'Hotels.com', color: '#D32F2F', url: `https://www.hotels.com/search.do?q-destination=${encodeURIComponent(stayCity)}&q-check-in=${stayDate}&q-rooms=1&q-room-0-adults=2` },
+          ];
+          return (
           <div>
-            <h3 style={{ fontFamily: "'Space Grotesk'", fontSize: '18px', fontWeight: 600, color: COLORS.text, marginBottom: '4px' }}>Stay in {destCity}</h3>
+            <h3 style={{ fontFamily: "'Space Grotesk'", fontSize: '18px', fontWeight: 600, color: COLORS.text, marginBottom: '4px' }}>Stay in {stayCity}</h3>
             <p style={{ fontFamily: "'DM Sans'", fontSize: '13px', color: COLORS.sub, marginBottom: '20px' }}>Compare prices across all major platforms</p>
 
-            {hotelLinks ? (
-              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(160px, 1fr))', gap: '10px', marginBottom: '24px' }}>
-                {Object.entries(hotelLinks).map(([key, link]) => (
-                  <a key={key} href={link.url} target="_blank" rel="noopener" style={{
-                    background: 'rgba(255,255,255,0.04)', border: `1px solid ${COLORS.border}`, borderRadius: '12px', padding: '20px 16px',
-                    textDecoration: 'none', textAlign: 'center', display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '8px',
-                    transition: 'all 0.15s',
-                  }}>
-                    <div style={{ width: 40, height: 40, borderRadius: '10px', background: link.color + '15', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-                      <Hotel size={20} color={link.color} />
-                    </div>
-                    <div style={{ fontFamily: "'DM Sans'", fontSize: '13px', fontWeight: 600, color: COLORS.text }}>{link.name}</div>
-                    <div style={{ fontFamily: "'DM Sans'", fontSize: '11px', color: COLORS.accent, display: 'flex', alignItems: 'center', gap: '4px' }}>Search <ExternalLink size={10} /></div>
-                  </a>
-                ))}
-              </div>
-            ) : (
-              <div style={{ background: COLORS.card, borderRadius: '12px', padding: '40px', textAlign: 'center' }}>
-                <Hotel size={32} color={COLORS.sub} style={{ marginBottom: '12px' }} />
-                <p style={{ fontFamily: "'DM Sans'", fontSize: '14px', color: COLORS.sub }}>Search for a specific destination to see hotel options</p>
-              </div>
-            )}
+            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(160px, 1fr))', gap: '10px', marginBottom: '24px' }}>
+              {stayLinks.map((link) => (
+                <a key={link.name} href={link.url} target="_blank" rel="noopener" style={{
+                  background: 'rgba(255,255,255,0.04)', border: `1px solid ${COLORS.border}`, borderRadius: '12px', padding: '20px 16px',
+                  textDecoration: 'none', textAlign: 'center', display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '8px',
+                  transition: 'all 0.15s',
+                }}>
+                  <div style={{ width: 40, height: 40, borderRadius: '10px', background: link.color + '15', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                    <Hotel size={20} color={link.color} />
+                  </div>
+                  <div style={{ fontFamily: "'DM Sans'", fontSize: '13px', fontWeight: 600, color: COLORS.text }}>{link.name}</div>
+                  <div style={{ fontFamily: "'DM Sans'", fontSize: '11px', color: COLORS.accent, display: 'flex', alignItems: 'center', gap: '4px' }}>Search <ExternalLink size={10} /></div>
+                </a>
+              ))}
+            </div>
 
             {/* Real hotel prices via LiteAPI */}
             {liteHotels.length > 0 && (
@@ -564,7 +569,7 @@ function SearchResults() {
               </div>
             )}
           </div>
-        )}
+          ); })()}
 
         {/* ═══════════════ EXPLORE TAB ═══════════════ */}
         {mainTab === 'explore' && (
