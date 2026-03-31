@@ -11,13 +11,11 @@ export async function GET(req: NextRequest) {
 
   try {
     const result = await callMcpTool('skiplagged', 'sk_flights_search', {
-      from_iata: from,
-      to_iata: to,
-      depart_date: depart,
-      num_adults: adults,
-      cabin_class: cabin === 'business' ? 'business' : cabin === 'first' ? 'first' : 'economy',
-      sort_by: 'price',
-      max_results: 20,
+      origin: from,
+      destination: to,
+      departureDate: depart,
+      adults,
+      cabinClass: cabin === 'business' ? 'business' : cabin === 'first' ? 'first' : 'economy',
     });
 
     // MCP returns content as text blocks

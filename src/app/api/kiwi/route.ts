@@ -11,12 +11,11 @@ export async function GET(req: NextRequest) {
 
   try {
     const result = await callMcpTool('kiwi', 'search-flight', {
-      origin: from,
-      destination: to,
-      departure_date: depart,
-      cabin_class: cabin,
+      flyFrom: from,
+      flyTo: to,
+      departureDate: depart,
+      cabinClass: cabin === 'business' ? 'C' : cabin === 'first' ? 'F' : 'M',
       adults,
-      max_results: 15,
     });
 
     // MCP returns content as text blocks

@@ -11,12 +11,10 @@ export async function GET(req: NextRequest) {
   try {
     const result = await callMcpTool('trivago', 'trivago-accommodation-search', {
       query: city,
-      check_in: checkin,
-      check_out: checkout,
+      arrival: checkin,
+      departure: checkout,
       adults,
       rooms: 1,
-      sort_by: 'price',
-      max_results: 15,
     });
 
     const textContent = (result.content || [])
