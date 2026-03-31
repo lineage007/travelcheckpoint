@@ -483,54 +483,59 @@ function SearchResults() {
             <h3 style={{ fontFamily: "'Space Grotesk'", fontSize: '18px', fontWeight: 600, color: COLORS.text, marginBottom: '4px' }}>Stay in {stayCity}</h3>
             <p style={{ fontFamily: "'DM Sans'", fontSize: '13px', color: COLORS.sub, marginBottom: '20px' }}>Compare prices across all major platforms</p>
 
-            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(160px, 1fr))', gap: '10px', marginBottom: '24px' }}>
-              {stayLinks.map((link) => (
-                <a key={link.name} href={link.url} target="_blank" rel="noopener" style={{
-                  background: 'rgba(255,255,255,0.04)', border: `1px solid ${COLORS.border}`, borderRadius: '12px', padding: '20px 16px',
-                  textDecoration: 'none', textAlign: 'center', display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '8px',
-                  transition: 'all 0.15s',
-                }}>
-                  <div style={{ width: 40, height: 40, borderRadius: '10px', background: link.color + '15', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-                    <Hotel size={20} color={link.color} />
-                  </div>
-                  <div style={{ fontFamily: "'DM Sans'", fontSize: '13px', fontWeight: 600, color: COLORS.text }}>{link.name}</div>
-                  <div style={{ fontFamily: "'DM Sans'", fontSize: '11px', color: COLORS.accent, display: 'flex', alignItems: 'center', gap: '4px' }}>Search <ExternalLink size={10} /></div>
-                </a>
-              ))}
-            </div>
-
-            {/* Real hotel prices via LiteAPI */}
-            {liteHotels.length > 0 && (
+            {/* Hotel listings — always show */}
+            {liteHotels.length > 0 ? (
               <div style={{ marginBottom: '24px' }}>
-                <h3 style={{ fontFamily: "'Space Grotesk'", fontSize: '16px', fontWeight: 600, color: COLORS.text, marginBottom: '4px' }}>Hotels <span style={{ fontSize: '11px', fontWeight: 400, color: COLORS.sub }}>real-time prices · 2M+ properties</span></h3>
-                <p style={{ fontFamily: "'DM Sans'", fontSize: '12px', color: COLORS.sub, marginBottom: '12px' }}>Cheapest rates compared across all major OTAs.</p>
                 <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(260px, 1fr))', gap: '10px' }}>
-                  {liteHotels.slice(0, 8).map((h, i) => (
+                  {liteHotels.slice(0, 10).map((h, i) => {
+                    const hotelSearch = encodeURIComponent(h.name + ' ' + stayCity);
+                    return (
                     <div key={h.id || i} style={{ background: 'rgba(255,255,255,0.04)', border: `1px solid ${COLORS.border}`, borderRadius: '12px', overflow: 'hidden', animation: `fadeIn 0.3s ease ${i * 0.05}s both` }}>
-                      {h.image && <img src={h.image} alt={h.name} style={{ width: '100%', height: '140px', objectFit: 'cover' }} onError={e => { (e.target as HTMLImageElement).style.display = 'none'; }} />}
-                      <div style={{ padding: '12px 14px' }}>
-                        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', gap: '8px' }}>
-                          <div style={{ minWidth: 0 }}>
-                            <div style={{ fontFamily: "'DM Sans'", fontSize: '13px', fontWeight: 600, color: COLORS.text, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{h.name}</div>
-                            <div style={{ fontFamily: "'DM Sans'", fontSize: '11px', color: COLORS.sub, marginTop: '2px' }}>
-                              {'★'.repeat(h.stars)}{'☆'.repeat(5 - h.stars)}
-                              {h.rating > 0 && <span style={{ marginLeft: '6px' }}>{h.rating}/10 ({h.reviews})</span>}
-                            </div>
-                          </div>
-                          <div style={{ textAlign: 'right', flexShrink: 0 }}>
-                            <div style={{ fontFamily: "'JetBrains Mono'", fontSize: '16px', fontWeight: 700, color: COLORS.text }}>${h.price}</div>
-                            {h.originalPrice > h.price && <div style={{ fontFamily: "'JetBrains Mono'", fontSize: '11px', color: COLORS.sub, textDecoration: 'line-through' }}>${h.originalPrice}</div>}
-                            <div style={{ fontFamily: "'DM Sans'", fontSize: '10px', color: COLORS.sub }}>/night</div>
-                          </div>
+                      {h.image && <img src={h.image} alt={h.name} style={{ width: '100%', height: '160px', objectFit: 'cover' }} onError={e => { (e.target as HTMLImageElement).style.display = 'none'; }} />}
+                      <div style={{ padding: '14px' }}>
+                        <div style={{ fontFamily: "'DM Sans'", fontSize: '14px', fontWeight: 600, color: COLORS.text, marginBottom: '4px' }}>{h.name}</div>
+                        <div style={{ fontFamily: "'DM Sans'", fontSize: '11px', color: COLORS.sub, marginBottom: '2px' }}>{h.address}</div>
+                        <div style={{ fontFamily: "'DM Sans'", fontSize: '11px', color: COLORS.sub, marginBottom: '10px' }}>
+                          {h.stars > 0 && <span>{'★'.repeat(h.stars)}{'☆'.repeat(Math.max(0, 5 - h.stars))}</span>}
+                          {h.board && <span style={{ marginLeft: '6px' }}> · {h.board}</span>}
+                          {h.freeCancellation && <span style={{ color: '#34D399' }}> · Free cancellation</span>}
                         </div>
-                        <div style={{ display: 'flex', gap: '4px', marginTop: '8px', flexWrap: 'wrap' }}>
-                          {h.board && <span style={{ fontSize: '10px', background: COLORS.card, color: COLORS.sub, padding: '2px 6px', borderRadius: '4px' }}>{h.board}</span>}
-                          {h.freeCancellation && <span style={{ fontSize: '10px', background: '#ECFDF5', color: '#065F46', padding: '2px 6px', borderRadius: '4px' }}>Free cancellation</span>}
+                        {h.price > 0 ? (
+                          <div style={{ fontFamily: "'JetBrains Mono'", fontSize: '18px', fontWeight: 700, color: COLORS.text, marginBottom: '10px' }}>
+                            ${h.price} <span style={{ fontSize: '11px', fontWeight: 400, color: COLORS.sub }}>/night</span>
+                            {h.originalPrice > h.price && <span style={{ fontSize: '12px', color: COLORS.sub, textDecoration: 'line-through', marginLeft: '6px' }}>${h.originalPrice}</span>}
+                          </div>
+                        ) : null}
+                        <div style={{ display: 'flex', gap: '6px', flexWrap: 'wrap' }}>
+                          <a href={`https://www.booking.com/searchresults.html?ss=${hotelSearch}&checkin=${stayDate}`} target="_blank" rel="noopener" style={{ fontSize: '11px', fontWeight: 600, color: '#003580', background: 'rgba(0,53,128,0.1)', padding: '5px 10px', borderRadius: '6px', textDecoration: 'none' }}>Booking.com</a>
+                          <a href={`https://www.expedia.com/Hotel-Search?destination=${hotelSearch}&startDate=${stayDate}`} target="_blank" rel="noopener" style={{ fontSize: '11px', fontWeight: 600, color: '#00355F', background: 'rgba(0,53,95,0.1)', padding: '5px 10px', borderRadius: '6px', textDecoration: 'none' }}>Expedia</a>
+                          <a href={`https://www.google.com/travel/hotels/${hotelSearch}?q=${hotelSearch}&dates=${stayDate}`} target="_blank" rel="noopener" style={{ fontSize: '11px', fontWeight: 600, color: COLORS.accent, background: 'rgba(6,182,212,0.1)', padding: '5px 10px', borderRadius: '6px', textDecoration: 'none' }}>Google</a>
                         </div>
                       </div>
                     </div>
-                  ))}
+                    );
+                  })}
                 </div>
+              </div>
+            ) : loadingExtra ? (
+              <div style={{ display: 'flex', flexDirection: 'column', gap: '8px', marginBottom: '24px' }}>
+                {[1,2,3,4].map(i => <div key={i} style={{ background: COLORS.card, borderRadius: '12px', height: '200px', animation: 'shimmer 1.5s infinite' }} />)}
+              </div>
+            ) : (
+              /* Fallback: show quick search links */
+              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(160px, 1fr))', gap: '10px', marginBottom: '24px' }}>
+                {stayLinks.map((link) => (
+                  <a key={link.name} href={link.url} target="_blank" rel="noopener" style={{
+                    background: 'rgba(255,255,255,0.04)', border: `1px solid ${COLORS.border}`, borderRadius: '12px', padding: '20px 16px',
+                    textDecoration: 'none', textAlign: 'center', display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '8px',
+                  }}>
+                    <div style={{ width: 40, height: 40, borderRadius: '10px', background: link.color + '15', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                      <Hotel size={20} color={link.color} />
+                    </div>
+                    <div style={{ fontFamily: "'DM Sans'", fontSize: '13px', fontWeight: 600, color: COLORS.text }}>{link.name}</div>
+                    <div style={{ fontFamily: "'DM Sans'", fontSize: '11px', color: COLORS.accent, display: 'flex', alignItems: 'center', gap: '4px' }}>Search <ExternalLink size={10} /></div>
+                  </a>
+                ))}
               </div>
             )}
 
