@@ -5,7 +5,10 @@ export async function GET(req: NextRequest) {
   const { searchParams } = new URL(req.url);
   const from = searchParams.get('from') || 'DXB';
   const to = searchParams.get('to') || 'LHR';
-  const depart = searchParams.get('depart') || new Date(Date.now() + 7 * 86400000).toISOString().split('T')[0];
+  const departRaw = searchParams.get('depart') || new Date(Date.now() + 7 * 86400000).toISOString().split('T')[0];
+  // Convert YYYY-MM-DD to DD/MM/YYYY for Kiwi
+  const [y, m, d] = departRaw.split('-');
+  const depart = `${d}/${m}/${y}`;
   const cabin = searchParams.get('cabin') || 'economy';
   const adults = parseInt(searchParams.get('adults') || '1');
 

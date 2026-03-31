@@ -24,21 +24,46 @@ export async function GET(req: NextRequest) {
       .map((c: { text: string }) => c.text)
       .join('\n');
 
-    // Try to parse the response
-    let flights: Array<{
+    // Try JSON parse first, then fall back to markdown parsing
+    interface SkipFlight {
       airline?: string; price?: number; departure_time?: string;
-      duration_minutes?: number; stops?: number; legs?: Array<{
-        from?: string; to?: string; airline?: string;
-        departure?: string; arrival?: string; flight_number?: string;
-      }>;
-      is_hidden_city?: boolean; actual_destination?: string;
-    }> = [];
+      duration_minutes?: number; stops?: number; isHiddenCity?: boolean;
+      legs?: Array<{ from?: string; to?: string; airline?: string; departure?: string; arrival?: string; flight_number?: string }>;
+    }
+    let flights: SkipFlight[] = [];
     try {
       const parsed = JSON.parse(textContent);
       flights = Array.isArray(parsed) ? parsed : (parsed.flights || parsed.results || []);
     } catch {
-      // MCP might return formatted text — extract what we can
-      return NextResponse.json({ results: [], raw: textContent.slice(0, 2000), source: 'skiplagged-mcp' });
+      // Parse markdown format: "### 1. airline — $price — duration — stops"
+      const lines = textContent.split('\n');
+      for (const line of lines) {
+        // Match patterns like: "### 1. Turkish Airlines — $342 — 14h 35m — 1 stop"
+        // or: "- **$342** — Turkish Airlines — 14h 35m — 1 stop"
+        const priceMatch = line.match(/\$(\d[\d,]*)/);
+        const airlinePatterns = [
+          /(?:###\s*\d+\.\s*)([^—]+)/,
+          /\*\*([^*]+)\*\*/,
+          /(?:—\s*)([A-Z][a-z]+(?:\s[A-Z][a-z]+)*\s*(?:Airlines?|Airways?)?)/,
+        ];
+        
+        if (priceMatch) {
+          let airline = '';
+          for (const pat of airlinePatterns) {
+            const m = line.match(pat);
+            if (m && !m[1].startsWith('$')) { airline = m[1].trim(); break; }
+          }
+          const durationMatch = line.match(/(\d+)h\s*(\d+)m/);
+          const stopsMatch = line.match(/(\d+)\s*stop/);
+          
+          flights.push({
+            airline: airline || 'Multiple',
+            price: parseInt(priceMatch[1].replace(',', '')),
+            duration_minutes: durationMatch ? parseInt(durationMatch[1]) * 60 + parseInt(durationMatch[2]) : 0,
+            stops: stopsMatch ? parseInt(stopsMatch[1]) : 0,
+          });
+        }
+      }
     }
 
     const results = flights.map(f => ({
@@ -46,14 +71,14 @@ export async function GET(req: NextRequest) {
       price: f.price || 0,
       from,
       to,
-      actualDestination: f.actual_destination || to,
-      isHiddenCity: f.is_hidden_city || false,
+      actualDestination: to,
+      isHiddenCity: f.isHiddenCity || false,
       duration: f.duration_minutes || 0,
       stops: f.stops || 0,
       departure: f.departure_time || '',
       legs: f.legs || [],
       source: 'skiplagged',
-    }));
+    })).filter(f => f.price > 0);
 
     return NextResponse.json({ results, count: results.length, source: 'skiplagged-mcp' });
   } catch (e) {
