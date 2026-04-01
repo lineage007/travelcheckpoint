@@ -122,9 +122,11 @@ function SearchResults() {
     const departDates = rawDates.filter(d => d && d.length > 0);
     if (departDates.length === 0) departDates.push(new Date(Date.now() + 7 * 86400000).toISOString().split('T')[0]);
     const isRegion = parseData.isRegionSearch === true;
-    const destList: { code: string; city: string }[] = isRegion
+    const rawDestList: { code: string; city: string }[] = isRegion
       ? (parseData.destinations as { code: string; city: string }[]) || []
       : [{ code: (parseData.destination as string) || 'LHR', city: (parseData.destinationCity as string) || 'London' }];
+    // Cap region searches at 10 cities max to avoid timeouts
+    const destList = rawDestList.slice(0, 10);
 
     const initDests: DestResult[] = destList.map(d => ({ code: d.code, city: d.city, cheapestCash: null, cheapestAward: null, cashResults: [], awardResults: [], loading: true }));
     setDestinations(initDests);
@@ -138,11 +140,11 @@ function SearchResults() {
         const allAwards: AwardResult[] = [];
         const seen = new Set<string>();
 
-        // Search each date (max 3 for performance)
-        const searchDates = departDates.slice(0, 3);
+        // Search each date — limit to 1 date for region searches (max 3 for single-city)
+        const searchDates = isRegion ? departDates.slice(0, 1) : departDates.slice(0, 3);
         const dateSearches = searchDates.map(async (date) => {
           const stopsParam = maxStops !== null && maxStops !== undefined ? `&maxStops=${maxStops}` : '';
-          const res = await fetch(`/api/search?origin=${origin}&destination=${dest.code}&cabin=${cabin}&date=${date}&passengers=${pax}${stopsParam}`);
+          const res = await fetch(`/api/search?origin=${origin}&destination=${dest.code}&cabin=${cabin}&date=${date}&passengers=${pax}${stopsParam}`, { signal: AbortSignal.timeout(20000) });
           const data = await res.json();
           const awards: AwardResult[] = data.results?.awards || [];
           const cash: CashResult[] = data.results?.cash || [];
@@ -213,10 +215,13 @@ function SearchResults() {
 
   useEffect(() => { if (q) doSearch(); }, [q, doSearch]);
 
-  const dest0 = destinations[0];
+  const dest0 = destinations[0] || null;
   const isMulti = destinations.length > 1;
-  const selectedResults = selectedDest ? destinations.find(d => d.code === selectedDest) : dest0;
+  const selectedResults = selectedDest ? destinations.find(d => d.code === selectedDest) || null : dest0;
   const origin = (parsed?.origin as string) || 'DXB';
+  // Safe accessors to prevent crashes on null selectedResults
+  const safeCash = selectedResults?.cashResults || [];
+  const safeAwards = selectedResults?.awardResults || [];
   const destCity = isMulti ? 'Multiple Cities' : (parsed?.destinationCity as string) || dest0?.city || '';
 
   const chipStyle = (active: boolean) => ({

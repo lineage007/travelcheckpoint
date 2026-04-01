@@ -116,6 +116,19 @@ const REGION_AIRPORTS: Record<string, { code: string; city: string }[]> = {
   'caribbean': [
     { code: 'CUN', city: 'Cancún' }, { code: 'MIA', city: 'Miami' },
   ],
+  'nearby': [
+    { code: 'MCT', city: 'Muscat' }, { code: 'BAH', city: 'Bahrain' }, { code: 'DOH', city: 'Doha' },
+    { code: 'KWI', city: 'Kuwait' }, { code: 'RUH', city: 'Riyadh' }, { code: 'JED', city: 'Jeddah' },
+    { code: 'CAI', city: 'Cairo' }, { code: 'AMM', city: 'Amman' }, { code: 'TBS', city: 'Tbilisi' },
+    { code: 'AYT', city: 'Antalya' }, { code: 'IST', city: 'Istanbul' }, { code: 'BOM', city: 'Mumbai' },
+  ],
+  'anywhere': [
+    { code: 'LHR', city: 'London' }, { code: 'CDG', city: 'Paris' }, { code: 'IST', city: 'Istanbul' },
+    { code: 'BKK', city: 'Bangkok' }, { code: 'SIN', city: 'Singapore' }, { code: 'NRT', city: 'Tokyo' },
+    { code: 'DPS', city: 'Bali' }, { code: 'MLE', city: 'Maldives' }, { code: 'JFK', city: 'New York' },
+    { code: 'SYD', city: 'Sydney' }, { code: 'FCO', city: 'Rome' }, { code: 'BCN', city: 'Barcelona' },
+    { code: 'MCT', city: 'Muscat' }, { code: 'DOH', city: 'Doha' }, { code: 'KUL', city: 'Kuala Lumpur' },
+  ],
 };
 
 // Single-airport region fallbacks
@@ -245,22 +258,38 @@ export async function POST(request: NextRequest) {
   if (!query) return NextResponse.json({ error: 'No query provided' }, { status: 400 });
 
   const lower = query.toLowerCase();
+  
+  // Detect special keywords that imply region searches
+  const isAnywhereSearch = /\b(anywhere|everywhere|cheapest\s*(?:getaway|flight|fare)?|best\s*deal)\b/.test(lower);
+  const isNearbySearch = /\b(nearby|near|close|short[\s-]*haul|getaway|weekend\s*getaway|quick\s*escape)\b/.test(lower) && !isAnywhereSearch;
+  
   const parts = lower.split(/\s+to\s+|\s*[→\-–>]+\s*/);
   
   // Parse origin
   let origin = findAirport(parts[0] || '') || findRegion(parts[0] || '')?.[0] || null;
   if (!origin) origin = { code: 'DXB', city: 'Dubai' }; // Default to Dubai
   
-  // Parse destination — check if it's a region (multi-airport) or single city
-  const destText = parts.length > 1 ? parts.slice(1).join(' ') : '';
-  const destCity = findAirport(destText);
-  const destRegion = !destCity ? findRegion(destText) : null;
+  // Parse destination — handle special keywords first
+  let destText = parts.length > 1 ? parts.slice(1).join(' ') : '';
+  let destCity: { code: string; city: string } | null = null;
+  let destRegion: { code: string; city: string }[] | null = null;
+  
+  if (isAnywhereSearch) {
+    destRegion = REGION_AIRPORTS['anywhere'];
+    destText = 'anywhere';
+  } else if (isNearbySearch) {
+    destRegion = REGION_AIRPORTS['nearby'];
+    destText = 'nearby';
+  } else {
+    destCity = findAirport(destText);
+    destRegion = !destCity ? findRegion(destText) : null;
+  }
   
   // Parse common fields
   let cabin = 'business';
   if (/\b(first\s*class|first)\b/.test(lower)) cabin = 'first';
   else if (/\b(premium\s*econ|premium)\b/.test(lower)) cabin = 'premium';
-  else if (/\b(economy|econ|cheap)\b/.test(lower)) cabin = 'economy';
+  else if (/\b(economy|econ|cheap|cheapest|budget|getaway)\b/.test(lower)) cabin = 'economy';
   
   let passengers = 1;
   const paxMatch = lower.match(/(\d+)\s*(people|pax|passengers|adults|person)|family\s*of\s*(\d+)/);
