@@ -2,7 +2,7 @@
 
 import { useState, useEffect, Suspense, useCallback } from 'react';
 import { useSearchParams, useRouter } from 'next/navigation';
-import { ArrowLeft, Plane, ExternalLink, Search, ArrowRight, Hotel, Compass, Shield, DollarSign, MapPin, Anchor, Sparkles, Settings, ChevronDown } from 'lucide-react';
+import { ArrowLeft, Plane, ExternalLink, Search, Hotel, Compass, Shield, DollarSign, Sparkles, Settings } from 'lucide-react';
 
 const AIRLINE_BOOK_URLS: Record<string, string> = {
   'Emirates': 'https://www.emirates.com/ae/english/manage-booking/redeem-miles/',
@@ -30,11 +30,13 @@ const AIRLINE_IATA: Record<string, string> = {
 function AirlineLogo({ airline, size = 28 }: { airline: string; size?: number }) {
   const code = AIRLINE_IATA[airline] || (airline.length === 2 ? airline : '');
   if (!code) return <div style={{ width: size, height: size, borderRadius: '50%', background: '#F5F3EE', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 11, color: '#9C958C', fontWeight: 700, flexShrink: 0 }}>{airline.charAt(0)}</div>;
+  // External airline badge CDN does not support Next Image static sizing reliably here.
+  // eslint-disable-next-line @next/next/no-img-element
   return <img src={`https://pics.avs.io/${size}/${size}/${code}.png`} alt={airline} width={size} height={size} style={{ borderRadius: '50%', flexShrink: 0, background: 'rgba(255,255,255,0.04)' }} onError={(e) => { (e.target as HTMLImageElement).style.display = 'none'; }} />;
 }
 
 interface AwardResult { id: string; airline: string; route: string; origin: string; destination: string; date: string; cabin: string; miles: number; taxes: number; seats: number; isDirect: boolean; source: string; program: string; transferFrom: string[] }
-interface CashResult { id: string; airline: string; price: number; pricePerPerson?: number; totalPrice?: number; route: string; origin: string; destination: string; departureTime: string; duration: string; stops: number; cabin: string; bookingUrl: string; date?: string }
+interface CashResult { id: string; airline: string; price: number | null; pricePerPerson?: number | null; totalPrice?: number | null; route: string; origin: string; destination: string; departureTime: string; duration: string; stops: number; cabin: string; bookingUrl: string; date?: string; isLivePrice?: boolean; status?: 'live' | 'fallback'; source?: string }
 interface HiddenCityResult { airline: string; price: number; from: string; to: string; actualDestination: string; isHiddenCity: boolean; duration: number; stops: number; departure: string }
 interface KiwiResult { price: number; airlines: string[]; from: string; to: string; departure: string; duration: number; stops: number; isVirtualInterline: boolean; bookingLink: string }
 interface VisaInfo { status: string; days?: number; note?: string; passport: string; destination: string }
@@ -71,18 +73,17 @@ function SearchResults() {
   const [visa, setVisa] = useState<VisaInfo | null>(null);
   const [currency, setCurrency] = useState<CurrencyInfo | null>(null);
   const [gems, setGems] = useState<GemInfo[]>([]);
-  const [hotelLinks, setHotelLinks] = useState<HotelLinks | null>(null);
+  const [, setHotelLinks] = useState<HotelLinks | null>(null);
   const [duffelResults, setDuffelResults] = useState<DuffelResult[]>([]);
   const [roomResults, setRoomResults] = useState<RoomResult[]>([]);
   const [liteHotels, setLiteHotels] = useState<LiteHotelResult[]>([]);
   const [loadingExtra, setLoadingExtra] = useState(false);
 
-  // Load passport from localStorage
-  const [passport, setPassport] = useState('TR');
-  useEffect(() => {
-    const saved = localStorage.getItem('tc_passport');
-    if (saved) setPassport(saved);
-  }, []);
+  // Load passport from localStorage during client initialization without a cascading effect render.
+  const [passport] = useState(() => {
+    if (typeof window === 'undefined') return 'TR';
+    return window.localStorage.getItem('tc_passport') || 'TR';
+  });
 
   const [error, setError] = useState<string | null>(null);
 
@@ -160,9 +161,9 @@ function SearchResults() {
         });
         await Promise.all(dateSearches);
 
-        allCash.sort((a, b) => a.price - b.price);
+        allCash.sort((a, b) => (a.price ?? Infinity) - (b.price ?? Infinity));
         allAwards.sort((a, b) => a.miles - b.miles);
-        const cheapestCash = allCash.filter(c => c.price > 0)[0]?.price || null;
+        const cheapestCash = allCash.find(c => typeof c.price === 'number' && c.price > 0 && c.isLivePrice !== false)?.price || null;
         const cheapestAward = allAwards.filter(a => a.miles > 0)[0]?.miles || null;
 
         setDestinations(prev => {
@@ -213,15 +214,16 @@ function SearchResults() {
     }
   }, [q, passport]);
 
-  useEffect(() => { if (q) doSearch(); }, [q, doSearch]);
+  useEffect(() => {
+    if (!q) return;
+    const timer = window.setTimeout(() => { void doSearch(); }, 0);
+    return () => window.clearTimeout(timer);
+  }, [q, doSearch]);
 
   const dest0 = destinations[0] || null;
   const isMulti = destinations.length > 1;
   const selectedResults = selectedDest ? destinations.find(d => d.code === selectedDest) || null : dest0;
   const origin = (parsed?.origin as string) || 'DXB';
-  // Safe accessors to prevent crashes on null selectedResults
-  const safeCash = selectedResults?.cashResults || [];
-  const safeAwards = selectedResults?.awardResults || [];
   const destCity = isMulti ? 'Multiple Cities' : (parsed?.destinationCity as string) || dest0?.city || '';
 
   const chipStyle = (active: boolean) => ({
@@ -358,16 +360,24 @@ function SearchResults() {
             {(flightFilter === 'all' || flightFilter === 'cash') && selectedResults && selectedResults.cashResults.length > 0 && (
               <div style={{ marginBottom: '20px' }}>
                 <h3 style={{ fontFamily: "'Space Grotesk'", fontSize: '15px', fontWeight: 600, color: COLORS.text, marginBottom: '10px' }}>Cash Fares</h3>
+                {selectedResults.cashResults.every(f => f.status === 'fallback') && (
+                  <p style={{ fontFamily: "'DM Sans'", fontSize: '11px', color: COLORS.sub, marginBottom: '10px' }}>
+                    Live fare provider is unavailable, so these are direct search links — not ranked prices.
+                  </p>
+                )}
                 {selectedResults.cashResults.slice(0, 8).map((f, i) => (
                   <div key={f.id || i} style={{ background: 'rgba(255,255,255,0.04)', border: `1px solid ${COLORS.border}`, borderRadius: '10px', padding: '14px', marginBottom: '8px', display: 'flex', alignItems: 'center', gap: '12px', animation: `fadeIn 0.3s ease ${i * 0.05}s both` }}>
                     <AirlineLogo airline={f.airline} />
                     <div style={{ flex: 1, minWidth: 0 }}>
                       <div style={{ fontFamily: "'DM Sans'", fontSize: '13px', fontWeight: 600, color: COLORS.text }}>{f.airline}</div>
-                      <div style={{ fontFamily: "'JetBrains Mono'", fontSize: '11px', color: COLORS.sub }}>{f.route} · {f.duration} · {f.stops === 0 ? 'Direct' : `${f.stops} stop${f.stops > 1 ? 's' : ''}`}</div>
+                      <div style={{ fontFamily: "'JetBrains Mono'", fontSize: '11px', color: COLORS.sub }}>
+                        {f.route}{f.duration ? ` · ${f.duration}` : ''} · {f.stops === 0 ? 'Direct' : `${f.stops} stop${f.stops > 1 ? 's' : ''}`}
+                      </div>
                     </div>
                     <div style={{ textAlign: 'right' }}>
-                      <div style={{ fontFamily: "'JetBrains Mono'", fontSize: '15px', fontWeight: 700, color: COLORS.text }}>${f.price.toLocaleString()}</div>
-                      {passengers > 1 && <div style={{ fontFamily: "'JetBrains Mono'", fontSize: '10px', color: COLORS.sub }}>${(f.price * passengers).toLocaleString()} total</div>}
+                      <div style={{ fontFamily: "'JetBrains Mono'", fontSize: '15px', fontWeight: 700, color: COLORS.text }}>{typeof f.price === 'number' && f.price > 0 ? `$${f.price.toLocaleString()}` : 'Check live'}</div>
+                      {typeof f.price === 'number' && f.price > 0 && passengers > 1 && <div style={{ fontFamily: "'JetBrains Mono'", fontSize: '10px', color: COLORS.sub }}>${(f.price * passengers).toLocaleString()} total</div>}
+                      {f.status === 'fallback' && <a href={f.bookingUrl} target="_blank" rel="noopener" style={{ fontSize: '10px', color: COLORS.accent, textDecoration: 'none' }}>Open search →</a>}
                     </div>
                   </div>
                 ))}
@@ -496,7 +506,12 @@ function SearchResults() {
                     const hotelSearch = encodeURIComponent(h.name + ' ' + stayCity);
                     return (
                     <div key={h.id || i} style={{ background: 'rgba(255,255,255,0.04)', border: `1px solid ${COLORS.border}`, borderRadius: '12px', overflow: 'hidden', animation: `fadeIn 0.3s ease ${i * 0.05}s both` }}>
-                      {h.image && <img src={h.image} alt={h.name} style={{ width: '100%', height: '160px', objectFit: 'cover' }} onError={e => { (e.target as HTMLImageElement).style.display = 'none'; }} />}
+                      {h.image && (
+                        <>
+                          {/* eslint-disable-next-line @next/next/no-img-element */}
+                          <img src={h.image} alt={h.name} style={{ width: '100%', height: '160px', objectFit: 'cover' }} onError={e => { (e.target as HTMLImageElement).style.display = 'none'; }} />
+                        </>
+                      )}
                       <div style={{ padding: '14px' }}>
                         <div style={{ fontFamily: "'DM Sans'", fontSize: '14px', fontWeight: 600, color: COLORS.text, marginBottom: '4px' }}>{h.name}</div>
                         <div style={{ fontFamily: "'DM Sans'", fontSize: '11px', color: COLORS.sub, marginBottom: '2px' }}>{h.address}</div>

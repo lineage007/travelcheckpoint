@@ -227,6 +227,7 @@ export default function Home() {
             {destinations.map((d, i) => (
               <button key={i} className="dest-card" onClick={() => { setQuery(`Dubai to ${d.name}, business, next week`); handleSearch(`Dubai to ${d.name}, business, next week`); }}
                 style={{ flex: '0 0 160px', height: 200, borderRadius: 16, position: 'relative', overflow: 'hidden', cursor: 'pointer', border: 'none', background: '#1a1a2e', scrollSnapAlign: 'start', transition: 'all 0.3s', textAlign: 'left' }}>
+                {/* eslint-disable-next-line @next/next/no-img-element */}
                 <img src={d.img} alt={d.name} style={{ position: 'absolute', inset: 0, width: '100%', height: '100%', objectFit: 'cover' }} loading="lazy" />
                 <div className="dest-overlay" style={{ position: 'absolute', inset: 0, background: 'linear-gradient(to top, rgba(0,0,0,0.85) 0%, rgba(0,0,0,0.4) 40%, transparent 65%)', transition: 'opacity 0.3s' }} />
                 <div style={{ position: 'absolute', bottom: 0, left: 0, right: 0, padding: 16, zIndex: 1, textShadow: '0 1px 4px rgba(0,0,0,0.6)' }}>

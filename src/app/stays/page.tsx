@@ -16,7 +16,6 @@ const TEXT_LIGHT = '#E2E8F0';
 const GOLD = '#F59E0B';
 const GREEN = '#10B981';
 const RED = '#EF4444';
-const PURPLE = '#8B5CF6';
 
 type StayTab = 'best' | 'hotels' | 'points' | 'airbnb' | 'vrbo';
 

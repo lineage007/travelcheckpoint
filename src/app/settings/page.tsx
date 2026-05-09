@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { ArrowLeft, Check } from 'lucide-react';
 
@@ -46,20 +46,28 @@ const LOYALTY_PROGRAMS = [
 
 const COLORS = { bg: '#06060a', card: 'rgba(255,255,255,0.04)', border: 'rgba(255,255,255,0.06)', accent: '#8B5CF6', text: '#ffffff', sub: 'rgba(255,255,255,0.4)' };
 
+function getStoredString(key: string, fallback: string) {
+  if (typeof window === 'undefined') return fallback;
+  return window.localStorage.getItem(key) || fallback;
+}
+
+function getStoredList(key: string) {
+  if (typeof window === 'undefined') return [];
+  try {
+    const parsed = JSON.parse(window.localStorage.getItem(key) || '[]');
+    return Array.isArray(parsed) ? parsed.filter((item): item is string => typeof item === 'string') : [];
+  } catch {
+    return [];
+  }
+}
+
 export default function SettingsPage() {
   const router = useRouter();
-  const [passport, setPassport] = useState('TR');
-  const [homeAirport, setHomeAirport] = useState('DXB');
-  const [cabin, setCabin] = useState('business');
-  const [loyaltyPrograms, setLoyaltyPrograms] = useState<string[]>([]);
+  const [passport, setPassport] = useState(() => getStoredString('tc_passport', 'TR'));
+  const [homeAirport, setHomeAirport] = useState(() => getStoredString('tc_home_airport', 'DXB'));
+  const [cabin, setCabin] = useState(() => getStoredString('tc_cabin', 'business'));
+  const [loyaltyPrograms, setLoyaltyPrograms] = useState<string[]>(() => getStoredList('tc_loyalty'));
   const [saved, setSaved] = useState(false);
-
-  useEffect(() => {
-    setPassport(localStorage.getItem('tc_passport') || 'TR');
-    setHomeAirport(localStorage.getItem('tc_home_airport') || 'DXB');
-    setCabin(localStorage.getItem('tc_cabin') || 'business');
-    setLoyaltyPrograms(JSON.parse(localStorage.getItem('tc_loyalty') || '[]'));
-  }, []);
 
   const save = () => {
     localStorage.setItem('tc_passport', passport);

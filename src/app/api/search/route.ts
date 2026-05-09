@@ -101,10 +101,11 @@ async function searchAwards(origin: string, destination: string, cabin: string):
 interface CashResult {
   id: string; type: 'cash'; airline: string; flights: string;
   route: string; origin: string; destination: string;
-  price: number; currency: string;
+  price: number | null; currency: string;
   departureTime: string; arrivalTime: string;
   duration: string; stops: number; date: string;
   cabin: string; bookingUrl: string;
+  isLivePrice: boolean; source: 'cash-api' | 'serpapi' | 'deep-link'; status: 'live' | 'fallback';
 }
 
 async function searchCashFlights(origin: string, destination: string, date: string, cabin: string): Promise<CashResult[]> {
@@ -138,8 +139,9 @@ async function searchCashFlights(origin: string, destination: string, date: stri
             date: departDate,
             cabin: cabin.charAt(0).toUpperCase() + cabin.slice(1),
             bookingUrl: `https://www.google.com/travel/flights?q=${origin}+to+${destination}+${departDate}+${cabin}`,
+            isLivePrice: true, source: 'cash-api', status: 'live',
           };
-        }).filter((f: CashResult) => f.price > 0).sort((a: CashResult, b: CashResult) => a.price - b.price);
+        }).filter((f: CashResult) => typeof f.price === 'number' && f.price > 0).sort((a: CashResult, b: CashResult) => (a.price || Infinity) - (b.price || Infinity));
       }
     } catch { /* fall through to SerpAPI */ }
   }
@@ -178,8 +180,9 @@ async function searchCashFlights(origin: string, destination: string, date: stri
             date: departDate,
             cabin: cabin.charAt(0).toUpperCase() + cabin.slice(1),
             bookingUrl: `https://www.google.com/travel/flights?q=${origin}+to+${destination}+${departDate}+${cabin}`,
+            isLivePrice: true, source: 'serpapi', status: 'live',
           };
-        }).filter((f: CashResult) => f.price > 0).sort((a: CashResult, b: CashResult) => a.price - b.price);
+        }).filter((f: CashResult) => typeof f.price === 'number' && f.price > 0).sort((a: CashResult, b: CashResult) => (a.price || Infinity) - (b.price || Infinity));
       }
     } catch { /* fall through to links */ }
   }
@@ -196,12 +199,13 @@ async function searchCashFlights(origin: string, destination: string, date: stri
       flights: 'Compare prices across all airlines',
       route: `${origin} → ${destination}`,
       origin, destination,
-      price: 0,
+      price: null,
       currency: 'USD',
       departureTime: '', arrivalTime: '', duration: '',
       stops: 0, date: departDate,
       cabin: cabin.charAt(0).toUpperCase() + cabin.slice(1),
       bookingUrl: googleUrl,
+      isLivePrice: false, source: 'deep-link', status: 'fallback',
     },
     {
       id: 'skyscanner',
@@ -210,12 +214,13 @@ async function searchCashFlights(origin: string, destination: string, date: stri
       flights: 'Compare prices across all airlines',
       route: `${origin} → ${destination}`,
       origin, destination,
-      price: 0,
+      price: null,
       currency: 'USD',
       departureTime: '', arrivalTime: '', duration: '',
       stops: 0, date: departDate,
       cabin: cabin.charAt(0).toUpperCase() + cabin.slice(1),
       bookingUrl: skyUrl,
+      isLivePrice: false, source: 'deep-link', status: 'fallback',
     },
   ];
 }
@@ -329,12 +334,22 @@ async function searchHiddenCity(origin: string, destination: string, date: strin
 
 export async function GET(request: NextRequest) {
   const { searchParams } = new URL(request.url);
-  const origin = (searchParams.get('origin') || 'DXB').toUpperCase();
-  const destination = (searchParams.get('destination') || 'LHR').toUpperCase();
-  const cabin = searchParams.get('cabin') || 'business';
+  const origin = (searchParams.get('origin') || 'DXB').toUpperCase().trim();
+  const destination = (searchParams.get('destination') || 'LHR').toUpperCase().trim();
+  const requestedCabin = (searchParams.get('cabin') || 'business').toLowerCase();
+  const cabin = ['economy', 'premium', 'business', 'first'].includes(requestedCabin) ? requestedCabin : 'business';
   const date = searchParams.get('date') || '';
-  const passengers = parseInt(searchParams.get('passengers') || '1') || 1;
-  const maxStops = searchParams.get('maxStops') !== null ? parseInt(searchParams.get('maxStops')!) : null;
+  const parsedPassengers = parseInt(searchParams.get('passengers') || '1', 10);
+  const passengers = Number.isFinite(parsedPassengers) ? Math.min(Math.max(parsedPassengers, 1), 9) : 1;
+  const requestedStops = searchParams.get('maxStops');
+  const maxStops = requestedStops !== null ? parseInt(requestedStops, 10) : null;
+
+  if (!/^[A-Z]{3}$/.test(origin) || !/^[A-Z]{3}$/.test(destination)) {
+    return NextResponse.json({ error: 'Invalid airport code' }, { status: 400 });
+  }
+  if (date && !/^\d{4}-\d{2}-\d{2}$/.test(date)) {
+    return NextResponse.json({ error: 'Invalid date format. Use YYYY-MM-DD.' }, { status: 400 });
+  }
 
   const startTime = Date.now();
 
@@ -356,16 +371,24 @@ export async function GET(request: NextRequest) {
       : awards;
 
     // Multiply prices by passengers for display
-    const cashWithPax = filteredCash.map(f => ({ ...f, pricePerPerson: f.price, totalPrice: f.price * passengers }));
+    const cashWithPax = filteredCash.map(f => ({
+      ...f,
+      pricePerPerson: f.price,
+      totalPrice: typeof f.price === 'number' ? f.price * passengers : null,
+    }));
     const awardsWithPax = filteredAwards.map(a => ({ ...a, milesPerPerson: a.miles, totalMiles: a.miles * passengers }));
 
     const elapsed = Date.now() - startTime;
 
-    // Calculate best value across all types
+    // Calculate best value across confirmed live values only.
+    // Deep links and placeholder hidden-city cards stay visible in their own tabs,
+    // but they must never outrank real prices as "best value".
+    const liveCash = cashWithPax.filter(c => typeof c.price === 'number' && c.price > 0 && c.isLivePrice);
+    const liveHiddenCity = hiddenCity.filter(h => h.price > 0);
     const allResults = [
-      ...awardsWithPax.map(a => ({ ...a, sortValue: a.miles / 100 })),
-      ...cashWithPax.map(c => ({ ...c, sortValue: c.price })),
-      ...hiddenCity.map(h => ({ ...h, sortValue: h.price })),
+      ...awardsWithPax.filter(a => a.miles > 0).map(a => ({ ...a, sortValue: a.miles / 100 })),
+      ...liveCash.map(c => ({ ...c, sortValue: c.price || Infinity })),
+      ...liveHiddenCity.map(h => ({ ...h, sortValue: h.price })),
     ];
     allResults.sort((a, b) => a.sortValue - b.sortValue);
 
@@ -382,16 +405,26 @@ export async function GET(request: NextRequest) {
         totalResults: awardsWithPax.length + cashWithPax.length + hiddenCity.length + emptyLegs.length,
         awardResults: awardsWithPax.length,
         cashResults: cashWithPax.length,
+        liveCashResults: liveCash.length,
+        fallbackCashLinks: cashWithPax.filter(c => !c.isLivePrice).length,
         hiddenCityResults: hiddenCity.length,
+        liveHiddenCityResults: liveHiddenCity.length,
         emptyLegResults: emptyLegs.length,
         passengers,
         maxStops,
         sourcesSearched: SOURCES.length + 1,
+        providerStatus: {
+          awards: SEATS_API_KEY ? 'configured' : 'missing-key',
+          cash: liveCash.length > 0 ? 'live' : 'fallback-links-only',
+          hiddenCity: liveHiddenCity.length > 0 ? 'live' : 'manual-check-only',
+          emptyLegs: emptyLegs.some(e => e.price > 0) ? 'live' : 'directory-links-only',
+        },
         elapsed: `${elapsed}ms`,
         timestamp: new Date().toISOString(),
       },
     });
   } catch (error) {
-    return NextResponse.json({ error: 'Search failed', details: String(error) }, { status: 500 });
+    console.error('Search failed:', error);
+    return NextResponse.json({ error: 'Search failed' }, { status: 500 });
   }
 }
