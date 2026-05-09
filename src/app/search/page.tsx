@@ -53,6 +53,32 @@ type FlightFilter = 'all' | 'cash' | 'points' | 'hidden' | 'creative';
 
 const COLORS = { bg: '#06060a', card: 'rgba(255,255,255,0.04)', border: 'rgba(255,255,255,0.06)', accent: '#8B5CF6', text: '#ffffff', sub: 'rgba(255,255,255,0.4)', warm: 'rgba(255,255,255,0.03)' };
 
+type ProviderTone = 'live' | 'fallback' | 'warning' | 'empty';
+
+function ProviderNotice({ tone, title, children }: { tone: ProviderTone; title: string; children: React.ReactNode }) {
+  const palette = {
+    live: { bg: 'rgba(34,197,94,0.08)', border: 'rgba(34,197,94,0.18)', fg: '#86EFAC', icon: '✓' },
+    fallback: { bg: 'rgba(245,158,11,0.08)', border: 'rgba(245,158,11,0.2)', fg: '#FBBF24', icon: '↗' },
+    warning: { bg: 'rgba(239,68,68,0.08)', border: 'rgba(239,68,68,0.18)', fg: '#FCA5A5', icon: '!' },
+    empty: { bg: 'rgba(139,92,246,0.08)', border: 'rgba(139,92,246,0.18)', fg: COLORS.accent, icon: 'i' },
+  }[tone];
+
+  return (
+    <div style={{ background: palette.bg, border: `1px solid ${palette.border}`, borderRadius: '12px', padding: '12px 14px', marginBottom: '14px', display: 'flex', gap: '10px', alignItems: 'flex-start' }}>
+      <span style={{ width: 20, height: 20, borderRadius: '50%', background: palette.border, color: palette.fg, display: 'inline-flex', alignItems: 'center', justifyContent: 'center', fontFamily: "'JetBrains Mono'", fontSize: '11px', fontWeight: 700, flexShrink: 0 }}>{palette.icon}</span>
+      <div>
+        <div style={{ fontFamily: "'DM Sans'", fontSize: '12px', fontWeight: 700, color: COLORS.text, marginBottom: '2px' }}>{title}</div>
+        <div style={{ fontFamily: "'DM Sans'", fontSize: '11px', lineHeight: 1.45, color: COLORS.sub }}>{children}</div>
+      </div>
+    </div>
+  );
+}
+
+function StatusPill({ label, tone }: { label: string; tone: ProviderTone }) {
+  const color = tone === 'live' ? '#22C55E' : tone === 'fallback' ? '#F59E0B' : tone === 'warning' ? '#EF4444' : COLORS.accent;
+  return <span style={{ fontFamily: "'JetBrains Mono'", fontSize: '10px', fontWeight: 700, color, background: `${color}18`, border: `1px solid ${color}28`, padding: '3px 7px', borderRadius: '999px', textTransform: 'uppercase' }}>{label}</span>;
+}
+
 function SearchResults() {
   const router = useRouter();
   const searchParams = useSearchParams();
@@ -77,6 +103,7 @@ function SearchResults() {
   const [duffelResults, setDuffelResults] = useState<DuffelResult[]>([]);
   const [roomResults, setRoomResults] = useState<RoomResult[]>([]);
   const [liteHotels, setLiteHotels] = useState<LiteHotelResult[]>([]);
+  const [providerStatuses, setProviderStatuses] = useState<Record<string, string>>({});
   const [loadingExtra, setLoadingExtra] = useState(false);
 
   // Load passport from localStorage during client initialization without a cascading effect render.
@@ -101,6 +128,7 @@ function SearchResults() {
     setDuffelResults([]);
     setRoomResults([]);
     setLiteHotels([]);
+    setProviderStatuses({});
 
     try {
     // 1. Parse the query
@@ -149,6 +177,9 @@ function SearchResults() {
           const data = await res.json();
           const awards: AwardResult[] = data.results?.awards || [];
           const cash: CashResult[] = data.results?.cash || [];
+          if (!isRegion && data.meta?.providerStatus) {
+            setProviderStatuses(prev => ({ ...prev, ...data.meta.providerStatus }));
+          }
           
           for (const c of cash) {
             const key = `${c.airline}-${c.price}-${c.departureTime}`;
@@ -199,15 +230,31 @@ function SearchResults() {
         safeFetch(`/api/liteapi?destination=${dest}&checkin=${date}&checkout=${checkoutDate}&adults=${Math.max(1, Math.min(pax, 9))}`),
       ]);
 
-      if (extras[0].status === 'fulfilled') setHiddenCity((extras[0].value.results || []).filter((r: HiddenCityResult) => r.price > 0));
-      if (extras[1].status === 'fulfilled') setKiwiResults(extras[1].value.results || []);
+      if (extras[0].status === 'fulfilled') {
+        const value = extras[0].value;
+        setHiddenCity((value.results || []).filter((r: HiddenCityResult) => r.price > 0));
+        if (value.status) setProviderStatuses(prev => ({ ...prev, skiplagged: value.status }));
+      }
+      if (extras[1].status === 'fulfilled') {
+        const value = extras[1].value;
+        setKiwiResults(value.results || []);
+        if (value.status) setProviderStatuses(prev => ({ ...prev, kiwi: value.status }));
+      }
       if (extras[2].status === 'fulfilled' && extras[2].value.status) setVisa(extras[2].value);
       if (extras[3].status === 'fulfilled' && extras[3].value.display) setCurrency(extras[3].value);
       if (extras[4].status === 'fulfilled') setGems(extras[4].value.gems || []);
       if (extras[5].status === 'fulfilled') setHotelLinks(extras[5].value.deepLinks || null);
       if (extras[6].status === 'fulfilled') setDuffelResults(extras[6].value.results || []);
-      if (extras[7].status === 'fulfilled') setRoomResults(extras[7].value.results || []);
-      if (extras[8].status === 'fulfilled') setLiteHotels(extras[8].value.results || []);
+      if (extras[7].status === 'fulfilled') {
+        const value = extras[7].value;
+        setRoomResults(value.results || []);
+        if (value.providerStatus) setProviderStatuses(prev => ({ ...prev, rooms: value.providerStatus }));
+      }
+      if (extras[8].status === 'fulfilled') {
+        const value = extras[8].value;
+        setLiteHotels(value.results || []);
+        if (value.providerStatus) setProviderStatuses(prev => ({ ...prev, liteapi: value.providerStatus }));
+      }
       setLoadingExtra(false);
     }
     } catch (err) {
@@ -228,6 +275,11 @@ function SearchResults() {
   const selectedResults = selectedDest ? destinations.find(d => d.code === selectedDest) || null : dest0;
   const origin = (parsed?.origin as string) || 'DXB';
   const destCity = isMulti ? 'Multiple Cities' : (parsed?.destinationCity as string) || dest0?.city || '';
+  const selectedCash = selectedResults?.cashResults || [];
+  const selectedAwards = selectedResults?.awardResults || [];
+  const liveCashCount = selectedCash.filter(f => typeof f.price === 'number' && f.price > 0 && f.isLivePrice !== false).length;
+  const fallbackCashCount = selectedCash.filter(f => f.status === 'fallback' || f.isLivePrice === false).length;
+  const hasAnyFlightResult = liveCashCount > 0 || fallbackCashCount > 0 || selectedAwards.length > 0 || hiddenCity.length > 0 || kiwiResults.length > 0 || duffelResults.length > 0;
 
   const chipStyle = (active: boolean) => ({
     fontFamily: "'DM Sans', sans-serif", fontSize: '12px', fontWeight: active ? 600 : 400,
@@ -336,6 +388,15 @@ function SearchResults() {
               ))}
             </div>
 
+            {selectedResults && !loading && (
+              <div style={{ display: 'flex', gap: '8px', flexWrap: 'wrap', marginBottom: '14px' }}>
+                <StatusPill label={liveCashCount > 0 ? `${liveCashCount} live cash` : providerStatuses.cash === 'fallback-links-only' ? 'cash fallback' : 'cash pending'} tone={liveCashCount > 0 ? 'live' : providerStatuses.cash === 'fallback-links-only' ? 'fallback' : 'empty'} />
+                <StatusPill label={selectedAwards.length > 0 ? `${selectedAwards.length} award seats` : providerStatuses.awards === 'missing-key' ? 'awards missing key' : 'no awards'} tone={selectedAwards.length > 0 ? 'live' : providerStatuses.awards === 'missing-key' ? 'warning' : 'empty'} />
+                <StatusPill label={kiwiResults.length > 0 ? `${kiwiResults.length} creative` : providerStatuses.kiwi === 'unavailable' ? 'kiwi unavailable' : 'creative routes'} tone={kiwiResults.length > 0 ? 'live' : providerStatuses.kiwi === 'unavailable' ? 'fallback' : 'empty'} />
+                <StatusPill label={hiddenCity.length > 0 ? `${hiddenCity.length} hidden-city` : providerStatuses.skiplagged === 'not-configured' ? 'skiplagged not configured' : 'hidden city'} tone={hiddenCity.length > 0 ? 'live' : providerStatuses.skiplagged === 'not-configured' ? 'fallback' : 'empty'} />
+              </div>
+            )}
+
             {/* Multi-destination overview */}
             {isMulti && !selectedDest && (
               <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(200px, 1fr))', gap: '10px', marginBottom: '16px' }}>
@@ -364,9 +425,9 @@ function SearchResults() {
               <div style={{ marginBottom: '20px' }}>
                 <h3 style={{ fontFamily: "'Space Grotesk'", fontSize: '15px', fontWeight: 600, color: COLORS.text, marginBottom: '10px' }}>Cash Fares</h3>
                 {selectedResults.cashResults.every(f => f.status === 'fallback') && (
-                  <p style={{ fontFamily: "'DM Sans'", fontSize: '11px', color: COLORS.sub, marginBottom: '10px' }}>
-                    Live fare provider is unavailable, so these are direct search links — not ranked prices.
-                  </p>
+                  <ProviderNotice tone="fallback" title="Live cash fares are not connected yet">
+                    These are direct search links to Google Flights and Skyscanner. They are not ranked prices, so TravelCheckpoint is being honest instead of pretending a $0 fare exists.
+                  </ProviderNotice>
                 )}
                 {selectedResults.cashResults.slice(0, 8).map((f, i) => (
                   <div key={f.id || i} style={{ background: 'rgba(255,255,255,0.04)', border: `1px solid ${COLORS.border}`, borderRadius: '10px', padding: '14px', marginBottom: '8px', display: 'flex', alignItems: 'center', gap: '12px', animation: `fadeIn 0.3s ease ${i * 0.05}s both` }}>
@@ -475,6 +536,12 @@ function SearchResults() {
               </div>
             )}
 
+            {!loading && selectedResults && !hasAnyFlightResult && (
+              <ProviderNotice tone="empty" title="No flight results returned">
+                Try a broader date, allow stops, or switch to another nearby destination. If provider keys are missing, this page will show clean fallback links rather than fake data.
+              </ProviderNotice>
+            )}
+
             {loading && (
               <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
                 {[1,2,3,4].map(i => <div key={i} style={{ background: COLORS.card, borderRadius: '10px', height: '72px', animation: 'shimmer 1.5s infinite' }} />)}
@@ -500,11 +567,25 @@ function SearchResults() {
           return (
           <div>
             <h3 style={{ fontFamily: "'Space Grotesk'", fontSize: '18px', fontWeight: 600, color: COLORS.text, marginBottom: '4px' }}>Stay in {stayCity}</h3>
-            <p style={{ fontFamily: "'DM Sans'", fontSize: '13px', color: COLORS.sub, marginBottom: '20px' }}>Compare prices across all major platforms</p>
+            <p style={{ fontFamily: "'DM Sans'", fontSize: '13px', color: COLORS.sub, marginBottom: '12px' }}>Compare prices across all major platforms</p>
+            <div style={{ display: 'flex', gap: '8px', flexWrap: 'wrap', marginBottom: '14px' }}>
+              <StatusPill label={providerStatuses.liteapi === 'live-rates' ? 'live hotel rates' : providerStatuses.liteapi === 'hotel-list-only' ? 'hotel list only' : providerStatuses.liteapi === 'missing-key' ? 'hotel API missing key' : 'hotel links'} tone={providerStatuses.liteapi === 'live-rates' ? 'live' : providerStatuses.liteapi === 'missing-key' ? 'warning' : 'fallback'} />
+              <StatusPill label={providerStatuses.rooms === 'live' ? 'points rooms live' : providerStatuses.rooms === 'missing-key' ? 'rooms missing key' : 'points rooms'} tone={providerStatuses.rooms === 'live' ? 'live' : providerStatuses.rooms === 'missing-key' ? 'warning' : 'empty'} />
+            </div>
+            {providerStatuses.liteapi === 'missing-key' && (
+              <ProviderNotice tone="fallback" title="Hotel live rates need LiteAPI credentials">
+                I’m showing OTA search links and any available hotel directory data. Once LiteAPI is configured, this section can show live nightly pricing.
+              </ProviderNotice>
+            )}
 
             {/* Hotel listings — always show */}
             {liteHotels.length > 0 ? (
               <div style={{ marginBottom: '24px' }}>
+                {providerStatuses.liteapi === 'hotel-list-only' && (
+                  <ProviderNotice tone="fallback" title="Showing hotel directory data only">
+                    These hotel cards are useful for discovery, but rates weren’t returned. Use the compare buttons to check live prices.
+                  </ProviderNotice>
+                )}
                 <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(260px, 1fr))', gap: '10px' }}>
                   {liteHotels.slice(0, 10).map((h, i) => {
                     const hotelSearch = encodeURIComponent(h.name + ' ' + stayCity);
@@ -546,8 +627,11 @@ function SearchResults() {
                 {[1,2,3,4].map(i => <div key={i} style={{ background: COLORS.card, borderRadius: '12px', height: '200px', animation: 'shimmer 1.5s infinite' }} />)}
               </div>
             ) : (
-              /* Fallback: show quick search links */
-              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(160px, 1fr))', gap: '10px', marginBottom: '24px' }}>
+              <>
+                <ProviderNotice tone="fallback" title="No live hotel inventory returned">
+                  Use these deep links to compare live rates across the major booking platforms for the same city and dates.
+                </ProviderNotice>
+                <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(160px, 1fr))', gap: '10px', marginBottom: '24px' }}>
                 {stayLinks.map((link) => (
                   <a key={link.name} href={link.url} target="_blank" rel="noopener" style={{
                     background: 'rgba(255,255,255,0.04)', border: `1px solid ${COLORS.border}`, borderRadius: '12px', padding: '20px 16px',
@@ -560,7 +644,8 @@ function SearchResults() {
                     <div style={{ fontFamily: "'DM Sans'", fontSize: '11px', color: COLORS.accent, display: 'flex', alignItems: 'center', gap: '4px' }}>Search <ExternalLink size={10} /></div>
                   </a>
                 ))}
-              </div>
+                </div>
+              </>
             )}
 
             {/* Hotel points via rooms.aero */}
