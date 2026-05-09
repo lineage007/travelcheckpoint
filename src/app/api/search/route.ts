@@ -231,15 +231,15 @@ async function searchCashFlights(origin: string, destination: string, date: stri
 
 interface EmptyLegResult {
   id: string; type: 'empty'; aircraft: string; route: string;
-  origin: string; destination: string; price: number; currency: string;
-  maxPax: number; date: string; departureTime: string;
+  origin: string; destination: string; price: number | null; currency: string;
+  maxPax: number | null; date: string; departureTime: string;
   broker: string; brokerUrl: string;
+  isLivePrice: boolean; status: 'live' | 'directory-link';
 }
 
 async function searchEmptyLegs(origin: string): Promise<EmptyLegResult[]> {
-  // Empty leg APIs are mostly behind paywalls or require partnerships
-  // For now, aggregate from known public feeds
-  // TODO: Wire LunaJets, PrivateFly, Victor, JetSmarter APIs when keys available
+  // Empty-leg APIs are mostly behind paywalls or require partnerships.
+  // Until keys/partnerships exist, expose these as explicit directory links rather than fake inventory.
   
   const regionLegs: EmptyLegResult[] = [];
   
@@ -266,13 +266,15 @@ async function searchEmptyLegs(origin: string): Promise<EmptyLegResult[]> {
             route: `${leg.origin || origin} → ${leg.destination || 'TBD'}`,
             origin: (leg.origin as string) || origin,
             destination: (leg.destination as string) || '',
-            price: (leg.price as number) || 0,
+            price: typeof leg.price === 'number' && leg.price > 0 ? leg.price : null,
             currency: 'USD',
             maxPax: (leg.passengers as number) || 6,
             date: (leg.date as string) || '',
             departureTime: (leg.time as string) || '',
             broker: 'PrivateFly',
             brokerUrl: 'https://www.privatefly.com/empty-legs',
+            isLivePrice: typeof leg.price === 'number' && leg.price > 0,
+            status: typeof leg.price === 'number' && leg.price > 0 ? 'live' : 'directory-link',
           });
         });
       }
@@ -283,9 +285,9 @@ async function searchEmptyLegs(origin: string): Promise<EmptyLegResult[]> {
   if (regionLegs.length === 0) {
     // These are sourced from public empty leg listing pages
     regionLegs.push(
-      { id: 'el-1', type: 'empty', aircraft: 'Check LunaJets', route: `${origin} → Various`, origin, destination: 'Various', price: 0, currency: 'USD', maxPax: 0, date: 'Check live', departureTime: '', broker: 'LunaJets', brokerUrl: 'https://www.lunajets.com/en/empty-leg-flights/' },
-      { id: 'el-2', type: 'empty', aircraft: 'Check PrivateFly', route: `${origin} → Various`, origin, destination: 'Various', price: 0, currency: 'USD', maxPax: 0, date: 'Check live', departureTime: '', broker: 'PrivateFly', brokerUrl: 'https://www.privatefly.com/empty-legs' },
-      { id: 'el-3', type: 'empty', aircraft: 'Check Victor', route: `${origin} → Various`, origin, destination: 'Various', price: 0, currency: 'USD', maxPax: 0, date: 'Check live', departureTime: '', broker: 'Victor', brokerUrl: 'https://www.flyvictor.com/empty-legs/' },
+      { id: 'el-1', type: 'empty', aircraft: 'LunaJets empty-leg directory', route: `${origin} → Various`, origin, destination: 'Various', price: null, currency: 'USD', maxPax: null, date: 'Check live', departureTime: '', broker: 'LunaJets', brokerUrl: 'https://www.lunajets.com/en/empty-leg-flights/', isLivePrice: false, status: 'directory-link' },
+      { id: 'el-2', type: 'empty', aircraft: 'PrivateFly empty-leg directory', route: `${origin} → Various`, origin, destination: 'Various', price: null, currency: 'USD', maxPax: null, date: 'Check live', departureTime: '', broker: 'PrivateFly', brokerUrl: 'https://www.privatefly.com/empty-legs', isLivePrice: false, status: 'directory-link' },
+      { id: 'el-3', type: 'empty', aircraft: 'Victor empty-leg directory', route: `${origin} → Various`, origin, destination: 'Various', price: null, currency: 'USD', maxPax: null, date: 'Check live', departureTime: '', broker: 'Victor', brokerUrl: 'https://www.flyvictor.com/empty-legs/', isLivePrice: false, status: 'directory-link' },
     );
   }
 
@@ -299,10 +301,10 @@ async function searchEmptyLegs(origin: string): Promise<EmptyLegResult[]> {
 interface HiddenCityResult {
   id: string; type: 'hidden'; airline: string; flights: string;
   route: string; exitAt: string; fullRoute: string;
-  price: number; savings: number; currency: string;
+  price: number | null; savings: number | null; currency: string;
   date: string; departureTime: string; arrivalTime: string;
   duration: string; cabin: string;
-  warnings: string[];
+  warnings: string[]; bookingUrl: string; isLivePrice: boolean; status: 'live' | 'manual-check';
 }
 
 async function searchHiddenCity(origin: string, destination: string, date: string, cabin: string): Promise<HiddenCityResult[]> {
@@ -311,20 +313,23 @@ async function searchHiddenCity(origin: string, destination: string, date: strin
   return [{
     id: 'hc-link',
     type: 'hidden' as const,
-    airline: 'Check Skiplagged',
+    airline: 'Skiplagged manual check',
     flights: '',
     route: origin + ' → ' + destination,
     exitAt: destination,
     fullRoute: origin + ' → ' + destination + ' → onwards',
-    price: 0,
-    savings: 0,
+    price: null,
+    savings: null,
     currency: 'USD',
     date: date || new Date(Date.now() + 7 * 86400000).toISOString().split('T')[0],
     departureTime: '',
     arrivalTime: '',
     duration: '',
     cabin: cabin.charAt(0).toUpperCase() + cabin.slice(1),
-    warnings: ['Check skiplagged.com for hidden city routes from ' + origin + ' to ' + destination],
+    warnings: ['Manual hidden-city search only. Do not check bags, do not book round trips, and verify airline rules before using this tactic.'],
+    bookingUrl: `https://skiplagged.com/flights/${origin}/${destination}/${date || new Date(Date.now() + 7 * 86400000).toISOString().split('T')[0]}`,
+    isLivePrice: false,
+    status: 'manual-check',
   }];
 }
 
@@ -381,14 +386,14 @@ export async function GET(request: NextRequest) {
     const elapsed = Date.now() - startTime;
 
     // Calculate best value across confirmed live values only.
-    // Deep links and placeholder hidden-city cards stay visible in their own tabs,
+    // Deep links and manual-check cards stay visible in their own tabs,
     // but they must never outrank real prices as "best value".
     const liveCash = cashWithPax.filter(c => typeof c.price === 'number' && c.price > 0 && c.isLivePrice);
-    const liveHiddenCity = hiddenCity.filter(h => h.price > 0);
+    const liveHiddenCity = hiddenCity.filter(h => typeof h.price === 'number' && h.price > 0 && h.isLivePrice);
     const allResults = [
       ...awardsWithPax.filter(a => a.miles > 0).map(a => ({ ...a, sortValue: a.miles / 100 })),
       ...liveCash.map(c => ({ ...c, sortValue: c.price || Infinity })),
-      ...liveHiddenCity.map(h => ({ ...h, sortValue: h.price })),
+      ...liveHiddenCity.map(h => ({ ...h, sortValue: h.price || Infinity })),
     ];
     allResults.sort((a, b) => a.sortValue - b.sortValue);
 
@@ -417,7 +422,7 @@ export async function GET(request: NextRequest) {
           awards: SEATS_API_KEY ? 'configured' : 'missing-key',
           cash: liveCash.length > 0 ? 'live' : 'fallback-links-only',
           hiddenCity: liveHiddenCity.length > 0 ? 'live' : 'manual-check-only',
-          emptyLegs: emptyLegs.some(e => e.price > 0) ? 'live' : 'directory-links-only',
+          emptyLegs: emptyLegs.some(e => typeof e.price === 'number' && e.price > 0 && e.isLivePrice) ? 'live' : 'directory-links-only',
         },
         elapsed: `${elapsed}ms`,
         timestamp: new Date().toISOString(),

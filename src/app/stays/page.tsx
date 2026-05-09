@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect, Suspense } from 'react';
+import { Suspense, useEffect, useMemo, useState } from 'react';
 import { useSearchParams } from 'next/navigation';
 import Link from 'next/link';
 
@@ -17,269 +17,247 @@ const GOLD = '#F59E0B';
 const GREEN = '#10B981';
 const RED = '#EF4444';
 
-type StayTab = 'best' | 'hotels' | 'points' | 'airbnb' | 'vrbo';
-
-const TABS: { key: StayTab; label: string; color: string; count: number }[] = [
-  { key: 'best', label: 'Best Value', color: GREEN, count: 18 },
-  { key: 'hotels', label: 'Hotels', color: ACCENT, count: 8 },
-  { key: 'points', label: 'Points', color: GOLD, count: 5 },
-  { key: 'airbnb', label: 'Airbnb', color: '#FF5A5F', count: 6 },
-  { key: 'vrbo', label: 'Vrbo', color: '#2577D1', count: 4 },
-];
-
-interface StayResult {
-  type: 'hotel' | 'points' | 'airbnb' | 'vrbo';
+interface LiteHotel {
+  id: string;
   name: string;
-  location: string;
-  image?: string;
-  rating: number;
-  reviews: number;
-  pricePerNight: string;
-  totalPrice: string;
-  nights: number;
-  guests: number;
-  badge?: string;
-  badgeColor?: string;
-  // Hotel-specific
   stars?: number;
-  chain?: string;
-  cheapestVia?: string;
-  otherPrices?: { vendor: string; price: string }[];
-  // Points-specific
-  pointsPerNight?: number;
-  pointsProgram?: string;
-  cashEquivalent?: string;
-  cpp?: string;
-  // Airbnb/Vrbo-specific
-  propertyType?: string;
-  bedrooms?: number;
-  bathrooms?: number;
-  amenities?: string[];
-  superhost?: boolean;
-  // Value
-  valueScore?: number;
+  address?: string;
+  image?: string;
+  price?: number | null;
+  currency?: string;
+  roomType?: string;
+  board?: string;
+  freeCancellation?: boolean;
 }
 
-const MOCK_STAYS: Record<StayTab, StayResult[]> = {
-  best: [
-    { type: 'points', name: 'Park Hyatt Bali', location: 'Nusa Dua, Bali', rating: 4.9, reviews: 2841, pricePerNight: '25,000 pts', totalPrice: '175,000 pts + $0', nights: 7, guests: 4, badge: 'BEST POINTS VALUE', badgeColor: GOLD, stars: 5, chain: 'Hyatt', pointsPerNight: 25000, pointsProgram: 'World of Hyatt', cashEquivalent: '$580/night', cpp: '2.32', valueScore: 98 },
-    { type: 'airbnb', name: 'Luxury Villa with Infinity Pool', location: 'Ubud, Bali', rating: 4.97, reviews: 312, pricePerNight: '$185', totalPrice: '$1,295', nights: 7, guests: 6, badge: 'FAMILY PICK', badgeColor: GREEN, propertyType: 'Entire villa', bedrooms: 4, bathrooms: 3, amenities: ['Pool', 'Kitchen', 'WiFi', 'AC', 'Washer'], superhost: true, valueScore: 95 },
-    { type: 'hotel', name: 'InterContinental Bali Resort', location: 'Jimbaran, Bali', rating: 4.7, reviews: 5420, pricePerNight: '$142', totalPrice: '$994', nights: 7, guests: 4, badge: 'CHEAPEST HOTEL', badgeColor: ACCENT, stars: 5, chain: 'IHG', cheapestVia: 'Agoda', otherPrices: [{ vendor: 'Booking.com', price: '$158' }, { vendor: 'Expedia', price: '$165' }, { vendor: 'Hotels.com', price: '$151' }], valueScore: 92 },
-    { type: 'hotel', name: 'The Ritz-Carlton Bali', location: 'Nusa Dua, Bali', rating: 4.8, reviews: 3150, pricePerNight: '$320', totalPrice: '$2,240', nights: 7, guests: 4, stars: 5, chain: 'Marriott', cheapestVia: 'Marriott.com', valueScore: 78 },
-  ],
-  hotels: [
-    { type: 'hotel', name: 'InterContinental Bali Resort', location: 'Jimbaran, Bali', rating: 4.7, reviews: 5420, pricePerNight: '$142', totalPrice: '$994', nights: 7, guests: 4, badge: 'CHEAPEST', badgeColor: GREEN, stars: 5, chain: 'IHG', cheapestVia: 'Agoda', otherPrices: [{ vendor: 'Booking.com', price: '$158' }, { vendor: 'Expedia', price: '$165' }, { vendor: 'Hotels.com', price: '$151' }, { vendor: 'IHG.com', price: '$172' }] },
-    { type: 'hotel', name: 'Hilton Bali Resort', location: 'Nusa Dua, Bali', rating: 4.6, reviews: 4280, pricePerNight: '$178', totalPrice: '$1,246', nights: 7, guests: 4, stars: 5, chain: 'Hilton', cheapestVia: 'Booking.com', otherPrices: [{ vendor: 'Expedia', price: '$185' }, { vendor: 'Hilton.com', price: '$195' }] },
-    { type: 'hotel', name: 'The Ritz-Carlton Bali', location: 'Nusa Dua, Bali', rating: 4.8, reviews: 3150, pricePerNight: '$320', totalPrice: '$2,240', nights: 7, guests: 4, stars: 5, chain: 'Marriott', cheapestVia: 'Marriott.com' },
-    { type: 'hotel', name: 'Park Hyatt Bali', location: 'Nusa Dua, Bali', rating: 4.9, reviews: 2841, pricePerNight: '$580', totalPrice: '$4,060', nights: 7, guests: 4, stars: 5, chain: 'Hyatt', cheapestVia: 'Hyatt.com' },
-    { type: 'hotel', name: 'Conrad Bali', location: 'Tanjung Benoa, Bali', rating: 4.5, reviews: 6800, pricePerNight: '$155', totalPrice: '$1,085', nights: 7, guests: 4, stars: 5, chain: 'Hilton', cheapestVia: 'Agoda' },
-  ],
-  points: [
-    { type: 'points', name: 'Park Hyatt Bali', location: 'Nusa Dua, Bali', rating: 4.9, reviews: 2841, pricePerNight: '25,000 pts', totalPrice: '175,000 pts', nights: 7, guests: 4, badge: 'BEST VALUE', badgeColor: GOLD, stars: 5, chain: 'Hyatt', pointsPerNight: 25000, pointsProgram: 'World of Hyatt', cashEquivalent: '$580/night', cpp: '2.32' },
-    { type: 'points', name: 'Conrad Bali', location: 'Tanjung Benoa, Bali', rating: 4.5, reviews: 6800, pricePerNight: '50,000 pts', totalPrice: '350,000 pts', nights: 7, guests: 4, stars: 5, chain: 'Hilton', pointsPerNight: 50000, pointsProgram: 'Hilton Honors', cashEquivalent: '$155/night', cpp: '0.31' },
-    { type: 'points', name: 'InterContinental Bali Resort', location: 'Jimbaran, Bali', rating: 4.7, reviews: 5420, pricePerNight: '40,000 pts', totalPrice: '280,000 pts', nights: 7, guests: 4, stars: 5, chain: 'IHG', pointsPerNight: 40000, pointsProgram: 'IHG One Rewards', cashEquivalent: '$142/night', cpp: '0.36' },
-    { type: 'points', name: 'The Ritz-Carlton Bali', location: 'Nusa Dua, Bali', rating: 4.8, reviews: 3150, pricePerNight: '70,000 pts', totalPrice: '490,000 pts', nights: 7, guests: 4, stars: 5, chain: 'Marriott', pointsPerNight: 70000, pointsProgram: 'Marriott Bonvoy', cashEquivalent: '$320/night', cpp: '0.46' },
-  ],
-  airbnb: [
-    { type: 'airbnb', name: 'Luxury Villa with Infinity Pool', location: 'Ubud, Bali', rating: 4.97, reviews: 312, pricePerNight: '$185', totalPrice: '$1,295', nights: 7, guests: 6, badge: 'SUPERHOST', badgeColor: '#FF5A5F', propertyType: 'Entire villa', bedrooms: 4, bathrooms: 3, amenities: ['Pool', 'Kitchen', 'WiFi', 'AC', 'Washer', 'Free parking'], superhost: true },
-    { type: 'airbnb', name: 'Beachfront Family Compound', location: 'Seminyak, Bali', rating: 4.92, reviews: 178, pricePerNight: '$240', totalPrice: '$1,680', nights: 7, guests: 8, propertyType: 'Entire villa', bedrooms: 5, bathrooms: 4, amenities: ['Pool', 'Kitchen', 'Beach access', 'WiFi', 'AC'], superhost: true },
-    { type: 'airbnb', name: 'Modern Rice Terrace House', location: 'Ubud, Bali', rating: 4.88, reviews: 245, pricePerNight: '$95', totalPrice: '$665', nights: 7, guests: 4, badge: 'BUDGET PICK', badgeColor: GREEN, propertyType: 'Entire home', bedrooms: 3, bathrooms: 2, amenities: ['Pool', 'Kitchen', 'WiFi', 'Garden'] },
-    { type: 'airbnb', name: 'Clifftop Ocean View Villa', location: 'Uluwatu, Bali', rating: 4.95, reviews: 89, pricePerNight: '$320', totalPrice: '$2,240', nights: 7, guests: 6, propertyType: 'Entire villa', bedrooms: 4, bathrooms: 4, amenities: ['Infinity pool', 'Kitchen', 'Ocean view', 'Private chef available'], superhost: true },
-  ],
-  vrbo: [
-    { type: 'vrbo', name: 'Tropical Family Estate', location: 'Canggu, Bali', rating: 4.8, reviews: 92, pricePerNight: '$210', totalPrice: '$1,470', nights: 7, guests: 8, propertyType: 'Entire villa', bedrooms: 5, bathrooms: 4, amenities: ['Pool', 'Kitchen', 'WiFi', 'Gym', 'Garden'] },
-    { type: 'vrbo', name: 'Beachside 3BR Apartment', location: 'Sanur, Bali', rating: 4.6, reviews: 145, pricePerNight: '$120', totalPrice: '$840', nights: 7, guests: 6, propertyType: 'Entire apartment', bedrooms: 3, bathrooms: 2, amenities: ['Pool', 'Kitchen', 'Beach access', 'WiFi'] },
-    { type: 'vrbo', name: 'Luxury Jungle Retreat', location: 'Ubud, Bali', rating: 4.9, reviews: 67, pricePerNight: '$280', totalPrice: '$1,960', nights: 7, guests: 6, propertyType: 'Entire villa', bedrooms: 4, bathrooms: 3, amenities: ['Infinity pool', 'Kitchen', 'Spa', 'WiFi', 'Yoga deck'] },
-  ],
-};
+interface PointsRoom {
+  hotel: string;
+  chain?: string;
+  location?: string;
+  pointsPerNight: number;
+  cashRate?: number;
+  cashCurrency?: string;
+  centsPerPoint?: number;
+  roomType?: string;
+  availability?: boolean;
+  source?: string;
+}
 
-function StayCard({ stay }: { stay: StayResult }) {
+interface HotelLinks {
+  [key: string]: { url: string; name: string; color: string };
+}
+
+interface StayPayload {
+  liveHotels: LiteHotel[];
+  pointsRooms: PointsRoom[];
+  links: HotelLinks;
+  statuses: Record<string, string>;
+  city: string;
+  checkin: string;
+  checkout: string;
+  adults: number;
+}
+
+function safeDate(raw: string | null, offsetDays: number) {
+  if (raw && /^\d{4}-\d{2}-\d{2}$/.test(raw)) return raw;
+  return new Date(Date.now() + offsetDays * 86400000).toISOString().split('T')[0];
+}
+
+function addDays(iso: string, days: number) {
+  const date = new Date(`${iso}T00:00:00Z`);
+  date.setUTCDate(date.getUTCDate() + days);
+  return date.toISOString().split('T')[0];
+}
+
+function normalizeDestination(raw: string | null) {
+  const value = (raw || 'DPS').trim();
+  if (/^[A-Za-z]{3}$/.test(value)) return value.toUpperCase();
+  return value.slice(0, 80);
+}
+
+function statusCopy(status?: string) {
+  switch (status) {
+    case 'live-rates': return { label: 'Live hotel rates', color: GREEN };
+    case 'hotel-list-only': return { label: 'Hotel directory only', color: GOLD };
+    case 'live': return { label: 'Live points rooms', color: GREEN };
+    case 'missing-key': return { label: 'API key missing', color: GOLD };
+    case 'unsupported-destination': return { label: 'Destination unsupported', color: GOLD };
+    case 'no-results': return { label: 'No live results', color: TEXT_MID };
+    case 'unavailable': return { label: 'Provider unavailable', color: RED };
+    default: return { label: status || 'Fallback links', color: TEXT_MID };
+  }
+}
+
+function Notice({ title, children }: { title: string; children: React.ReactNode }) {
   return (
-    <div style={{
-      background: BG_CARD, border: `1px solid ${BORDER}`, borderRadius: '14px',
-      overflow: 'hidden', marginBottom: '12px', cursor: 'pointer',
-      transition: 'border-color 0.15s',
-    }}>
-      {/* Image placeholder */}
-      <div style={{ height: '140px', background: `linear-gradient(135deg, ${BG_INPUT}, ${BG_CARD})`, position: 'relative', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-        <span style={{ fontSize: '32px' }}>{stay.type === 'airbnb' ? '🏡' : stay.type === 'vrbo' ? '🏠' : '🏨'}</span>
-        {stay.badge && (
-          <span style={{
-            position: 'absolute', top: '10px', left: '10px',
-            fontSize: '9px', fontWeight: 700, color: '#fff', background: stay.badgeColor,
-            padding: '3px 8px', borderRadius: '4px', letterSpacing: '0.04em',
-          }}>{stay.badge}</span>
-        )}
-        {stay.stars && (
-          <span style={{
-            position: 'absolute', top: '10px', right: '10px',
-            fontSize: '11px', color: GOLD, background: 'rgba(0,0,0,0.5)',
-            padding: '2px 8px', borderRadius: '4px',
-          }}>{'★'.repeat(stay.stars)}</span>
-        )}
-      </div>
-
-      <div style={{ padding: '14px 16px' }}>
-        {/* Name + rating */}
-        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: '4px' }}>
-          <div>
-            <div style={{ fontSize: '15px', fontWeight: 700, color: TEXT_LIGHT }}>{stay.name}</div>
-            <div style={{ fontSize: '12px', color: TEXT_DIM, marginTop: '2px' }}>{stay.location}</div>
-          </div>
-          <div style={{ textAlign: 'right', flexShrink: 0 }}>
-            <div style={{ fontSize: '12px', color: TEXT_MID }}>
-              ★ {stay.rating} <span style={{ color: TEXT_DIM }}>({stay.reviews.toLocaleString()})</span>
-            </div>
-          </div>
-        </div>
-
-        {/* Property details for rentals */}
-        {stay.bedrooms && (
-          <div style={{ display: 'flex', gap: '12px', fontSize: '11px', color: TEXT_DIM, marginTop: '6px', marginBottom: '8px' }}>
-            <span>{stay.bedrooms} bed</span>
-            <span>{stay.bathrooms} bath</span>
-            <span>Up to {stay.guests} guests</span>
-            {stay.superhost && <span style={{ color: '#FF5A5F', fontWeight: 600 }}>★ Superhost</span>}
-          </div>
-        )}
-
-        {/* Amenities */}
-        {stay.amenities && (
-          <div style={{ display: 'flex', gap: '6px', flexWrap: 'wrap', marginBottom: '10px' }}>
-            {stay.amenities.slice(0, 4).map(a => (
-              <span key={a} style={{ fontSize: '10px', color: TEXT_DIM, background: BG_INPUT, padding: '2px 8px', borderRadius: '4px', border: `1px solid ${BORDER}` }}>{a}</span>
-            ))}
-          </div>
-        )}
-
-        {/* Chain + cheapest via */}
-        {stay.chain && (
-          <div style={{ fontSize: '11px', color: TEXT_DIM, marginBottom: '8px' }}>
-            {stay.chain} {stay.cheapestVia && <span>· Cheapest via <span style={{ color: GREEN, fontWeight: 600 }}>{stay.cheapestVia}</span></span>}
-          </div>
-        )}
-
-        {/* Other prices */}
-        {stay.otherPrices && stay.otherPrices.length > 0 && (
-          <div style={{ display: 'flex', gap: '8px', marginBottom: '10px', fontSize: '10px' }}>
-            {stay.otherPrices.map(op => (
-              <span key={op.vendor} style={{ color: TEXT_DIM, background: BG_INPUT, padding: '2px 8px', borderRadius: '4px', border: `1px solid ${BORDER}` }}>
-                {op.vendor}: <span style={{ color: TEXT_MID }}>{op.price}</span>
-              </span>
-            ))}
-          </div>
-        )}
-
-        {/* Points info */}
-        {stay.pointsProgram && (
-          <div style={{ marginBottom: '10px', padding: '8px 10px', background: `${GOLD}08`, border: `1px solid ${GOLD}20`, borderRadius: '8px', fontSize: '11px' }}>
-            <span style={{ color: GOLD, fontWeight: 600 }}>{stay.pointsProgram}</span>
-            <span style={{ color: TEXT_DIM, marginLeft: '8px' }}>Cash: {stay.cashEquivalent}</span>
-            {stay.cpp && <span style={{ color: parseFloat(stay.cpp) >= 1.5 ? GREEN : RED, marginLeft: '8px', fontWeight: 600 }}>{stay.cpp}¢/pt</span>}
-          </div>
-        )}
-
-        {/* Price row */}
-        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-end', marginTop: '8px' }}>
-          <div>
-            <span style={{ fontFamily: mono, fontSize: '20px', fontWeight: 700, color: stay.type === 'points' ? GOLD : TEXT_LIGHT }}>
-              {stay.pricePerNight}
-            </span>
-            <span style={{ fontSize: '12px', color: TEXT_DIM, marginLeft: '4px' }}>/night</span>
-          </div>
-          <div style={{ textAlign: 'right' }}>
-            <div style={{ fontFamily: mono, fontSize: '14px', fontWeight: 600, color: TEXT_MID }}>{stay.totalPrice} total</div>
-            <div style={{ fontSize: '11px', color: TEXT_DIM }}>{stay.nights} nights · {stay.guests} guests</div>
-          </div>
-        </div>
-
-        {/* Book CTA */}
-        <button style={{
-          width: '100%', marginTop: '12px',
-          background: stay.type === 'points' ? GOLD : stay.type === 'airbnb' ? '#FF5A5F' : stay.type === 'vrbo' ? '#2577D1' : ACCENT,
-          border: 'none', borderRadius: '8px', padding: '10px',
-          color: '#fff', fontSize: '13px', fontWeight: 600, cursor: 'pointer',
-        }}>
-          {stay.type === 'points' ? `Book with ${stay.pointsProgram}` : stay.cheapestVia ? `Book via ${stay.cheapestVia} →` : `View on ${stay.type === 'airbnb' ? 'Airbnb' : stay.type === 'vrbo' ? 'Vrbo' : 'site'} →`}
-        </button>
-      </div>
+    <div style={{ background: 'rgba(245,158,11,0.08)', border: '1px solid rgba(245,158,11,0.24)', borderRadius: '12px', padding: '12px 14px', marginBottom: '14px' }}>
+      <div style={{ color: GOLD, fontSize: '12px', fontWeight: 800, marginBottom: '4px' }}>{title}</div>
+      <div style={{ color: TEXT_MID, fontSize: '12px', lineHeight: 1.5 }}>{children}</div>
     </div>
+  );
+}
+
+function StatusPill({ status }: { status?: string }) {
+  const copy = statusCopy(status);
+  return <span style={{ color: copy.color, background: `${copy.color}18`, border: `1px solid ${copy.color}35`, padding: '5px 9px', borderRadius: '999px', fontSize: '11px', fontWeight: 800 }}>{copy.label}</span>;
+}
+
+function HotelCard({ hotel, checkin, checkout, adults, city }: { hotel: LiteHotel; checkin: string; checkout: string; adults: number; city: string }) {
+  const bookingUrl = `https://www.booking.com/searchresults.html?ss=${encodeURIComponent(hotel.name || city)}&checkin=${checkin}&checkout=${checkout}&group_adults=${adults}`;
+  const hasPrice = typeof hotel.price === 'number' && hotel.price > 0;
+  return (
+    <article style={{ background: BG_CARD, border: `1px solid ${BORDER}`, borderRadius: '14px', overflow: 'hidden' }}>
+      <div style={{ height: '136px', background: `linear-gradient(135deg, ${BG_INPUT}, ${BG_CARD})`, position: 'relative', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+        {hotel.image ? <div aria-label="Hotel image" style={{ width: '100%', height: '100%', backgroundImage: `url(${hotel.image})`, backgroundSize: 'cover', backgroundPosition: 'center' }} /> : <span style={{ fontSize: '34px' }}>🏨</span>}
+        {!!hotel.stars && <span style={{ position: 'absolute', top: '10px', right: '10px', color: GOLD, background: 'rgba(0,0,0,0.55)', borderRadius: '6px', padding: '3px 7px', fontSize: '11px' }}>{'★'.repeat(Math.min(5, hotel.stars))}</span>}
+      </div>
+      <div style={{ padding: '14px 15px' }}>
+        <h3 style={{ color: TEXT_LIGHT, fontSize: '15px', margin: 0, lineHeight: 1.3 }}>{hotel.name || 'Hotel'}</h3>
+        <p style={{ color: TEXT_DIM, fontSize: '12px', margin: '5px 0 10px', lineHeight: 1.4 }}>{hotel.address || city}</p>
+        <div style={{ display: 'flex', gap: '6px', flexWrap: 'wrap', marginBottom: '12px' }}>
+          {hotel.roomType && <span style={{ color: TEXT_MID, background: BG_INPUT, border: `1px solid ${BORDER}`, padding: '3px 7px', borderRadius: '6px', fontSize: '10px' }}>{hotel.roomType}</span>}
+          {hotel.board && <span style={{ color: TEXT_MID, background: BG_INPUT, border: `1px solid ${BORDER}`, padding: '3px 7px', borderRadius: '6px', fontSize: '10px' }}>{hotel.board}</span>}
+          {hotel.freeCancellation && <span style={{ color: GREEN, background: `${GREEN}12`, border: `1px solid ${GREEN}30`, padding: '3px 7px', borderRadius: '6px', fontSize: '10px' }}>Free cancellation</span>}
+        </div>
+        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'end', gap: '12px' }}>
+          <div>
+            <div style={{ color: hasPrice ? TEXT_LIGHT : TEXT_MID, fontFamily: mono, fontSize: '18px', fontWeight: 800 }}>{hasPrice ? `${hotel.currency || 'USD'} ${hotel.price!.toLocaleString()}` : 'Check live'}</div>
+            <div style={{ color: TEXT_DIM, fontSize: '11px' }}>{hasPrice ? 'total from LiteAPI' : 'rate unavailable from provider'}</div>
+          </div>
+          <a href={bookingUrl} target="_blank" rel="noreferrer" style={{ color: '#fff', background: ACCENT, borderRadius: '8px', padding: '9px 11px', fontSize: '12px', fontWeight: 800, textDecoration: 'none', whiteSpace: 'nowrap' }}>Compare →</a>
+        </div>
+      </div>
+    </article>
+  );
+}
+
+function PointsCard({ room }: { room: PointsRoom }) {
+  return (
+    <article style={{ background: BG_CARD, border: `1px solid ${BORDER}`, borderRadius: '14px', padding: '14px 15px' }}>
+      <div style={{ display: 'flex', justifyContent: 'space-between', gap: '12px' }}>
+        <div>
+          <h3 style={{ color: TEXT_LIGHT, fontSize: '15px', margin: 0 }}>{room.hotel || 'Points hotel'}</h3>
+          <p style={{ color: TEXT_DIM, fontSize: '12px', margin: '5px 0 0' }}>{room.chain || 'Hotel program'} · {room.location || 'Destination'}</p>
+        </div>
+        <span style={{ color: GOLD, background: `${GOLD}14`, border: `1px solid ${GOLD}35`, padding: '5px 8px', borderRadius: '999px', fontSize: '10px', fontWeight: 800 }}>POINTS</span>
+      </div>
+      <div style={{ marginTop: '14px', display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '10px' }}>
+        <div><div style={{ color: GOLD, fontFamily: mono, fontSize: '18px', fontWeight: 800 }}>{room.pointsPerNight?.toLocaleString() || '—'} pts</div><div style={{ color: TEXT_DIM, fontSize: '11px' }}>per night</div></div>
+        <div><div style={{ color: TEXT_LIGHT, fontFamily: mono, fontSize: '18px', fontWeight: 800 }}>{room.centsPerPoint ? `${room.centsPerPoint} cpp` : '—'}</div><div style={{ color: TEXT_DIM, fontSize: '11px' }}>value score</div></div>
+      </div>
+      {room.roomType && <div style={{ color: TEXT_MID, fontSize: '12px', marginTop: '10px' }}>{room.roomType}</div>}
+    </article>
   );
 }
 
 function StaysContent() {
   const searchParams = useSearchParams();
-  const destination = searchParams.get('destination') || 'Bali';
-  const [tab, setTab] = useState<StayTab>('best');
+  const destination = normalizeDestination(searchParams.get('destination'));
+  const cityParam = searchParams.get('city') || destination;
+  const checkin = safeDate(searchParams.get('checkin'), 7);
+  const rawCheckout = safeDate(searchParams.get('checkout'), 10);
+  const checkout = rawCheckout <= checkin ? addDays(checkin, 3) : rawCheckout;
+  const adults = Math.max(1, Math.min(9, parseInt(searchParams.get('adults') || searchParams.get('guests') || '2', 10) || 2));
+  const [payload, setPayload] = useState<StayPayload | null>(null);
   const [loading, setLoading] = useState(true);
 
-  useEffect(() => { setTimeout(() => setLoading(false), 1200); }, []);
+  useEffect(() => {
+    let cancelled = false;
+    Promise.allSettled([
+      fetch(`/api/liteapi?destination=${encodeURIComponent(destination)}&checkin=${checkin}&checkout=${checkout}&adults=${adults}`).then(r => r.json()),
+      fetch(`/api/rooms?destination=${encodeURIComponent(destination)}&checkin=${checkin}&checkout=${checkout}`).then(r => r.json()),
+      fetch(`/api/hotels?city=${encodeURIComponent(cityParam)}&checkin=${checkin}&checkout=${checkout}&adults=${adults}`).then(r => r.json()),
+    ]).then(([lite, rooms, links]) => {
+      if (cancelled) return;
+      const liteData = lite.status === 'fulfilled' ? lite.value : {};
+      const roomsData = rooms.status === 'fulfilled' ? rooms.value : {};
+      const linksData = links.status === 'fulfilled' ? links.value : {};
+      setPayload({
+        liveHotels: Array.isArray(liteData.results) ? liteData.results : [],
+        pointsRooms: Array.isArray(roomsData.results) ? roomsData.results : [],
+        links: linksData.deepLinks || {},
+        statuses: { liteapi: liteData.providerStatus || 'unavailable', rooms: roomsData.providerStatus || 'unavailable' },
+        city: liteData.city || linksData.city || cityParam,
+        checkin: liteData.checkin || linksData.checkin || checkin,
+        checkout: liteData.checkout || linksData.checkout || checkout,
+        adults,
+      });
+    }).finally(() => { if (!cancelled) setLoading(false); });
+    return () => { cancelled = true; };
+  }, [destination, cityParam, checkin, checkout, adults]);
 
-  const results = MOCK_STAYS[tab] || [];
+  const links = useMemo(() => Object.entries(payload?.links || {}), [payload]);
+  const liveRateCount = (payload?.liveHotels || []).filter(h => typeof h.price === 'number' && h.price > 0).length;
 
   return (
     <div style={{ minHeight: '100vh', background: BG_DARK }}>
-      {/* Header */}
-      <header style={{
-        padding: '12px 20px', display: 'flex', alignItems: 'center', gap: '12px',
-        borderBottom: `1px solid ${BORDER}`, position: 'sticky', top: 0, zIndex: 50, background: BG_DARK,
-      }}>
+      <header style={{ padding: '12px 20px', display: 'flex', alignItems: 'center', gap: '12px', borderBottom: `1px solid ${BORDER}`, position: 'sticky', top: 0, zIndex: 50, background: BG_DARK }}>
         <Link href="/" style={{ color: TEXT_MID, textDecoration: 'none', fontSize: '20px' }}>←</Link>
         <div style={{ flex: 1 }}>
-          <div style={{ fontSize: '15px', fontWeight: 700, color: TEXT_LIGHT }}>Stays in {destination}</div>
-          <div style={{ fontSize: '12px', color: TEXT_DIM }}>7 nights · 4 guests · Apr 5–12</div>
+          <div style={{ fontSize: '15px', fontWeight: 800, color: TEXT_LIGHT }}>Stays in {payload?.city || cityParam}</div>
+          <div style={{ fontSize: '12px', color: TEXT_DIM }}>{checkin} → {checkout} · {adults} guest{adults === 1 ? '' : 's'}</div>
         </div>
-        <button style={{ background: `${ACCENT}15`, border: `1px solid ${ACCENT}30`, borderRadius: '8px', padding: '6px 12px', color: ACCENT, fontSize: '11px', fontWeight: 600, cursor: 'pointer' }}>
-          Filters
-        </button>
+        <Link href={`/search?q=DXB to ${encodeURIComponent(destination)}`} style={{ background: `${ACCENT}15`, border: `1px solid ${ACCENT}30`, borderRadius: '8px', padding: '7px 11px', color: ACCENT, fontSize: '11px', fontWeight: 800, textDecoration: 'none' }}>Flights</Link>
       </header>
 
-      {/* Trip summary bar */}
-      <div style={{ padding: '10px 20px', background: BG_CARD, borderBottom: `1px solid ${BORDER}`, fontSize: '12px' }}>
-        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-          <span style={{ color: TEXT_DIM }}>✈️ DXB → DPS: <span style={{ color: GREEN, fontWeight: 600 }}>$1,847 return</span> or <span style={{ color: GOLD, fontWeight: 600 }}>62,500 miles</span></span>
-          <Link href="/search?q=DXB+to+Bali" style={{ color: ACCENT, fontSize: '11px', textDecoration: 'none' }}>View flights →</Link>
+      <main style={{ padding: '16px 20px', maxWidth: '1120px', margin: '0 auto' }}>
+        <div style={{ display: 'flex', gap: '8px', flexWrap: 'wrap', marginBottom: '14px' }}>
+          <StatusPill status={payload?.statuses.liteapi} />
+          <StatusPill status={payload?.statuses.rooms} />
+          <span style={{ color: TEXT_MID, background: BG_INPUT, border: `1px solid ${BORDER}`, padding: '5px 9px', borderRadius: '999px', fontSize: '11px', fontWeight: 800 }}>{links.length} fallback compare links</span>
         </div>
-      </div>
 
-      {/* Tabs */}
-      <div style={{ display: 'flex', gap: '0', overflowX: 'auto', borderBottom: `1px solid ${BORDER}`, padding: '0 20px' }}>
-        {TABS.map(t => (
-          <button key={t.key} onClick={() => setTab(t.key)} style={{
-            padding: '12px 14px', background: 'none', border: 'none', cursor: 'pointer',
-            fontSize: '13px', fontWeight: tab === t.key ? 700 : 500, whiteSpace: 'nowrap',
-            color: tab === t.key ? t.color : TEXT_DIM,
-            borderBottom: tab === t.key ? `2px solid ${t.color}` : '2px solid transparent',
-          }}>
-            {t.label} <span style={{ fontSize: '11px', opacity: 0.6 }}>({t.count})</span>
-          </button>
-        ))}
-      </div>
-
-      {/* Results */}
-      <div style={{ padding: '16px 20px' }}>
-        {loading ? (
-          <div style={{ textAlign: 'center', padding: '60px 0' }}>
-            <div style={{ fontSize: '28px', marginBottom: '12px' }}>🏨</div>
-            <div style={{ fontSize: '14px', color: TEXT_MID }}>Searching hotels, points, and rentals...</div>
-            <div style={{ display: 'flex', justifyContent: 'center', gap: '8px', fontSize: '11px', color: TEXT_DIM, marginTop: '8px' }}>
-              <span>Makcorps ✓</span>
-              <span>rooms.aero ⏳</span>
-              <span>Airbnb ⏳</span>
-            </div>
-          </div>
-        ) : (
-          results.map((stay, i) => <StayCard key={i} stay={stay} />)
+        {!loading && payload?.statuses.liteapi !== 'live-rates' && (
+          <Notice title="Live hotel prices are not fully connected yet">
+            This page no longer shows fake stays. It displays real LiteAPI hotel data when available, real rooms.aero points-room results when configured, and honest OTA deep links when live rates are missing.
+          </Notice>
         )}
-      </div>
+
+        {loading ? (
+          <div style={{ color: TEXT_MID, padding: '40px 0', textAlign: 'center' }}>Checking live hotel and points-room providers…</div>
+        ) : (
+          <>
+            <section style={{ marginBottom: '24px' }}>
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '10px' }}>
+                <h2 style={{ color: TEXT_LIGHT, fontSize: '18px', margin: 0 }}>Hotels {liveRateCount > 0 ? `· ${liveRateCount} live rates` : ''}</h2>
+                <span style={{ color: TEXT_DIM, fontSize: '12px' }}>{payload?.liveHotels.length || 0} hotels</span>
+              </div>
+              {payload && payload.liveHotels.length > 0 ? (
+                <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(260px, 1fr))', gap: '12px' }}>
+                  {payload.liveHotels.map((hotel, index) => <HotelCard key={hotel.id || `${hotel.name}-${index}`} hotel={hotel} checkin={payload.checkin} checkout={payload.checkout} adults={payload.adults} city={payload.city} />)}
+                </div>
+              ) : (
+                <div style={{ color: TEXT_MID, background: BG_CARD, border: `1px solid ${BORDER}`, borderRadius: '12px', padding: '16px' }}>No hotel inventory returned. Use the compare links below while provider access is missing or unavailable.</div>
+              )}
+            </section>
+
+            {payload && payload.pointsRooms.length > 0 && (
+              <section style={{ marginBottom: '24px' }}>
+                <h2 style={{ color: TEXT_LIGHT, fontSize: '18px', margin: '0 0 10px' }}>Points rooms</h2>
+                <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(260px, 1fr))', gap: '12px' }}>
+                  {payload.pointsRooms.map((room, index) => <PointsCard key={`${room.hotel}-${index}`} room={room} />)}
+                </div>
+              </section>
+            )}
+
+            <section>
+              <h2 style={{ color: TEXT_LIGHT, fontSize: '18px', margin: '0 0 10px' }}>Compare manually</h2>
+              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(190px, 1fr))', gap: '10px' }}>
+                {links.map(([key, link]) => (
+                  <a key={key} href={link.url} target="_blank" rel="noreferrer" style={{ background: BG_CARD, border: `1px solid ${BORDER}`, borderRadius: '12px', padding: '14px', textDecoration: 'none' }}>
+                    <div style={{ color: link.color || ACCENT, fontWeight: 900, fontSize: '14px' }}>{link.name}</div>
+                    <div style={{ color: TEXT_DIM, fontSize: '12px', marginTop: '5px' }}>Open live search →</div>
+                  </a>
+                ))}
+              </div>
+            </section>
+          </>
+        )}
+      </main>
     </div>
   );
 }
 
 export default function StaysPage() {
-  return (
-    <Suspense fallback={<div style={{ minHeight: '100vh', background: BG_DARK, display: 'flex', alignItems: 'center', justifyContent: 'center', color: TEXT_DIM }}>Loading...</div>}>
-      <StaysContent />
-    </Suspense>
-  );
+  return <Suspense fallback={<div style={{ minHeight: '100vh', background: BG_DARK, color: TEXT_LIGHT, padding: 24 }}>Loading stays…</div>}><StaysContent /></Suspense>;
 }
