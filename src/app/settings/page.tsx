@@ -1,6 +1,6 @@
 'use client';
 
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { ArrowLeft, Check } from 'lucide-react';
 
@@ -46,6 +46,9 @@ const LOYALTY_PROGRAMS = [
 
 const COLORS = { bg: '#06060a', card: 'rgba(255,255,255,0.04)', border: 'rgba(255,255,255,0.06)', accent: '#8B5CF6', text: '#ffffff', sub: 'rgba(255,255,255,0.4)' };
 
+interface ProviderStatus { id: string; label: string; env: string; feature: string; configured: boolean; status: string }
+interface SavedSearch { q: string; savedAt: string }
+
 function getStoredString(key: string, fallback: string) {
   if (typeof window === 'undefined') return fallback;
   return window.localStorage.getItem(key) || fallback;
@@ -61,13 +64,29 @@ function getStoredList(key: string) {
   }
 }
 
+function getStoredSavedSearches(): SavedSearch[] {
+  if (typeof window === 'undefined') return [];
+  try {
+    const parsed = JSON.parse(window.localStorage.getItem('tc_saved_searches') || '[]');
+    return Array.isArray(parsed) ? parsed.filter((item): item is SavedSearch => item && typeof item.q === 'string').slice(0, 20) : [];
+  } catch {
+    return [];
+  }
+}
+
 export default function SettingsPage() {
   const router = useRouter();
   const [passport, setPassport] = useState(() => getStoredString('tc_passport', 'TR'));
   const [homeAirport, setHomeAirport] = useState(() => getStoredString('tc_home_airport', 'DXB'));
   const [cabin, setCabin] = useState(() => getStoredString('tc_cabin', 'business'));
   const [loyaltyPrograms, setLoyaltyPrograms] = useState<string[]>(() => getStoredList('tc_loyalty'));
+  const [savedSearches, setSavedSearches] = useState<SavedSearch[]>(() => getStoredSavedSearches());
+  const [providers, setProviders] = useState<ProviderStatus[]>([]);
   const [saved, setSaved] = useState(false);
+
+  useEffect(() => {
+    fetch('/api/provider-status').then(r => r.json()).then(data => setProviders(data.providers || [])).catch(() => setProviders([]));
+  }, []);
 
   const save = () => {
     localStorage.setItem('tc_passport', passport);
@@ -80,6 +99,17 @@ export default function SettingsPage() {
 
   const toggleLoyalty = (id: string) => {
     setLoyaltyPrograms(prev => prev.includes(id) ? prev.filter(p => p !== id) : [...prev, id]);
+  };
+
+  const removeSavedSearch = (query: string) => {
+    const next = savedSearches.filter(s => s.q !== query);
+    setSavedSearches(next);
+    window.localStorage.setItem('tc_saved_searches', JSON.stringify(next));
+  };
+
+  const clearSavedSearches = () => {
+    setSavedSearches([]);
+    window.localStorage.removeItem('tc_saved_searches');
   };
 
   const selectStyle = { fontFamily: "'DM Sans', sans-serif", fontSize: '14px', padding: '10px 14px', borderRadius: '10px', border: `1px solid ${COLORS.border}`, background: 'rgba(255,255,255,0.04)', color: COLORS.text, width: '100%', outline: 'none' };
@@ -119,7 +149,7 @@ export default function SettingsPage() {
             {['economy', 'business', 'first'].map(c => (
               <button key={c} onClick={() => setCabin(c)} style={{
                 flex: 1, padding: '10px', borderRadius: '10px', border: `1px solid ${cabin === c ? COLORS.accent : COLORS.border}`,
-                background: cabin === c ? COLORS.accent + '10' : '#fff', color: cabin === c ? COLORS.accent : COLORS.text,
+                background: cabin === c ? COLORS.accent + '10' : 'rgba(255,255,255,0.04)', color: cabin === c ? COLORS.accent : COLORS.text,
                 fontFamily: "'DM Sans'", fontSize: '13px', fontWeight: 600, cursor: 'pointer', textTransform: 'capitalize',
               }}>{c}</button>
             ))}
@@ -137,7 +167,7 @@ export default function SettingsPage() {
                   display: 'flex', alignItems: 'center', gap: '10px', padding: '10px 12px', borderRadius: '8px',
                   border: 'none', background: active ? COLORS.accent + '08' : 'transparent', cursor: 'pointer', textAlign: 'left',
                 }}>
-                  <div style={{ width: 20, height: 20, borderRadius: '4px', border: `2px solid ${active ? COLORS.accent : COLORS.border}`, background: active ? COLORS.accent : '#fff', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
+                  <div style={{ width: 20, height: 20, borderRadius: '4px', border: `2px solid ${active ? COLORS.accent : COLORS.border}`, background: active ? COLORS.accent : 'rgba(255,255,255,0.04)', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
                     {active && <Check size={12} color="#fff" />}
                   </div>
                   <span style={{ fontFamily: "'DM Sans'", fontSize: '13px', color: COLORS.text, fontWeight: active ? 600 : 400 }}>{p.name}</span>
@@ -146,6 +176,43 @@ export default function SettingsPage() {
               );
             })}
           </div>
+        </div>
+
+        {/* Provider Status */}
+        <div style={{ background: 'rgba(255,255,255,0.04)', border: `1px solid ${COLORS.border}`, borderRadius: '12px', padding: '16px', marginBottom: '12px' }}>
+          <label style={{ fontFamily: "'DM Sans'", fontSize: '12px', fontWeight: 600, color: COLORS.sub, textTransform: 'uppercase', letterSpacing: '0.05em', display: 'block', marginBottom: '12px' }}>Live Data Providers</label>
+          <div style={{ display: 'grid', gap: '8px' }}>
+            {providers.map((p) => (
+              <div key={p.id} style={{ display: 'flex', gap: '10px', alignItems: 'flex-start', justifyContent: 'space-between', padding: '10px 0', borderTop: `1px solid ${COLORS.border}` }}>
+                <div>
+                  <div style={{ fontFamily: "'DM Sans'", fontSize: '13px', fontWeight: 700, color: COLORS.text }}>{p.label}</div>
+                  <div style={{ fontFamily: "'DM Sans'", fontSize: '11px', color: COLORS.sub, marginTop: '2px' }}>{p.feature}</div>
+                </div>
+                <span style={{ fontFamily: "'JetBrains Mono'", fontSize: '10px', fontWeight: 800, color: p.configured ? '#22C55E' : '#F59E0B', background: p.configured ? 'rgba(34,197,94,0.12)' : 'rgba(245,158,11,0.12)', border: `1px solid ${p.configured ? 'rgba(34,197,94,0.28)' : 'rgba(245,158,11,0.28)'}`, padding: '4px 7px', borderRadius: '999px', whiteSpace: 'nowrap' }}>{p.configured ? 'LIVE' : 'MISSING'}</span>
+              </div>
+            ))}
+            {providers.length === 0 && <div style={{ fontFamily: "'DM Sans'", fontSize: '12px', color: COLORS.sub }}>Provider status unavailable.</div>}
+          </div>
+        </div>
+
+        {/* Saved Searches */}
+        <div style={{ background: 'rgba(255,255,255,0.04)', border: `1px solid ${COLORS.border}`, borderRadius: '12px', padding: '16px', marginBottom: '20px' }}>
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '12px' }}>
+            <label style={{ fontFamily: "'DM Sans'", fontSize: '12px', fontWeight: 600, color: COLORS.sub, textTransform: 'uppercase', letterSpacing: '0.05em' }}>Saved Searches</label>
+            {savedSearches.length > 0 && <button onClick={clearSavedSearches} style={{ background: 'none', border: 'none', color: COLORS.sub, fontSize: '11px', cursor: 'pointer' }}>Clear all</button>}
+          </div>
+          {savedSearches.length === 0 ? (
+            <p style={{ fontFamily: "'DM Sans'", fontSize: '12px', color: COLORS.sub, margin: 0 }}>Save a search from the results page and it will appear here.</p>
+          ) : (
+            <div style={{ display: 'grid', gap: '8px' }}>
+              {savedSearches.map((s) => (
+                <div key={s.q} style={{ display: 'flex', gap: '8px', alignItems: 'center', background: 'rgba(0,0,0,0.15)', borderRadius: '10px', padding: '10px' }}>
+                  <button onClick={() => router.push(`/search?q=${encodeURIComponent(s.q)}`)} style={{ flex: 1, background: 'none', border: 'none', color: COLORS.text, textAlign: 'left', fontFamily: "'DM Sans'", fontSize: '13px', cursor: 'pointer', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{s.q}</button>
+                  <button onClick={() => removeSavedSearch(s.q)} style={{ background: 'none', border: 'none', color: COLORS.sub, cursor: 'pointer', fontSize: '16px' }}>×</button>
+                </div>
+              ))}
+            </div>
+          )}
         </div>
 
         {/* Save Button */}

@@ -105,6 +105,7 @@ function SearchResults() {
   const [liteHotels, setLiteHotels] = useState<LiteHotelResult[]>([]);
   const [providerStatuses, setProviderStatuses] = useState<Record<string, string>>({});
   const [loadingExtra, setLoadingExtra] = useState(false);
+  const [toast, setToast] = useState<string | null>(null);
 
   // Load passport from localStorage during client initialization without a cascading effect render.
   const [passport] = useState(() => {
@@ -280,6 +281,45 @@ function SearchResults() {
   const liveCashCount = selectedCash.filter(f => typeof f.price === 'number' && f.price > 0 && f.isLivePrice !== false).length;
   const fallbackCashCount = selectedCash.filter(f => f.status === 'fallback' || f.isLivePrice === false).length;
   const hasAnyFlightResult = liveCashCount > 0 || fallbackCashCount > 0 || selectedAwards.length > 0 || hiddenCity.length > 0 || kiwiResults.length > 0 || duffelResults.length > 0;
+  const departDate = (parsed?.departDates as string[])?.[0] || (parsed?.departDate as string) || '';
+  const bestCash = selectedCash.filter(f => typeof f.price === 'number' && f.price > 0 && f.isLivePrice !== false).sort((a, b) => (a.price || Infinity) - (b.price || Infinity))[0] || null;
+  const bestAward = selectedAwards.filter(a => a.miles > 0).sort((a, b) => a.miles - b.miles)[0] || null;
+  const bestHotel = liteHotels.filter(h => typeof h.price === 'number' && h.price > 0).sort((a, b) => (a.price || Infinity) - (b.price || Infinity))[0] || null;
+
+  const showToast = (message: string) => {
+    setToast(message);
+    window.setTimeout(() => setToast(null), 2200);
+  };
+
+  const saveSearch = () => {
+    try {
+      const saved = JSON.parse(window.localStorage.getItem('tc_saved_searches') || '[]') as { q: string; savedAt: string }[];
+      const next = [{ q, savedAt: new Date().toISOString() }, ...saved.filter(item => item.q.toLowerCase() !== q.toLowerCase())].slice(0, 20);
+      window.localStorage.setItem('tc_saved_searches', JSON.stringify(next));
+      const recent = JSON.parse(window.localStorage.getItem('tc_recent_searches') || '[]') as string[];
+      window.localStorage.setItem('tc_recent_searches', JSON.stringify([q, ...recent.filter(s => s.toLowerCase() !== q.toLowerCase())].slice(0, 6)));
+      showToast('Search saved');
+    } catch { showToast('Could not save search'); }
+  };
+
+  const shareTrip = async () => {
+    const lines = [
+      `TravelCheckpoint: ${origin} → ${isMulti ? destCity : (selectedResults?.code || destCity)}`,
+      departDate ? `Date: ${departDate}` : '',
+      `Passengers: ${passengers}`,
+      bestCash ? `Best live cash: $${bestCash.price?.toLocaleString()} ${bestCash.airline}` : fallbackCashCount ? 'Cash: fallback search links only' : '',
+      bestAward ? `Best award: ${(bestAward.miles / 1000).toFixed(0)}K miles via ${bestAward.program}` : '',
+      bestHotel ? `Hotel from: ${bestHotel.currency || 'USD'} ${bestHotel.price?.toLocaleString()} (${bestHotel.name})` : '',
+      visa ? `Visa: ${visa.status}${visa.days ? ` (${visa.days}d)` : ''}` : '',
+      `Link: ${window.location.href}`,
+    ].filter(Boolean).join('\n');
+    try {
+      const canUseNativeShare = Boolean(navigator.share);
+      if (canUseNativeShare) await navigator.share({ title: 'TravelCheckpoint trip', text: lines, url: window.location.href });
+      else await navigator.clipboard.writeText(lines);
+      showToast(canUseNativeShare ? 'Share sheet opened' : 'Trip summary copied');
+    } catch { showToast('Share cancelled'); }
+  };
 
   const chipStyle = (active: boolean) => ({
     fontFamily: "'DM Sans', sans-serif", fontSize: '12px', fontWeight: active ? 600 : 400,
@@ -374,6 +414,30 @@ function SearchResults() {
             <span style={{ fontSize: '16px' }}>⚠️</span>
             <span style={{ fontFamily: "'DM Sans'", fontSize: '13px', color: '#FCA5A5' }}>{error}</span>
             <button onClick={() => doSearch()} style={{ marginLeft: 'auto', fontFamily: "'DM Sans'", fontSize: '12px', fontWeight: 600, color: COLORS.accent, background: 'none', border: 'none', cursor: 'pointer' }}>Retry</button>
+          </div>
+        )}
+        {toast && (
+          <div style={{ position: 'fixed', left: '50%', bottom: 24, transform: 'translateX(-50%)', zIndex: 100, background: 'rgba(15,15,20,0.96)', border: `1px solid ${COLORS.border}`, borderRadius: '999px', padding: '10px 16px', color: COLORS.text, fontFamily: "'DM Sans'", fontSize: 13, boxShadow: '0 10px 30px rgba(0,0,0,0.35)' }}>{toast}</div>
+        )}
+
+        {selectedResults && !loading && (
+          <div style={{ background: 'linear-gradient(135deg, rgba(139,92,246,0.14), rgba(6,182,212,0.08))', border: `1px solid ${COLORS.border}`, borderRadius: '16px', padding: '14px', marginBottom: '16px' }}>
+            <div style={{ display: 'flex', justifyContent: 'space-between', gap: '12px', alignItems: 'flex-start', flexWrap: 'wrap' }}>
+              <div>
+                <div style={{ fontFamily: "'Space Grotesk'", fontSize: 16, fontWeight: 700, color: COLORS.text }}>{origin} → {isMulti ? destCity : selectedResults.code}</div>
+                <div style={{ fontFamily: "'DM Sans'", fontSize: 12, color: COLORS.sub, marginTop: 2 }}>{departDate || 'Flexible date'} · {passengers} passenger{passengers === 1 ? '' : 's'} · {(parsed?.cabin as string) || 'business'}</div>
+              </div>
+              <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
+                <button onClick={saveSearch} style={{ background: COLORS.card, border: `1px solid ${COLORS.border}`, color: COLORS.text, borderRadius: '10px', padding: '8px 11px', fontSize: 12, fontWeight: 700, cursor: 'pointer' }}>Save</button>
+                <button onClick={shareTrip} style={{ background: COLORS.accent, border: 'none', color: '#fff', borderRadius: '10px', padding: '8px 11px', fontSize: 12, fontWeight: 700, cursor: 'pointer' }}>Share</button>
+              </div>
+            </div>
+            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(150px, 1fr))', gap: '8px', marginTop: '12px' }}>
+              <div style={{ background: 'rgba(0,0,0,0.18)', borderRadius: '10px', padding: '10px' }}><div style={{ color: COLORS.sub, fontSize: 10, textTransform: 'uppercase', letterSpacing: '0.08em' }}>Best cash</div><div style={{ color: COLORS.text, fontFamily: "'JetBrains Mono'", fontWeight: 800, marginTop: 3 }}>{bestCash ? `$${bestCash.price?.toLocaleString()}` : fallbackCashCount ? 'Check live' : '—'}</div></div>
+              <div style={{ background: 'rgba(0,0,0,0.18)', borderRadius: '10px', padding: '10px' }}><div style={{ color: COLORS.sub, fontSize: 10, textTransform: 'uppercase', letterSpacing: '0.08em' }}>Best award</div><div style={{ color: COLORS.text, fontFamily: "'JetBrains Mono'", fontWeight: 800, marginTop: 3 }}>{bestAward ? `${(bestAward.miles / 1000).toFixed(0)}K mi` : '—'}</div></div>
+              <div style={{ background: 'rgba(0,0,0,0.18)', borderRadius: '10px', padding: '10px' }}><div style={{ color: COLORS.sub, fontSize: 10, textTransform: 'uppercase', letterSpacing: '0.08em' }}>Hotel</div><div style={{ color: COLORS.text, fontFamily: "'JetBrains Mono'", fontWeight: 800, marginTop: 3 }}>{bestHotel ? `${bestHotel.currency || 'USD'} ${bestHotel.price?.toLocaleString()}` : providerStatuses.liteapi === 'hotel-list-only' ? 'List only' : '—'}</div></div>
+              <div style={{ background: 'rgba(0,0,0,0.18)', borderRadius: '10px', padding: '10px' }}><div style={{ color: COLORS.sub, fontSize: 10, textTransform: 'uppercase', letterSpacing: '0.08em' }}>Visa</div><div style={{ color: COLORS.text, fontFamily: "'JetBrains Mono'", fontWeight: 800, marginTop: 3 }}>{visa ? visa.status.replace('-', ' ') : '—'}</div></div>
+            </div>
           </div>
         )}
         {/* ═══════════════ FLIGHTS TAB ═══════════════ */}
