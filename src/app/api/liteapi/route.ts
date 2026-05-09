@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
+import { addDaysToIsoDate, clampInt, normalizeAirportCode, safeIsoDate } from '@/lib/travel-utils';
 
 const API_KEY = process.env.LITEAPI_KEY || '';
 const BASE = 'https://api.liteapi.travel/v3.0';
@@ -26,16 +27,18 @@ const AIRPORT_TO_CITY: Record<string, { name: string; countryCode: string }> = {
 
 export async function GET(req: NextRequest) {
   const { searchParams } = new URL(req.url);
-  const destination = (searchParams.get('destination') || '').toUpperCase();
-  const checkin = searchParams.get('checkin') || new Date(Date.now() + 7 * 86400000).toISOString().split('T')[0];
-  const checkout = searchParams.get('checkout') || new Date(Date.now() + 8 * 86400000).toISOString().split('T')[0];
-  const adults = parseInt(searchParams.get('adults') || '2');
+  const destination = normalizeAirportCode(searchParams.get('destination'), 'LHR');
+  const checkin = safeIsoDate(searchParams.get('checkin'), 7);
+  const rawCheckout = safeIsoDate(searchParams.get('checkout'), 10);
+  const checkout = rawCheckout <= checkin ? addDaysToIsoDate(checkin, 3) : rawCheckout;
+  const adults = clampInt(searchParams.get('adults'), 2, 1, 9);
   const currency = searchParams.get('currency') || 'USD';
 
-  if (!API_KEY) return NextResponse.json({ results: [], error: 'LITEAPI_KEY not set' });
+  if (!destination) return NextResponse.json({ results: [], error: 'Invalid airport code' }, { status: 400 });
+  if (!API_KEY) return NextResponse.json({ results: [], count: 0, providerStatus: 'missing-key', source: 'liteapi' });
 
   const cityInfo = AIRPORT_TO_CITY[destination];
-  if (!cityInfo) return NextResponse.json({ results: [], error: `Unknown airport: ${destination}` });
+  if (!cityInfo) return NextResponse.json({ results: [], count: 0, providerStatus: 'unsupported-destination', source: 'liteapi' });
 
   try {
     // Step 1: Get hotel list for the city
@@ -46,7 +49,7 @@ export async function GET(req: NextRequest) {
     });
 
     if (!listRes.ok) {
-      return NextResponse.json({ results: [], error: `LiteAPI list ${listRes.status}` });
+      return NextResponse.json({ results: [], count: 0, providerStatus: 'unavailable', source: 'liteapi' });
     }
 
     const listData = await listRes.json();
@@ -64,7 +67,7 @@ export async function GET(req: NextRequest) {
 
     const hotelList = (listData.data || []) as LiteHotelData[];
     if (hotelList.length === 0) {
-      return NextResponse.json({ results: [], error: 'No hotels found', city: cityInfo.name });
+      return NextResponse.json({ results: [], count: 0, providerStatus: 'no-results', source: 'liteapi', city: cityInfo.name });
     }
 
     // Step 2: Get rates for these hotels
@@ -136,7 +139,7 @@ export async function GET(req: NextRequest) {
         rating: 0,
         reviews: 0,
         image: h.main_photo || '',
-        price: rate?.price || 0,
+        price: rate?.price || null,
         originalPrice: 0,
         currency: rate?.currency || currency,
         roomType: rate?.roomType || 'Check rates',
@@ -147,7 +150,7 @@ export async function GET(req: NextRequest) {
     });
 
     // If we have rates, sort by price. If sandbox (no rates), still show hotels
-    const withRates = results.filter(h => h.price > 0).sort((a, b) => a.price - b.price);
+    const withRates = results.filter(h => typeof h.price === 'number' && h.price > 0).sort((a, b) => (a.price || Infinity) - (b.price || Infinity));
     const finalResults = withRates.length > 0 ? withRates : results.slice(0, 10);
     const sandboxMode = withRates.length === 0 && results.length > 0;
 
@@ -159,8 +162,10 @@ export async function GET(req: NextRequest) {
       checkout,
       currency,
       sandbox: sandboxMode,
+      providerStatus: withRates.length > 0 ? 'live-rates' : 'hotel-list-only',
+      source: 'liteapi',
     });
-  } catch (e) {
-    return NextResponse.json({ results: [], error: String(e) });
+  } catch {
+    return NextResponse.json({ results: [], count: 0, providerStatus: 'unavailable', source: 'liteapi' });
   }
 }

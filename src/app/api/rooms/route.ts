@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
+import { addDaysToIsoDate, normalizeAirportCode, safeIsoDate } from '@/lib/travel-utils';
 
 const API_KEY = process.env.SEATS_AERO_API_KEY || '';
 
@@ -20,12 +21,15 @@ interface RoomsResult {
 
 export async function GET(req: NextRequest) {
   const { searchParams } = new URL(req.url);
-  const destination = searchParams.get('destination') || '';
-  const checkin = searchParams.get('checkin') || new Date(Date.now() + 7 * 86400000).toISOString().split('T')[0];
-  const checkout = searchParams.get('checkout') || new Date(Date.now() + 8 * 86400000).toISOString().split('T')[0];
+  const destination = normalizeAirportCode(searchParams.get('destination'), 'LHR');
+  const checkin = safeIsoDate(searchParams.get('checkin'), 7);
+  const rawCheckout = safeIsoDate(searchParams.get('checkout'), 10);
+  const checkout = rawCheckout <= checkin ? addDaysToIsoDate(checkin, 3) : rawCheckout;
+
+  if (!destination) return NextResponse.json({ results: [], error: 'Invalid airport code' }, { status: 400 });
 
   if (!API_KEY) {
-    return NextResponse.json({ results: [], error: 'SEATS_AERO_API_KEY not set' });
+    return NextResponse.json({ results: [], count: 0, providerStatus: 'missing-key', source: 'rooms.aero' });
   }
 
   // Map airport codes to city names for rooms.aero
@@ -55,11 +59,10 @@ export async function GET(req: NextRequest) {
     });
 
     if (!res.ok) {
-      const errText = await res.text().catch(() => '');
       return NextResponse.json({
         results: [],
-        error: `rooms.aero ${res.status}`,
-        details: errText.slice(0, 200),
+        count: 0,
+        providerStatus: 'unavailable',
         fallback: true,
       });
     }
@@ -92,8 +95,10 @@ export async function GET(req: NextRequest) {
       city,
       checkin,
       checkout,
+      providerStatus: results.length ? 'live' : 'no-results',
+      source: 'rooms.aero',
     });
-  } catch (e) {
-    return NextResponse.json({ results: [], error: String(e) });
+  } catch {
+    return NextResponse.json({ results: [], count: 0, providerStatus: 'unavailable', source: 'rooms.aero' });
   }
 }

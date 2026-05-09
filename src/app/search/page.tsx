@@ -41,7 +41,7 @@ interface HiddenCityResult { airline: string; price: number; from: string; to: s
 interface KiwiResult { price: number; airlines: string[]; from: string; to: string; departure: string; duration: number; stops: number; isVirtualInterline: boolean; bookingLink: string }
 interface VisaInfo { status: string; days?: number; note?: string; passport: string; destination: string }
 interface CurrencyInfo { from: string; to: string; name: string; symbol: string; rate: number; display: string }
-interface LiteHotelResult { id: string; name: string; stars: number; address: string; rating: number; reviews: number; image: string; price: number; originalPrice: number; currency: string; roomType: string; board: string; freeCancellation: boolean }
+interface LiteHotelResult { id: string; name: string; stars: number; address: string; rating: number; reviews: number; image: string; price: number | null; originalPrice: number; currency: string; roomType: string; board: string; freeCancellation: boolean; providerStatus?: string }
 interface DuffelResult { id: string; price: number; currency: string; airlines: string[]; from: string; to: string; departure: string; duration: string; stops: number; segments: { airline: string; flightNo: string; from: string; to: string }[]; bookable: boolean; offerId: string; source: string }
 interface RoomResult { hotel: string; chain: string; location: string; pointsPerNight: number; cashRate: number; centsPerPoint: number; roomType: string; availability: boolean }
 interface GemInfo { name: string; desc: string; type: string }
@@ -180,7 +180,10 @@ function SearchResults() {
     if (!isRegion && destList.length === 1) {
       setLoadingExtra(true);
       const dest = destList[0].code;
-      const date = (parseData.date as string) || new Date(Date.now() + 7 * 86400000).toISOString().split('T')[0];
+      const date = ((parseData.departDates as string[]) || [parseData.departDate as string || ''])[0] || new Date(Date.now() + 7 * 86400000).toISOString().split('T')[0];
+      const checkout = new Date(`${date}T00:00:00.000Z`);
+      checkout.setUTCDate(checkout.getUTCDate() + 3);
+      const checkoutDate = checkout.toISOString().split('T')[0];
 
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
       const safeFetch = (url: string): Promise<any> => fetch(url).then(r => { if (!r.ok) return {}; return r.json().catch(() => ({})); }).catch(() => ({}));
@@ -192,8 +195,8 @@ function SearchResults() {
         safeFetch(`/api/gems?destination=${dest}`),
         safeFetch(`/api/hotels?city=${destList[0].city}`),
         safeFetch(`/api/duffel?origin=${origin}&destination=${dest}&date=${date}&cabin=${cabin}&passengers=${pax}`),
-        safeFetch(`/api/rooms?destination=${dest}&checkin=${date}`),
-        safeFetch(`/api/liteapi?destination=${dest}&checkin=${date}`),
+        safeFetch(`/api/rooms?destination=${dest}&checkin=${date}&checkout=${checkoutDate}`),
+        safeFetch(`/api/liteapi?destination=${dest}&checkin=${date}&checkout=${checkoutDate}&adults=${Math.max(1, Math.min(pax, 9))}`),
       ]);
 
       if (extras[0].status === 'fulfilled') setHiddenCity((extras[0].value.results || []).filter((r: HiddenCityResult) => r.price > 0));
@@ -436,7 +439,7 @@ function SearchResults() {
                     </div>
                     <div style={{ flex: 1 }}>
                       <div style={{ fontFamily: "'DM Sans'", fontSize: '13px', fontWeight: 600, color: COLORS.text }}>{f.airlines.join(' + ')}</div>
-                      <div style={{ fontFamily: "'JetBrains Mono'", fontSize: '11px', color: COLORS.sub }}>{f.from}→{f.to} · {f.duration}h · {f.stops} stop{f.stops !== 1 ? 's' : ''}</div>
+                      <div style={{ fontFamily: "'JetBrains Mono'", fontSize: '11px', color: COLORS.sub }}>{f.from}→{f.to} · {f.duration ? `${Math.floor(f.duration / 60)}h ${f.duration % 60}m` : 'Duration TBC'} · {f.stops} stop{f.stops !== 1 ? 's' : ''}</div>
                       {f.isVirtualInterline && <span style={{ fontSize: '10px', background: '#ECFDF5', color: '#065F46', padding: '1px 6px', borderRadius: '4px' }}>Kiwi Guarantee</span>}
                     </div>
                     <div style={{ textAlign: 'right' }}>
@@ -486,12 +489,13 @@ function SearchResults() {
             ? (selectedDest ? (destinations.find(d => d.code === selectedDest)?.city || destCity) : destCity)
             : (parsed?.destinationCity as string || destCity || 'Dubai');
           const stayDate = (parsed?.departDates as string[])?.[0] || (parsed?.departDate as string) || '';
+          const stayCheckoutDate = stayDate ? (() => { const d = new Date(`${stayDate}T00:00:00.000Z`); d.setUTCDate(d.getUTCDate() + 3); return d.toISOString().split('T')[0]; })() : '';
           const stayLinks = [
-            { name: 'Booking.com', color: '#003580', url: `https://www.booking.com/searchresults.html?ss=${encodeURIComponent(stayCity)}&checkin=${stayDate}&group_adults=2` },
-            { name: 'Expedia', color: '#00355F', url: `https://www.expedia.com/Hotel-Search?destination=${encodeURIComponent(stayCity)}&startDate=${stayDate}&adults=2` },
-            { name: 'Agoda', color: '#5392F9', url: `https://www.agoda.com/search?city=${encodeURIComponent(stayCity)}&checkIn=${stayDate}` },
-            { name: 'Airbnb', color: '#FF5A5F', url: `https://www.airbnb.com/s/${encodeURIComponent(stayCity)}/homes?checkin=${stayDate}&adults=${passengers}` },
-            { name: 'Hotels.com', color: '#D32F2F', url: `https://www.hotels.com/search.do?q-destination=${encodeURIComponent(stayCity)}&q-check-in=${stayDate}&q-rooms=1&q-room-0-adults=2` },
+            { name: 'Booking.com', color: '#003580', url: `https://www.booking.com/searchresults.html?ss=${encodeURIComponent(stayCity)}&checkin=${stayDate}&checkout=${stayCheckoutDate}&group_adults=${passengers}` },
+            { name: 'Expedia', color: '#00355F', url: `https://www.expedia.com/Hotel-Search?destination=${encodeURIComponent(stayCity)}&startDate=${stayDate}&endDate=${stayCheckoutDate}&adults=${passengers}` },
+            { name: 'Agoda', color: '#5392F9', url: `https://www.agoda.com/search?city=${encodeURIComponent(stayCity)}&checkIn=${stayDate}&checkOut=${stayCheckoutDate}` },
+            { name: 'Airbnb', color: '#FF5A5F', url: `https://www.airbnb.com/s/${encodeURIComponent(stayCity)}/homes?checkin=${stayDate}&checkout=${stayCheckoutDate}&adults=${passengers}` },
+            { name: 'Hotels.com', color: '#D32F2F', url: `https://www.hotels.com/search.do?q-destination=${encodeURIComponent(stayCity)}&q-check-in=${stayDate}&q-check-out=${stayCheckoutDate}&q-rooms=1&q-room-0-adults=${passengers}` },
           ];
           return (
           <div>
@@ -520,16 +524,16 @@ function SearchResults() {
                           {h.board && <span style={{ marginLeft: '6px' }}> · {h.board}</span>}
                           {h.freeCancellation && <span style={{ color: '#34D399' }}> · Free cancellation</span>}
                         </div>
-                        {h.price > 0 ? (
+                        {typeof h.price === 'number' && h.price > 0 ? (
                           <div style={{ fontFamily: "'JetBrains Mono'", fontSize: '18px', fontWeight: 700, color: COLORS.text, marginBottom: '10px' }}>
                             ${h.price} <span style={{ fontSize: '11px', fontWeight: 400, color: COLORS.sub }}>/night</span>
                             {h.originalPrice > h.price && <span style={{ fontSize: '12px', color: COLORS.sub, textDecoration: 'line-through', marginLeft: '6px' }}>${h.originalPrice}</span>}
                           </div>
                         ) : null}
                         <div style={{ display: 'flex', gap: '6px', flexWrap: 'wrap' }}>
-                          <a href={`https://www.booking.com/searchresults.html?ss=${hotelSearch}&checkin=${stayDate}`} target="_blank" rel="noopener" style={{ fontSize: '11px', fontWeight: 600, color: '#003580', background: 'rgba(0,53,128,0.1)', padding: '5px 10px', borderRadius: '6px', textDecoration: 'none' }}>Booking.com</a>
-                          <a href={`https://www.expedia.com/Hotel-Search?destination=${hotelSearch}&startDate=${stayDate}`} target="_blank" rel="noopener" style={{ fontSize: '11px', fontWeight: 600, color: '#00355F', background: 'rgba(0,53,95,0.1)', padding: '5px 10px', borderRadius: '6px', textDecoration: 'none' }}>Expedia</a>
-                          <a href={`https://www.google.com/travel/hotels/${hotelSearch}?q=${hotelSearch}&dates=${stayDate}`} target="_blank" rel="noopener" style={{ fontSize: '11px', fontWeight: 600, color: COLORS.accent, background: 'rgba(6,182,212,0.1)', padding: '5px 10px', borderRadius: '6px', textDecoration: 'none' }}>Google</a>
+                          <a href={`https://www.booking.com/searchresults.html?ss=${hotelSearch}&checkin=${stayDate}&checkout=${stayCheckoutDate}&group_adults=${passengers}`} target="_blank" rel="noopener" style={{ fontSize: '11px', fontWeight: 600, color: '#003580', background: 'rgba(0,53,128,0.1)', padding: '5px 10px', borderRadius: '6px', textDecoration: 'none' }}>Booking.com</a>
+                          <a href={`https://www.expedia.com/Hotel-Search?destination=${hotelSearch}&startDate=${stayDate}&endDate=${stayCheckoutDate}&adults=${passengers}`} target="_blank" rel="noopener" style={{ fontSize: '11px', fontWeight: 600, color: '#00355F', background: 'rgba(0,53,95,0.1)', padding: '5px 10px', borderRadius: '6px', textDecoration: 'none' }}>Expedia</a>
+                          <a href={`https://www.google.com/travel/hotels/${hotelSearch}?q=${hotelSearch}&checkin=${stayDate}&checkout=${stayCheckoutDate}`} target="_blank" rel="noopener" style={{ fontSize: '11px', fontWeight: 600, color: COLORS.accent, background: 'rgba(6,182,212,0.1)', padding: '5px 10px', borderRadius: '6px', textDecoration: 'none' }}>Google</a>
                         </div>
                       </div>
                     </div>

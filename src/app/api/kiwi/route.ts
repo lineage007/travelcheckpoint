@@ -1,16 +1,20 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { callMcpTool } from '@/lib/mcp-client';
+import { clampInt, normalizeAirportCode, safeIsoDate } from '@/lib/travel-utils';
 
 export async function GET(req: NextRequest) {
   const { searchParams } = new URL(req.url);
-  const from = searchParams.get('from') || 'DXB';
-  const to = searchParams.get('to') || 'LHR';
-  const departRaw = searchParams.get('depart') || new Date(Date.now() + 7 * 86400000).toISOString().split('T')[0];
+  const from = normalizeAirportCode(searchParams.get('from'), 'DXB');
+  const to = normalizeAirportCode(searchParams.get('to'), 'LHR');
+  const departRaw = safeIsoDate(searchParams.get('depart'), 7);
   // Convert YYYY-MM-DD to DD/MM/YYYY for Kiwi
   const [y, m, d] = departRaw.split('-');
   const depart = `${d}/${m}/${y}`;
-  const cabin = searchParams.get('cabin') || 'economy';
-  const adults = parseInt(searchParams.get('adults') || '1');
+  const requestedCabin = (searchParams.get('cabin') || 'economy').toLowerCase();
+  const cabin = ['economy', 'premium', 'business', 'first'].includes(requestedCabin) ? requestedCabin : 'economy';
+  const adults = clampInt(searchParams.get('adults'), 1, 1, 9);
+
+  if (!from || !to) return NextResponse.json({ results: [], error: 'Invalid airport code' }, { status: 400 });
 
   try {
     const result = await callMcpTool('kiwi', 'search-flight', {
@@ -60,22 +64,28 @@ export async function GET(req: NextRequest) {
       }
     }
 
-    const results = flights.map(f => ({
-      airline: f.airline || (f.airlines || []).join(' + ') || '',
-      price: f.price || 0,
-      from,
-      to,
-      departure: f.departure_time || '',
-      duration: f.duration_minutes || (f.duration_hours ? f.duration_hours * 60 : 0),
-      stops: f.stops || 0,
-      route: f.route || `${from} → ${to}`,
-      bookingLink: f.booking_link || '',
-      isCreativeRoute: f.is_virtual_interline || (flights.length > 0),
-      source: 'kiwi',
-    })).filter(f => f.price > 0);
+    const results = flights.map(f => {
+      const airlines = f.airlines?.length ? f.airlines : (f.airline ? [f.airline] : ['Kiwi Route']);
+      return {
+        airline: airlines.join(' + '),
+        airlines,
+        price: f.price || 0,
+        from,
+        to,
+        departure: f.departure_time || '',
+        duration: f.duration_minutes || (f.duration_hours ? f.duration_hours * 60 : 0),
+        stops: f.stops || 0,
+        route: f.route || `${from} → ${to}`,
+        bookingLink: f.booking_link || '',
+        isCreativeRoute: f.is_virtual_interline || (flights.length > 0),
+        isVirtualInterline: f.is_virtual_interline || (flights.length > 0),
+        source: 'kiwi',
+        status: 'live',
+      };
+    }).filter(f => f.price > 0);
 
-    return NextResponse.json({ results, count: results.length, source: 'kiwi-mcp' });
-  } catch (e) {
-    return NextResponse.json({ results: [], error: String(e), source: 'kiwi-mcp' });
+    return NextResponse.json({ results, count: results.length, source: 'kiwi-mcp', status: results.length ? 'live' : 'no-results' });
+  } catch {
+    return NextResponse.json({ results: [], count: 0, source: 'kiwi-mcp', status: 'unavailable' });
   }
 }
