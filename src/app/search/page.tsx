@@ -271,6 +271,28 @@ function SearchResults() {
     return () => window.clearTimeout(timer);
   }, [q, doSearch]);
 
+  // Save search to history once results arrive (not while loading)
+  useEffect(() => {
+    if (loading) return;
+    if (destinations.length === 0) return;
+    const first = destinations[0];
+    if (first.loading) return;
+    const originCode = (parsed?.origin as string) || 'DXB';
+    const destCode = first.code;
+    const cabinClass = (parsed?.cabin as string) || 'business';
+    const pax = (parsed?.passengers as number) || 1;
+    const topCash = first.cashResults.filter(f => typeof f.price === 'number' && (f.price ?? 0) > 0 && f.isLivePrice !== false).sort((a, b) => (a.price ?? Infinity) - (b.price ?? Infinity))[0]?.price ?? null;
+    const topAward = first.awardResults.filter(a => a.miles > 0).sort((a, b) => a.miles - b.miles)[0]?.miles ?? null;
+    try {
+      interface HistEntry { q: string; searchedAt: string; bestCash: number | null; bestAward: number | null; origin: string; destination: string; cabin: string; passengers: number }
+      const histRaw = JSON.parse(window.localStorage.getItem('tc_search_history') || '[]') as HistEntry[];
+      const entry: HistEntry = { q, searchedAt: new Date().toISOString(), bestCash: topCash, bestAward: topAward, origin: originCode, destination: destCode, cabin: cabinClass, passengers: pax };
+      const next = [entry, ...histRaw.filter(h => h.q.toLowerCase() !== q.toLowerCase())].slice(0, 50);
+      window.localStorage.setItem('tc_search_history', JSON.stringify(next));
+    } catch { /* localStorage full */ }
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [loading, destinations]);
+
   const dest0 = destinations[0] || null;
   const isMulti = destinations.length > 1;
   const selectedResults = selectedDest ? destinations.find(d => d.code === selectedDest) || null : dest0;
@@ -300,6 +322,47 @@ function SearchResults() {
       window.localStorage.setItem('tc_recent_searches', JSON.stringify([q, ...recent.filter(s => s.toLowerCase() !== q.toLowerCase())].slice(0, 6)));
       showToast('Search saved');
     } catch { showToast('Could not save search'); }
+  };
+
+  // Save to history so /history page can re-check prices later
+  const saveToHistory = (
+    bestCashPrice: number | null,
+    bestAwardMiles: number | null,
+    originCode: string,
+    destCode: string,
+    cabinClass: string,
+    pax: number
+  ) => {
+    try {
+      interface HistoryEntry { q: string; searchedAt: string; bestCash: number | null; bestAward: number | null; origin: string; destination: string; cabin: string; passengers: number }
+      const history = JSON.parse(window.localStorage.getItem('tc_search_history') || '[]') as HistoryEntry[];
+      const entry: HistoryEntry = { q, searchedAt: new Date().toISOString(), bestCash: bestCashPrice, bestAward: bestAwardMiles, origin: originCode, destination: destCode, cabin: cabinClass, passengers: pax };
+      const next = [entry, ...history.filter(h => h.q.toLowerCase() !== q.toLowerCase())].slice(0, 50);
+      window.localStorage.setItem('tc_search_history', JSON.stringify(next));
+    } catch { /* storage full or unavailable */ }
+  };
+
+  const trackRoute = async () => {
+    if (!selectedResults) { showToast('No route selected to track'); return; }
+    const destCode = selectedResults.code || dest0?.code || '';
+    const cabinClass = (parsed?.cabin as string) || 'business';
+    const pax = passengers;
+    const cashPrice = bestCash?.price ?? null;
+    const awardMiles = bestAward?.miles ?? null;
+    try {
+      const res = await fetch('/api/alerts', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          origin, destination: destCode, cabin: cabinClass, passengers: pax,
+          baselineCash: cashPrice, baselineAward: awardMiles,
+          label: `${origin} → ${destCode} ${cabinClass}`,
+        }),
+      });
+      const data: { message?: string; error?: string } = await res.json();
+      if (!res.ok) showToast(data.error || 'Could not set alert');
+      else showToast('Tracking — Telegram alert set');
+    } catch { showToast('Alert failed — check Telegram config'); }
   };
 
   const shareTrip = async () => {
@@ -353,47 +416,51 @@ function SearchResults() {
         {/* Interactive refinement bar */}
         {parsed && (
           <div style={{ maxWidth: '900px', margin: '8px auto 0' }}>
-            {/* Row 1: Origin, Dest, Date, Pax — compact inline controls */}
-            <div style={{ display: 'flex', gap: '6px', flexWrap: 'wrap', alignItems: 'center', marginBottom: '6px' }}>
-              <input defaultValue={origin} placeholder="From" onBlur={e => { if (e.target.value && e.target.value.toUpperCase() !== origin) { const newQ = (searchInput || q).replace(new RegExp(origin, 'i'), e.target.value.toUpperCase()); router.push(`/search?q=${encodeURIComponent(newQ)}`); } }}
-                style={{ width: '60px', fontFamily: "'JetBrains Mono', monospace", fontSize: '12px', fontWeight: 700, background: COLORS.card, border: `1px solid ${COLORS.border}`, borderRadius: '6px', padding: '5px 8px', color: COLORS.text, textAlign: 'center', textTransform: 'uppercase', outline: 'none' }} />
-              <span style={{ fontSize: '12px', color: COLORS.sub }}>→</span>
-              <input defaultValue={isMulti ? (parsed.regionName as string || 'Multiple') : (dest0?.code || '')} placeholder="To"
-                onBlur={e => { if (e.target.value) { const destStr = isMulti ? (parsed.regionName as string || '') : (dest0?.code || ''); const newQ = destStr ? (searchInput || q).replace(new RegExp(destStr, 'i'), e.target.value) : `${origin} to ${e.target.value}`; router.push(`/search?q=${encodeURIComponent(newQ)}`); } }}
-                style={{ width: isMulti ? '90px' : '60px', fontFamily: "'JetBrains Mono', monospace", fontSize: '12px', fontWeight: 700, background: COLORS.card, border: `1px solid ${COLORS.border}`, borderRadius: '6px', padding: '5px 8px', color: COLORS.text, textAlign: 'center', textTransform: 'uppercase', outline: 'none' }} />
-              <input type="date" defaultValue={(parsed.departDates as string[])?.[0] || ''} onChange={e => { if (e.target.value) { const base = searchInput || q; const newQ = base.replace(/\d{4}-\d{2}-\d{2}|tomorrow|next week|next month|this week|today/i, e.target.value); router.push(`/search?q=${encodeURIComponent(newQ === base ? `${base} ${e.target.value}` : newQ)}`); } }}
-                style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: '11px', background: COLORS.card, border: `1px solid ${COLORS.border}`, borderRadius: '6px', padding: '5px 8px', color: COLORS.text, outline: 'none' }} />
-              <select defaultValue={passengers} onChange={e => { const pax = parseInt(e.target.value); const base = searchInput || q; const newQ = base.replace(/\d+\s*(people|person|pax|passengers?|adults?)/i, `${pax} people`); router.push(`/search?q=${encodeURIComponent(newQ === base ? `${base}, ${pax} people` : newQ)}`); }}
-                style={{ fontFamily: "'DM Sans', sans-serif", fontSize: '12px', background: COLORS.card, border: `1px solid ${COLORS.border}`, borderRadius: '6px', padding: '5px 8px', color: COLORS.text, outline: 'none', cursor: 'pointer' }}>
-                {[1,2,3,4,5,6,7,8,9,10].map(n => <option key={n} value={n}>{n} pax</option>)}
-              </select>
-              {visa && (
-                <span style={{ padding: '3px 8px', borderRadius: '4px', fontSize: '11px', fontFamily: "'JetBrains Mono', monospace", background: visa.status === 'visa-free' ? '#ECFDF5' : visa.status === 'e-visa' || visa.status === 'visa-on-arrival' ? '#FFF7ED' : '#FEF2F2', color: visa.status === 'visa-free' ? '#065F46' : visa.status === 'visa-required' ? '#991B1B' : '#92400E' }}>
-                  {visa.status === 'visa-free' ? '✓' : visa.status === 'visa-required' ? '✕' : '⚡'} {visa.status.replace('-', ' ')}{visa.days ? ` (${visa.days}d)` : ''}
-                </span>
-              )}
-              {currency && <span style={{ background: COLORS.card, padding: '3px 8px', borderRadius: '4px', fontSize: '11px', fontFamily: "'JetBrains Mono', monospace", color: COLORS.sub }}>{currency.display}</span>}
+            {/* Row 1: Origin, Dest, Date, Pax — scrollable on mobile */}
+            <div style={{ overflowX: 'auto', WebkitOverflowScrolling: 'touch', msOverflowStyle: 'none', scrollbarWidth: 'none', marginBottom: '6px' }}>
+              <div style={{ display: 'flex', gap: '6px', alignItems: 'center', minWidth: 'max-content', paddingBottom: '2px' }}>
+                <input defaultValue={origin} placeholder="From" onBlur={e => { if (e.target.value && e.target.value.toUpperCase() !== origin) { const newQ = (searchInput || q).replace(new RegExp(origin, 'i'), e.target.value.toUpperCase()); router.push(`/search?q=${encodeURIComponent(newQ)}`); } }}
+                  style={{ width: '60px', fontFamily: "'JetBrains Mono', monospace", fontSize: '12px', fontWeight: 700, background: COLORS.card, border: `1px solid ${COLORS.border}`, borderRadius: '6px', padding: '9px 8px', color: COLORS.text, textAlign: 'center', textTransform: 'uppercase', outline: 'none', minHeight: '38px' }} />
+                <span style={{ fontSize: '12px', color: COLORS.sub, flexShrink: 0 }}>→</span>
+                <input defaultValue={isMulti ? (parsed.regionName as string || 'Multiple') : (dest0?.code || '')} placeholder="To"
+                  onBlur={e => { if (e.target.value) { const destStr = isMulti ? (parsed.regionName as string || '') : (dest0?.code || ''); const newQ = destStr ? (searchInput || q).replace(new RegExp(destStr, 'i'), e.target.value) : `${origin} to ${e.target.value}`; router.push(`/search?q=${encodeURIComponent(newQ)}`); } }}
+                  style={{ width: isMulti ? '90px' : '60px', fontFamily: "'JetBrains Mono', monospace", fontSize: '12px', fontWeight: 700, background: COLORS.card, border: `1px solid ${COLORS.border}`, borderRadius: '6px', padding: '9px 8px', color: COLORS.text, textAlign: 'center', textTransform: 'uppercase', outline: 'none', minHeight: '38px' }} />
+                <input type="date" defaultValue={(parsed.departDates as string[])?.[0] || ''} onChange={e => { if (e.target.value) { const base = searchInput || q; const newQ = base.replace(/\d{4}-\d{2}-\d{2}|tomorrow|next week|next month|this week|today/i, e.target.value); router.push(`/search?q=${encodeURIComponent(newQ === base ? `${base} ${e.target.value}` : newQ)}`); } }}
+                  style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: '11px', background: COLORS.card, border: `1px solid ${COLORS.border}`, borderRadius: '6px', padding: '9px 8px', color: COLORS.text, outline: 'none', minHeight: '38px' }} />
+                <select defaultValue={passengers} onChange={e => { const pax = parseInt(e.target.value); const base = searchInput || q; const newQ = base.replace(/\d+\s*(people|person|pax|passengers?|adults?)/i, `${pax} people`); router.push(`/search?q=${encodeURIComponent(newQ === base ? `${base}, ${pax} people` : newQ)}`); }}
+                  style={{ fontFamily: "'DM Sans', sans-serif", fontSize: '12px', background: COLORS.card, border: `1px solid ${COLORS.border}`, borderRadius: '6px', padding: '9px 8px', color: COLORS.text, outline: 'none', cursor: 'pointer', minHeight: '38px' }}>
+                  {[1,2,3,4,5,6,7,8,9,10].map(n => <option key={n} value={n}>{n} pax</option>)}
+                </select>
+                {visa && (
+                  <span style={{ padding: '9px 10px', borderRadius: '6px', fontSize: '11px', fontFamily: "'JetBrains Mono', monospace", background: visa.status === 'visa-free' ? '#ECFDF5' : visa.status === 'e-visa' || visa.status === 'visa-on-arrival' ? '#FFF7ED' : '#FEF2F2', color: visa.status === 'visa-free' ? '#065F46' : visa.status === 'visa-required' ? '#991B1B' : '#92400E', whiteSpace: 'nowrap', minHeight: '38px', display: 'flex', alignItems: 'center' }}>
+                    {visa.status === 'visa-free' ? '✓' : visa.status === 'visa-required' ? '✕' : '⚡'} {visa.status.replace('-', ' ')}{visa.days ? ` (${visa.days}d)` : ''}
+                  </span>
+                )}
+                {currency && <span style={{ background: COLORS.card, padding: '9px 10px', borderRadius: '6px', fontSize: '11px', fontFamily: "'JetBrains Mono', monospace", color: COLORS.sub, whiteSpace: 'nowrap', minHeight: '38px', display: 'flex', alignItems: 'center' }}>{currency.display}</span>}
+              </div>
             </div>
-            {/* Row 2: Cabin class + stops — pill toggles that re-search on click */}
-            <div style={{ display: 'flex', gap: '4px', flexWrap: 'wrap', alignItems: 'center' }}>
-              <span style={{ fontSize: '10px', color: COLORS.sub, fontWeight: 600, textTransform: 'uppercase', letterSpacing: '0.05em', marginRight: '4px' }}>Cabin</span>
-              {['economy', 'premium-economy', 'business', 'first'].map(c => {
-                const active = (parsed.cabin as string || 'business') === c;
-                return <button key={c} onClick={() => { if (!active) { const base = searchInput || q; const cabins = ['economy','premium-economy','business','first']; const oldCabin = cabins.find(cb => base.toLowerCase().includes(cb)) || ''; const newQ = oldCabin ? base.replace(new RegExp(oldCabin, 'i'), c) : `${base}, ${c}`; router.push(`/search?q=${encodeURIComponent(newQ)}`); } }}
-                  style={{ fontFamily: "'DM Sans', sans-serif", fontSize: '11px', fontWeight: active ? 600 : 400, padding: '4px 10px', borderRadius: '100px', border: 'none', cursor: 'pointer', background: active ? COLORS.accent : COLORS.card, color: active ? '#fff' : COLORS.sub, transition: 'all 0.15s' }}>
-                  {c === 'premium-economy' ? 'Premium' : c.charAt(0).toUpperCase() + c.slice(1)}
-                </button>;
-              })}
-              <span style={{ width: '1px', height: '16px', background: COLORS.border, margin: '0 6px' }} />
-              <span style={{ fontSize: '10px', color: COLORS.sub, fontWeight: 600, textTransform: 'uppercase', letterSpacing: '0.05em', marginRight: '4px' }}>Stops</span>
-              {[{ label: 'Any', val: 'any' }, { label: 'Direct', val: '0' }, { label: '1 stop', val: '1' }, { label: '2 stops', val: '2' }].map(s => {
-                const curStops = parsed.maxStops === null || parsed.maxStops === undefined ? 'any' : String(parsed.maxStops);
-                const active = curStops === s.val;
-                return <button key={s.val} onClick={() => { if (!active) { const base = searchInput || q; let newQ = base.replace(/\b(direct|nonstop|non-stop|no stops?|max \d stops?|one stop|two stops?|\d stops?|all the options|any stops?)\b/gi, '').trim(); if (s.val === 'any') newQ += ', all the options'; else if (s.val === '0') newQ += ', direct'; else newQ += `, max ${s.val} stop${s.val === '1' ? '' : 's'}`; router.push(`/search?q=${encodeURIComponent(newQ)}`); } }}
-                  style={{ fontFamily: "'DM Sans', sans-serif", fontSize: '11px', fontWeight: active ? 600 : 400, padding: '4px 10px', borderRadius: '100px', border: 'none', cursor: 'pointer', background: active ? COLORS.accent : COLORS.card, color: active ? '#fff' : COLORS.sub, transition: 'all 0.15s' }}>
-                  {s.label}
-                </button>;
-              })}
+            {/* Row 2: Cabin class + stops — scrollable pill row */}
+            <div style={{ overflowX: 'auto', WebkitOverflowScrolling: 'touch', msOverflowStyle: 'none', scrollbarWidth: 'none' }}>
+              <div style={{ display: 'flex', gap: '4px', alignItems: 'center', minWidth: 'max-content', paddingBottom: '2px' }}>
+                <span style={{ fontSize: '10px', color: COLORS.sub, fontWeight: 600, textTransform: 'uppercase', letterSpacing: '0.05em', marginRight: '4px', whiteSpace: 'nowrap' }}>Cabin</span>
+                {['economy', 'premium-economy', 'business', 'first'].map(c => {
+                  const active = (parsed.cabin as string || 'business') === c;
+                  return <button key={c} onClick={() => { if (!active) { const base = searchInput || q; const cabins = ['economy','premium-economy','business','first']; const oldCabin = cabins.find(cb => base.toLowerCase().includes(cb)) || ''; const newQ = oldCabin ? base.replace(new RegExp(oldCabin, 'i'), c) : `${base}, ${c}`; router.push(`/search?q=${encodeURIComponent(newQ)}`); } }}
+                    style={{ fontFamily: "'DM Sans', sans-serif", fontSize: '11px', fontWeight: active ? 600 : 400, padding: '8px 12px', borderRadius: '100px', border: 'none', cursor: 'pointer', background: active ? COLORS.accent : COLORS.card, color: active ? '#fff' : COLORS.sub, transition: 'all 0.15s', whiteSpace: 'nowrap', minHeight: '36px' }}>
+                    {c === 'premium-economy' ? 'Premium' : c.charAt(0).toUpperCase() + c.slice(1)}
+                  </button>;
+                })}
+                <span style={{ width: '1px', height: '16px', background: COLORS.border, margin: '0 6px', flexShrink: 0 }} />
+                <span style={{ fontSize: '10px', color: COLORS.sub, fontWeight: 600, textTransform: 'uppercase', letterSpacing: '0.05em', marginRight: '4px', whiteSpace: 'nowrap' }}>Stops</span>
+                {[{ label: 'Any', val: 'any' }, { label: 'Direct', val: '0' }, { label: '1 stop', val: '1' }, { label: '2 stops', val: '2' }].map(s => {
+                  const curStops = parsed.maxStops === null || parsed.maxStops === undefined ? 'any' : String(parsed.maxStops);
+                  const active = curStops === s.val;
+                  return <button key={s.val} onClick={() => { if (!active) { const base = searchInput || q; let newQ = base.replace(/\b(direct|nonstop|non-stop|no stops?|max \d stops?|one stop|two stops?|\d stops?|all the options|any stops?)\b/gi, '').trim(); if (s.val === 'any') newQ += ', all the options'; else if (s.val === '0') newQ += ', direct'; else newQ += `, max ${s.val} stop${s.val === '1' ? '' : 's'}`; router.push(`/search?q=${encodeURIComponent(newQ)}`); } }}
+                    style={{ fontFamily: "'DM Sans', sans-serif", fontSize: '11px', fontWeight: active ? 600 : 400, padding: '8px 12px', borderRadius: '100px', border: 'none', cursor: 'pointer', background: active ? COLORS.accent : COLORS.card, color: active ? '#fff' : COLORS.sub, transition: 'all 0.15s', whiteSpace: 'nowrap', minHeight: '36px' }}>
+                    {s.label}
+                  </button>;
+                })}
+              </div>
             </div>
           </div>
         )}
@@ -429,6 +496,8 @@ function SearchResults() {
               </div>
               <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
                 <button onClick={saveSearch} style={{ background: COLORS.card, border: `1px solid ${COLORS.border}`, color: COLORS.text, borderRadius: '10px', padding: '8px 11px', fontSize: 12, fontWeight: 700, cursor: 'pointer' }}>Save</button>
+                <button onClick={() => router.push('/history')} style={{ background: COLORS.card, border: `1px solid ${COLORS.border}`, color: COLORS.sub, borderRadius: '10px', padding: '8px 11px', fontSize: 12, fontWeight: 700, cursor: 'pointer' }} title="View search history">History</button>
+                <button onClick={trackRoute} style={{ background: 'rgba(34,197,94,0.12)', border: '1px solid rgba(34,197,94,0.25)', color: '#22C55E', borderRadius: '10px', padding: '8px 11px', fontSize: 12, fontWeight: 700, cursor: 'pointer' }} title="Track price — sends Telegram when it drops">Track</button>
                 <button onClick={shareTrip} style={{ background: COLORS.accent, border: 'none', color: '#fff', borderRadius: '10px', padding: '8px 11px', fontSize: 12, fontWeight: 700, cursor: 'pointer' }}>Share</button>
               </div>
             </div>

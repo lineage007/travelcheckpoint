@@ -55,8 +55,8 @@ const suggestions = [
   'UAE → Europe, cheapest, next week',
   'DXB → Bali, 2 pax, economy',
   'Dubai → anywhere Asia, flexible',
-  'Abu Dhabi → USA, first class',
-  'UAE → Istanbul, family of 4',
+  'UAE → Istanbul, family of 6, economy',
+  'DXB → Maldives, 4 people, next month',
 ];
 
 export default function Home() {
@@ -68,6 +68,7 @@ export default function Home() {
   const [showCursor, setShowCursor] = useState(true);
   const [focused, setFocused] = useState(false);
   const [recentSearches, setRecentSearches] = useState<string[]>([]);
+  const [pax, setPax] = useState(1);
   const inputRef = useRef<HTMLInputElement>(null);
   const scrollRef = useRef<HTMLDivElement>(null);
 
@@ -102,8 +103,12 @@ export default function Home() {
   useEffect(() => { const i = setInterval(() => setShowCursor(c => !c), 530); return () => clearInterval(i); }, []);
 
   const handleSearch = (searchQuery?: string) => {
-    const q = (searchQuery || query).trim();
+    let q = (searchQuery || query).trim();
     if (!q) return;
+    // Inject pax count when not already mentioned in query
+    if (pax > 1 && !/\d+\s*(people|person|pax|passengers?|adults?|family of \d)/i.test(q)) {
+      q = `${q}, ${pax} people`;
+    }
     try {
       const next = [q, ...recentSearches.filter(s => s.toLowerCase() !== q.toLowerCase())].slice(0, 6);
       window.localStorage.setItem('tc_recent_searches', JSON.stringify(next));
@@ -152,7 +157,9 @@ export default function Home() {
       <div style={{ position: 'relative', zIndex: 1, maxWidth: 640, margin: '0 auto', padding: '0 20px' }}>
         {/* Header */}
         <header style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '20px 0', opacity: loaded ? 1 : 0, transition: 'opacity 0.5s' }}>
-          <div style={{ flex: 1 }} />
+          <div style={{ flex: 1, display: 'flex', justifyContent: 'flex-start' }}>
+            <button onClick={() => router.push('/history')} style={{ background: T.surface, border: `1px solid ${T.border}`, borderRadius: 10, padding: '6px 12px', cursor: 'pointer', fontSize: 12, color: T.textSub, fontFamily: 'inherit', fontWeight: 500 }}>History</button>
+          </div>
           <span style={{ fontWeight: 600, fontSize: 20, letterSpacing: '-0.02em', textAlign: 'center' }}>
             <span style={{ fontWeight: 300, opacity: 0.7 }}>Travel</span>Checkpoint
           </span>
@@ -225,8 +232,16 @@ export default function Home() {
           </div>
           </div>
 
-          {/* Suggestions */}
-          <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap', marginTop: 14, justifyContent: 'center' }}>
+          {/* Passengers + Suggestions */}
+          <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginTop: 14, flexWrap: 'wrap', justifyContent: 'center' }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 6, background: T.surface, border: `1px solid ${T.border}`, borderRadius: 100, padding: '5px 10px' }}>
+              <span style={{ fontSize: 12, color: T.textSub, fontFamily: 'inherit' }}>Pax</span>
+              <button onClick={() => setPax(p => Math.max(1, p - 1))} style={{ background: 'none', border: 'none', cursor: 'pointer', color: T.textSub, fontSize: 16, lineHeight: 1, padding: '0 2px', minWidth: 24, minHeight: 24, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>−</button>
+              <span style={{ fontSize: 14, fontWeight: 700, color: T.text, minWidth: 16, textAlign: 'center', fontFamily: 'inherit' }}>{pax}</span>
+              <button onClick={() => setPax(p => Math.min(9, p + 1))} style={{ background: 'none', border: 'none', cursor: 'pointer', color: T.textSub, fontSize: 16, lineHeight: 1, padding: '0 2px', minWidth: 24, minHeight: 24, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>+</button>
+            </div>
+          </div>
+          <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap', marginTop: 10, justifyContent: 'center' }}>
             {suggestions.map((s, i) => (
               <button key={i} onClick={() => { setQuery(s.replace(/→/g, 'to')); handleSearch(s.replace(/→/g, 'to')); }}
                 style={{ background: T.surface, border: `1px solid ${T.border}`, borderRadius: 100, padding: '6px 14px', cursor: 'pointer', fontSize: 12, color: T.textSub, fontFamily: 'inherit', transition: 'all 0.15s' }}
