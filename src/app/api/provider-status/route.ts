@@ -9,6 +9,7 @@ const PROVIDERS = [
   { id: 'skiplagged', label: 'Skiplagged proxy', env: 'SKIPLAGGED_PROXY_URL', feature: 'Live hidden-city checks' },
   { id: 'groq', label: 'Groq chat', env: 'GROQ_API_KEY', feature: 'Travel assistant chat' },
   { id: 'google-ai', label: 'Google AI', env: 'GOOGLE_AI_API_KEY', feature: 'Fallback travel assistant chat' },
+  { id: 'telegram', label: 'Telegram alerts', env: 'TELEGRAM_BOT_TOKEN', feature: 'Price drop notifications via Telegram' },
 ];
 
 export async function GET() {
