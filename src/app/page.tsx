@@ -68,6 +68,7 @@ export default function Home() {
   const [showCursor, setShowCursor] = useState(true);
   const [focused, setFocused] = useState(false);
   const [recentSearches, setRecentSearches] = useState<string[]>([]);
+  const [savedSearches, setSavedSearches] = useState<{ q: string; savedAt: string }[]>([]);
   const [pax, setPax] = useState(1);
   const inputRef = useRef<HTMLInputElement>(null);
   const scrollRef = useRef<HTMLDivElement>(null);
@@ -77,6 +78,10 @@ export default function Home() {
     try {
       const stored = JSON.parse(window.localStorage.getItem('tc_recent_searches') || '[]');
       if (Array.isArray(stored)) setRecentSearches(stored.filter((s): s is string => typeof s === 'string').slice(0, 6));
+    } catch { /* ignore corrupt local storage */ }
+    try {
+      const stored = JSON.parse(window.localStorage.getItem('tc_saved_searches') || '[]');
+      if (Array.isArray(stored)) setSavedSearches(stored.filter((s): s is { q: string; savedAt: string } => s && typeof s.q === 'string').slice(0, 6));
     } catch { /* ignore corrupt local storage */ }
   }, []);
 
@@ -263,6 +268,23 @@ export default function Home() {
                 <button key={s} onClick={() => handleSearch(s)} style={{ background: T.surface, border: `1px solid ${T.border}`, borderRadius: 12, padding: '11px 13px', color: T.textSub, textAlign: 'left', cursor: 'pointer', fontFamily: 'inherit', fontSize: 13, display: 'flex', justifyContent: 'space-between', gap: 10 }}>
                   <span style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{s}</span>
                   <span style={{ color: T.accent }}>↗</span>
+                </button>
+              ))}
+            </div>
+          </div>
+        )}
+
+        {savedSearches.length > 0 && (
+          <div style={{ marginTop: 20, opacity: loaded ? 1 : 0, transform: loaded ? 'none' : 'translateY(16px)', transition: 'all 0.5s ease 360ms' }}>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 12 }}>
+              <div style={{ fontSize: 11, fontWeight: 600, color: T.textMuted, textTransform: 'uppercase', letterSpacing: '0.12em' }}>Saved searches</div>
+              <button onClick={() => router.push('/settings')} style={{ background: 'none', border: 'none', color: T.textMuted, fontSize: 11, cursor: 'pointer' }}>Manage →</button>
+            </div>
+            <div style={{ display: 'grid', gap: 8 }}>
+              {savedSearches.map((s) => (
+                <button key={s.q} onClick={() => handleSearch(s.q)} style={{ background: `${T.accentSoft}`, border: `1px solid rgba(139,92,246,0.2)`, borderRadius: 12, padding: '11px 13px', color: T.text, textAlign: 'left', cursor: 'pointer', fontFamily: 'inherit', fontSize: 13, display: 'flex', justifyContent: 'space-between', gap: 10 }}>
+                  <span style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{s.q}</span>
+                  <span style={{ color: T.accent, flexShrink: 0 }}>★</span>
                 </button>
               ))}
             </div>

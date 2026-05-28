@@ -324,24 +324,6 @@ function SearchResults() {
     } catch { showToast('Could not save search'); }
   };
 
-  // Save to history so /history page can re-check prices later
-  const saveToHistory = (
-    bestCashPrice: number | null,
-    bestAwardMiles: number | null,
-    originCode: string,
-    destCode: string,
-    cabinClass: string,
-    pax: number
-  ) => {
-    try {
-      interface HistoryEntry { q: string; searchedAt: string; bestCash: number | null; bestAward: number | null; origin: string; destination: string; cabin: string; passengers: number }
-      const history = JSON.parse(window.localStorage.getItem('tc_search_history') || '[]') as HistoryEntry[];
-      const entry: HistoryEntry = { q, searchedAt: new Date().toISOString(), bestCash: bestCashPrice, bestAward: bestAwardMiles, origin: originCode, destination: destCode, cabin: cabinClass, passengers: pax };
-      const next = [entry, ...history.filter(h => h.q.toLowerCase() !== q.toLowerCase())].slice(0, 50);
-      window.localStorage.setItem('tc_search_history', JSON.stringify(next));
-    } catch { /* storage full or unavailable */ }
-  };
-
   const trackRoute = async () => {
     if (!selectedResults) { showToast('No route selected to track'); return; }
     const destCode = selectedResults.code || dest0?.code || '';
@@ -554,7 +536,23 @@ function SearchResults() {
             {selectedDest && <button onClick={() => setSelectedDest(null)} style={{ background: 'none', border: 'none', cursor: 'pointer', fontFamily: "'DM Sans'", fontSize: '12px', color: COLORS.accent, marginBottom: '12px' }}>← Back to all cities</button>}
 
             {/* Cash flights */}
-            {(flightFilter === 'all' || flightFilter === 'cash') && selectedResults && selectedResults.cashResults.length > 0 && (
+            {(flightFilter === 'all' || flightFilter === 'cash') && selectedResults && selectedResults.cashResults.length > 0 && (() => {
+              // Compute median of live prices for deal-value badges
+              const livePrices = selectedResults.cashResults
+                .filter(f => typeof f.price === 'number' && (f.price ?? 0) > 0 && f.isLivePrice !== false)
+                .map(f => f.price as number)
+                .sort((a, b) => a - b);
+              const median = livePrices.length > 0
+                ? livePrices[Math.floor(livePrices.length / 2)]
+                : null;
+              const getDealBadge = (price: number | null): { label: string; bg: string; color: string } | null => {
+                if (!median || !price || price <= 0) return null;
+                const ratio = price / median;
+                if (ratio <= 0.65) return { label: 'Best Deal', bg: 'rgba(34,197,94,0.15)', color: '#22C55E' };
+                if (ratio <= 0.82) return { label: 'Good Deal', bg: 'rgba(16,185,129,0.12)', color: '#10B981' };
+                return null;
+              };
+              return (
               <div style={{ marginBottom: '20px' }}>
                 <h3 style={{ fontFamily: "'Space Grotesk'", fontSize: '15px', fontWeight: 600, color: COLORS.text, marginBottom: '10px' }}>Cash Fares</h3>
                 {selectedResults.cashResults.every(f => f.status === 'fallback') && (
@@ -562,24 +560,31 @@ function SearchResults() {
                     These are direct search links to Google Flights and Skyscanner. They are not ranked prices, so TravelCheckpoint is being honest instead of pretending a $0 fare exists.
                   </ProviderNotice>
                 )}
-                {selectedResults.cashResults.slice(0, 8).map((f, i) => (
-                  <div key={f.id || i} style={{ background: 'rgba(255,255,255,0.04)', border: `1px solid ${COLORS.border}`, borderRadius: '10px', padding: '14px', marginBottom: '8px', display: 'flex', alignItems: 'center', gap: '12px', animation: `fadeIn 0.3s ease ${i * 0.05}s both` }}>
+                {selectedResults.cashResults.slice(0, 8).map((f, i) => {
+                  const dealBadge = getDealBadge(f.price ?? null);
+                  return (
+                  <div key={f.id || i} style={{ background: 'rgba(255,255,255,0.04)', border: `1px solid ${dealBadge ? 'rgba(34,197,94,0.2)' : COLORS.border}`, borderRadius: '10px', padding: '14px', marginBottom: '8px', display: 'flex', alignItems: 'center', gap: '12px', animation: `fadeIn 0.3s ease ${i * 0.05}s both` }}>
                     <AirlineLogo airline={f.airline} />
                     <div style={{ flex: 1, minWidth: 0 }}>
-                      <div style={{ fontFamily: "'DM Sans'", fontSize: '13px', fontWeight: 600, color: COLORS.text }}>{f.airline}</div>
+                      <div style={{ fontFamily: "'DM Sans'", fontSize: '13px', fontWeight: 600, color: COLORS.text, display: 'flex', alignItems: 'center', gap: '6px', flexWrap: 'wrap' }}>
+                        {f.airline}
+                        {dealBadge && <span style={{ fontFamily: "'DM Sans'", fontSize: '10px', fontWeight: 700, padding: '2px 7px', borderRadius: '999px', background: dealBadge.bg, color: dealBadge.color }}>{dealBadge.label}</span>}
+                      </div>
                       <div style={{ fontFamily: "'JetBrains Mono'", fontSize: '11px', color: COLORS.sub }}>
                         {f.route}{f.duration ? ` · ${f.duration}` : ''} · {f.stops === 0 ? 'Direct' : `${f.stops} stop${f.stops > 1 ? 's' : ''}`}
                       </div>
                     </div>
                     <div style={{ textAlign: 'right' }}>
-                      <div style={{ fontFamily: "'JetBrains Mono'", fontSize: '15px', fontWeight: 700, color: COLORS.text }}>{typeof f.price === 'number' && f.price > 0 ? `$${f.price.toLocaleString()}` : 'Check live'}</div>
+                      <div style={{ fontFamily: "'JetBrains Mono'", fontSize: '15px', fontWeight: 700, color: dealBadge ? '#22C55E' : COLORS.text }}>{typeof f.price === 'number' && f.price > 0 ? `$${f.price.toLocaleString()}` : 'Check live'}</div>
                       {typeof f.price === 'number' && f.price > 0 && passengers > 1 && <div style={{ fontFamily: "'JetBrains Mono'", fontSize: '10px', color: COLORS.sub }}>${(f.price * passengers).toLocaleString()} total</div>}
                       {f.status === 'fallback' && <a href={f.bookingUrl} target="_blank" rel="noopener" style={{ fontSize: '10px', color: COLORS.accent, textDecoration: 'none' }}>Open search →</a>}
                     </div>
                   </div>
-                ))}
+                  );
+                })}
               </div>
-            )}
+              );
+            })()}
 
             {/* Award flights */}
             {(flightFilter === 'all' || flightFilter === 'points') && selectedResults && selectedResults.awardResults.length > 0 && (
