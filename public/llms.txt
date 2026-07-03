@@ -1,0 +1,28 @@
+# TravelCheckpoint
+
+TravelCheckpoint is Gary Cakir's personal mobile-first flight and hotel search PWA. It is not a public product and has no open registration.
+
+## What it does
+
+- Natural-language flight search ("Dubai to London, business, next week")
+- Parallel fan-out across: Seats.aero award seats (12 loyalty programs), Google Flights (self-hosted scraper + SerpAPI fallback), Duffel bookable offers, Kiwi creative routes, Skiplagged hidden-city fares, LiteAPI hotel rates, rooms.aero hotel points
+- Currency conversion, visa requirement lookup, hidden-gem destination suggestions
+- Price alert tracking with Telegram notifications
+- PWA — installable on Android and iOS
+
+## Tech stack
+
+Next.js 16 App Router, TypeScript, deployed on Vercel. No database — user data (history, preferences, saved searches) lives in localStorage.
+
+## Data sources
+
+- Seats.aero: award seat availability across 12 frequent-flyer programs
+- SerpAPI: Google Flights fallback for cash prices
+- Duffel: bookable airline offers
+- LiteAPI: hotel rates (sandbox in current deployment)
+- fawazahmed0 CDN: currency exchange rates
+- Groq / Llama 3.3 70B: chat assistant with Gemini 2.0 Flash fallback
+
+## Scope
+
+Personal tool for one user (Gary Cakir, based in Dubai). Not open to the public.

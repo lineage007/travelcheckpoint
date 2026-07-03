@@ -20,15 +20,17 @@ const T = {
 };
 
 /* ─── Destination cards ─── */
+// M1: Removed hardcoded 'price' fields — they were stale strings that drifted from real fares.
+// Clicking a card already triggers a live search; no price preview needed here.
 const destinations = [
-  { name: 'London', code: 'LHR', region: 'United Kingdom', price: '342', img: 'https://images.unsplash.com/photo-1513635269975-59663e0ac1ad?w=400&h=500&fit=crop' },
-  { name: 'Istanbul', code: 'IST', region: 'Türkiye', price: '195', img: 'https://images.unsplash.com/photo-1524231757912-21f4fe3a7200?w=400&h=500&fit=crop' },
-  { name: 'Bangkok', code: 'BKK', region: 'Thailand', price: '289', img: 'https://images.unsplash.com/photo-1508009603885-50cf7c579365?w=400&h=500&fit=crop' },
-  { name: 'Bali', code: 'DPS', region: 'Indonesia', price: '378', img: 'https://images.unsplash.com/photo-1537996194471-e657df975ab4?w=400&h=500&fit=crop' },
-  { name: 'Tokyo', code: 'NRT', region: 'Japan', price: '489', img: 'https://images.unsplash.com/photo-1540959733332-eab4deabeeaf?w=400&h=500&fit=crop' },
-  { name: 'Maldives', code: 'MLE', region: 'Indian Ocean', price: '520', img: 'https://images.unsplash.com/photo-1514282401047-d79a71a590e8?w=400&h=500&fit=crop' },
-  { name: 'Singapore', code: 'SIN', region: 'Southeast Asia', price: '310', img: 'https://images.unsplash.com/photo-1525625293386-3f8f99389edd?w=400&h=500&fit=crop' },
-  { name: 'Kuala Lumpur', code: 'KUL', region: 'Malaysia', price: '245', img: 'https://images.unsplash.com/photo-1596422846543-75c6fc197f07?w=400&h=500&fit=crop' },
+  { name: 'London', code: 'LHR', region: 'United Kingdom', img: 'https://images.unsplash.com/photo-1513635269975-59663e0ac1ad?w=400&h=500&fit=crop' },
+  { name: 'Istanbul', code: 'IST', region: 'Türkiye', img: 'https://images.unsplash.com/photo-1524231757912-21f4fe3a7200?w=400&h=500&fit=crop' },
+  { name: 'Bangkok', code: 'BKK', region: 'Thailand', img: 'https://images.unsplash.com/photo-1508009603885-50cf7c579365?w=400&h=500&fit=crop' },
+  { name: 'Bali', code: 'DPS', region: 'Indonesia', img: 'https://images.unsplash.com/photo-1537996194471-e657df975ab4?w=400&h=500&fit=crop' },
+  { name: 'Tokyo', code: 'NRT', region: 'Japan', img: 'https://images.unsplash.com/photo-1540959733332-eab4deabeeaf?w=400&h=500&fit=crop' },
+  { name: 'Maldives', code: 'MLE', region: 'Indian Ocean', img: 'https://images.unsplash.com/photo-1514282401047-d79a71a590e8?w=400&h=500&fit=crop' },
+  { name: 'Singapore', code: 'SIN', region: 'Southeast Asia', img: 'https://images.unsplash.com/photo-1525625293386-3f8f99389edd?w=400&h=500&fit=crop' },
+  { name: 'Kuala Lumpur', code: 'KUL', region: 'Malaysia', img: 'https://images.unsplash.com/photo-1596422846543-75c6fc197f07?w=400&h=500&fit=crop' },
 ];
 
 const quickSearches = [
@@ -304,10 +306,7 @@ export default function Home() {
                 <div style={{ position: 'absolute', bottom: 0, left: 0, right: 0, padding: 16, zIndex: 1, textShadow: '0 1px 4px rgba(0,0,0,0.6)' }}>
                   <div style={{ fontSize: 16, fontWeight: 700, marginBottom: 2, color: '#fff' }}>{d.name}</div>
                   <div style={{ fontSize: 11, color: 'rgba(255,255,255,0.75)' }}>{d.region}</div>
-                  <div style={{ marginTop: 8, display: 'flex', alignItems: 'baseline', gap: 4 }}>
-                    <span style={{ fontSize: 11, color: 'rgba(255,255,255,0.65)' }}>from</span>
-                    <span style={{ fontSize: 18, fontWeight: 700, color: '#fff' }}>${d.price}</span>
-                  </div>
+                  {/* M1: Stale hardcoded prices removed — click to search for live fares */}
                 </div>
                 <div className="dest-arrow" style={{ position: 'absolute', top: 12, right: 12, width: 28, height: 28, borderRadius: '50%', background: 'rgba(255,255,255,0.2)', display: 'flex', alignItems: 'center', justifyContent: 'center', opacity: 0, transform: 'translateX(-4px)', transition: 'all 0.3s', backdropFilter: 'blur(8px)' }}>
                   <svg width={14} height={14} viewBox="0 0 24 24" fill="none" stroke="#fff" strokeWidth={2}><line x1="5" y1="12" x2="19" y2="12" /><polyline points="12 5 19 12 12 19" /></svg>

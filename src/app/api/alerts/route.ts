@@ -67,7 +67,9 @@ async function fetchBestPrices(
   passengers: number
 ): Promise<{ cash: number | null; award: number | null }> {
   const date = new Date(Date.now() + 14 * 86400000).toISOString().split('T')[0];
-  const base = process.env.NEXT_PUBLIC_BASE_URL || 'http://localhost:3000';
+  // H2: Derive base URL from explicit setting, Vercel auto-env, or localhost for local dev.
+  const base = process.env.NEXT_PUBLIC_BASE_URL ||
+    (process.env.VERCEL_URL ? `https://${process.env.VERCEL_URL}` : 'http://localhost:3000');
   try {
     const res = await fetch(
       `${base}/api/search?origin=${origin}&destination=${destination}&cabin=${cabin}&date=${date}&passengers=${passengers}`,
@@ -96,6 +98,13 @@ async function fetchBestPrices(
 }
 
 export async function POST(request: NextRequest) {
+  // C1: Pre-shared secret guard — prevents unauthenticated callers from flooding the alert store.
+  // Set TC_SECRET in Vercel env vars. Requests without the correct header are rejected.
+  const tcSecret = process.env.TC_SECRET;
+  if (tcSecret && request.headers.get('X-TC-Secret') !== tcSecret) {
+    return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+  }
+
   if (!BOT_TOKEN || !CHAT_ID) {
     return NextResponse.json(
       { error: 'Telegram not configured. Set TELEGRAM_BOT_TOKEN and TELEGRAM_CHAT_ID env vars.' },

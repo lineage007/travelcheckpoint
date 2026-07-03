@@ -1,0 +1,6 @@
+User-agent: *
+Disallow: /api/
+Disallow: /search
+Allow: /
+
+Sitemap: https://travelcheckpoint.vercel.app/sitemap.xml

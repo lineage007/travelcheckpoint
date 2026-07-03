@@ -254,20 +254,32 @@ function parseDates(text: string): { dates: string[]; isRange: boolean } {
 }
 
 export async function POST(request: NextRequest) {
-  const { query } = await request.json();
+  // H5: Accept homeAirport param so the user's saved home airport is used as default origin.
+  const { query, homeAirport } = await request.json();
   if (!query) return NextResponse.json({ error: 'No query provided' }, { status: 400 });
 
+  // Resolve the default origin from homeAirport hint (IATA code from settings), falling back to DXB.
+  const defaultOrigin: { code: string; city: string } = (() => {
+    if (typeof homeAirport === 'string' && /^[A-Z]{3}$/i.test(homeAirport.trim())) {
+      const code = homeAirport.trim().toUpperCase();
+      // Look up city name in our airports table (reverse lookup by code)
+      const cityEntry = Object.values(AIRPORTS).find(a => a.code === code);
+      return cityEntry || { code, city: code };
+    }
+    return { code: 'DXB', city: 'Dubai' };
+  })();
+
   const lower = query.toLowerCase();
-  
+
   // Detect special keywords that imply region searches
   const isAnywhereSearch = /\b(anywhere|everywhere|cheapest\s*(?:getaway|flight|fare)?|best\s*deal)\b/.test(lower);
   const isNearbySearch = /\b(nearby|near|close|short[\s-]*haul|getaway|weekend\s*getaway|quick\s*escape)\b/.test(lower) && !isAnywhereSearch;
-  
+
   const parts = lower.split(/\s+to\s+|\s*[→\-–>]+\s*/);
-  
-  // Parse origin
+
+  // Parse origin — use user's home airport as fallback instead of hardcoded DXB.
   let origin = findAirport(parts[0] || '') || findRegion(parts[0] || '')?.[0] || null;
-  if (!origin) origin = { code: 'DXB', city: 'Dubai' }; // Default to Dubai
+  if (!origin) origin = defaultOrigin;
   
   // Parse destination — handle special keywords first
   let destText = parts.length > 1 ? parts.slice(1).join(' ') : '';

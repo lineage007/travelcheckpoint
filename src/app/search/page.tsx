@@ -135,7 +135,12 @@ function SearchResults() {
     // 1. Parse the query
     let parseData: Record<string, unknown> = {};
     try {
-      const res = await fetch('/api/parse', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ query: q }) });
+      // H5: Pass the user's saved home airport as a hint so the parse route uses it as default
+      // origin instead of always defaulting to DXB.
+      const homeAirport = typeof window !== 'undefined'
+        ? (window.localStorage.getItem('tc_home_airport') || 'DXB')
+        : 'DXB';
+      const res = await fetch('/api/parse', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ query: q, homeAirport }) });
       if (res.ok) {
         const d = await res.json();
         parseData = d.parsed || {};
@@ -577,7 +582,7 @@ function SearchResults() {
                     <div style={{ textAlign: 'right' }}>
                       <div style={{ fontFamily: "'JetBrains Mono'", fontSize: '15px', fontWeight: 700, color: dealBadge ? '#22C55E' : COLORS.text }}>{typeof f.price === 'number' && f.price > 0 ? `$${f.price.toLocaleString()}` : 'Check live'}</div>
                       {typeof f.price === 'number' && f.price > 0 && passengers > 1 && <div style={{ fontFamily: "'JetBrains Mono'", fontSize: '10px', color: COLORS.sub }}>${(f.price * passengers).toLocaleString()} total</div>}
-                      {f.status === 'fallback' && <a href={f.bookingUrl} target="_blank" rel="noopener" style={{ fontSize: '10px', color: COLORS.accent, textDecoration: 'none' }}>Open search →</a>}
+                      {f.status === 'fallback' && <a href={f.bookingUrl} target="_blank" rel="noopener noreferrer" style={{ fontSize: '10px', color: COLORS.accent, textDecoration: 'none' }}>Open search →</a>}
                     </div>
                   </div>
                   );
@@ -601,7 +606,7 @@ function SearchResults() {
                     <div style={{ textAlign: 'right' }}>
                       <div style={{ fontFamily: "'JetBrains Mono'", fontSize: '15px', fontWeight: 700, color: COLORS.accent }}>{(f.miles / 1000).toFixed(0)}K mi</div>
                       <div style={{ fontFamily: "'JetBrains Mono'", fontSize: '10px', color: COLORS.sub }}>+${f.taxes} tax</div>
-                      <a href={AIRLINE_BOOK_URLS[f.airline] || '#'} target="_blank" rel="noopener" style={{ fontSize: '10px', color: COLORS.accent, textDecoration: 'none' }}>Book →</a>
+                      <a href={AIRLINE_BOOK_URLS[f.airline] || '#'} target="_blank" rel="noopener noreferrer" style={{ fontSize: '10px', color: COLORS.accent, textDecoration: 'none' }}>Book →</a>
                     </div>
                   </div>
                 ))}
@@ -643,7 +648,7 @@ function SearchResults() {
                     </div>
                     <div style={{ textAlign: 'right' }}>
                       <div style={{ fontFamily: "'JetBrains Mono'", fontSize: '15px', fontWeight: 700, color: COLORS.text }}>${f.price.toLocaleString()}</div>
-                      <a href={f.bookingLink} target="_blank" rel="noopener" style={{ fontSize: '10px', color: COLORS.accent, textDecoration: 'none' }}>Book on Kiwi →</a>
+                      <a href={f.bookingLink} target="_blank" rel="noopener noreferrer" style={{ fontSize: '10px', color: COLORS.accent, textDecoration: 'none' }}>Book on Kiwi →</a>
                     </div>
                   </div>
                 ))}
@@ -750,9 +755,9 @@ function SearchResults() {
                           </div>
                         ) : null}
                         <div style={{ display: 'flex', gap: '6px', flexWrap: 'wrap' }}>
-                          <a href={`https://www.booking.com/searchresults.html?ss=${hotelSearch}&checkin=${stayDate}&checkout=${stayCheckoutDate}&group_adults=${passengers}`} target="_blank" rel="noopener" style={{ fontSize: '11px', fontWeight: 600, color: '#003580', background: 'rgba(0,53,128,0.1)', padding: '5px 10px', borderRadius: '6px', textDecoration: 'none' }}>Booking.com</a>
-                          <a href={`https://www.expedia.com/Hotel-Search?destination=${hotelSearch}&startDate=${stayDate}&endDate=${stayCheckoutDate}&adults=${passengers}`} target="_blank" rel="noopener" style={{ fontSize: '11px', fontWeight: 600, color: '#00355F', background: 'rgba(0,53,95,0.1)', padding: '5px 10px', borderRadius: '6px', textDecoration: 'none' }}>Expedia</a>
-                          <a href={`https://www.google.com/travel/hotels/${hotelSearch}?q=${hotelSearch}&checkin=${stayDate}&checkout=${stayCheckoutDate}`} target="_blank" rel="noopener" style={{ fontSize: '11px', fontWeight: 600, color: COLORS.accent, background: 'rgba(6,182,212,0.1)', padding: '5px 10px', borderRadius: '6px', textDecoration: 'none' }}>Google</a>
+                          <a href={`https://www.booking.com/searchresults.html?ss=${hotelSearch}&checkin=${stayDate}&checkout=${stayCheckoutDate}&group_adults=${passengers}`} target="_blank" rel="noopener noreferrer" style={{ fontSize: '11px', fontWeight: 600, color: '#003580', background: 'rgba(0,53,128,0.1)', padding: '5px 10px', borderRadius: '6px', textDecoration: 'none' }}>Booking.com</a>
+                          <a href={`https://www.expedia.com/Hotel-Search?destination=${hotelSearch}&startDate=${stayDate}&endDate=${stayCheckoutDate}&adults=${passengers}`} target="_blank" rel="noopener noreferrer" style={{ fontSize: '11px', fontWeight: 600, color: '#00355F', background: 'rgba(0,53,95,0.1)', padding: '5px 10px', borderRadius: '6px', textDecoration: 'none' }}>Expedia</a>
+                          <a href={`https://www.google.com/travel/hotels/${hotelSearch}?q=${hotelSearch}&checkin=${stayDate}&checkout=${stayCheckoutDate}`} target="_blank" rel="noopener noreferrer" style={{ fontSize: '11px', fontWeight: 600, color: COLORS.accent, background: 'rgba(6,182,212,0.1)', padding: '5px 10px', borderRadius: '6px', textDecoration: 'none' }}>Google</a>
                         </div>
                       </div>
                     </div>
@@ -771,7 +776,7 @@ function SearchResults() {
                 </ProviderNotice>
                 <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(160px, 1fr))', gap: '10px', marginBottom: '24px' }}>
                 {stayLinks.map((link) => (
-                  <a key={link.name} href={link.url} target="_blank" rel="noopener" style={{
+                  <a key={link.name} href={link.url} target="_blank" rel="noopener noreferrer" style={{
                     background: 'rgba(255,255,255,0.04)', border: `1px solid ${COLORS.border}`, borderRadius: '12px', padding: '20px 16px',
                     textDecoration: 'none', textAlign: 'center', display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '8px',
                   }}>

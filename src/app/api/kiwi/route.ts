@@ -77,8 +77,10 @@ export async function GET(req: NextRequest) {
         stops: f.stops || 0,
         route: f.route || `${from} → ${to}`,
         bookingLink: f.booking_link || '',
-        isCreativeRoute: f.is_virtual_interline || (flights.length > 0),
-        isVirtualInterline: f.is_virtual_interline || (flights.length > 0),
+        // H4: Removed `|| (flights.length > 0)` — that expression was always true and
+        // incorrectly flagged every Kiwi result as virtual interline.
+        isCreativeRoute: f.is_virtual_interline || false,
+        isVirtualInterline: f.is_virtual_interline || false,
         source: 'kiwi',
         status: 'live',
       };

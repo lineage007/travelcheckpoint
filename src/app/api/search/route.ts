@@ -151,8 +151,9 @@ async function searchCashFlights(origin: string, destination: string, date: stri
   if (serpApiKey) {
     try {
       const travelClass = cabin === 'first' ? 4 : cabin === 'business' ? 3 : cabin === 'premium' ? 2 : 1;
-      const url = `https://serpapi.com/search.json?engine=google_flights&departure_id=${origin}&arrival_id=${destination}&outbound_date=${departDate}&type=2&travel_class=${travelClass}&currency=USD&hl=en&api_key=${serpApiKey}`;
-      const res = await fetch(url, { signal: AbortSignal.timeout(15000) });
+      // H1: API key moved to Authorization header to avoid appearing in Vercel function logs.
+      const url = `https://serpapi.com/search.json?engine=google_flights&departure_id=${origin}&arrival_id=${destination}&outbound_date=${departDate}&type=2&travel_class=${travelClass}&currency=USD&hl=en`;
+      const res = await fetch(url, { signal: AbortSignal.timeout(15000), headers: { 'Authorization': `Bearer ${serpApiKey}` } });
       if (res.ok) {
         const data = await res.json();
         const allFlights = [...(data.best_flights || []), ...(data.other_flights || [])];

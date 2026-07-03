@@ -30,7 +30,8 @@ const V: Record<string, Record<string, VisaInfo>> = {
     MX: { status: 'visa-required' }, CA: { status: 'visa-required' },
   },
   AU: {
-    GB: { status: 'visa-free', days: 180 }, US: { status: 'visa-free', days: 90, note: 'ESTA' },
+    // M7: AU→US requires ESTA (electronic travel authorisation, $21 fee). Changed from 'visa-free'.
+    GB: { status: 'visa-free', days: 180 }, US: { status: 'esta-required', days: 90, note: 'ESTA required — apply online before travel, $21 fee' },
     DE: { status: 'visa-free', days: 90 }, FR: { status: 'visa-free', days: 90 },
     IT: { status: 'visa-free', days: 90 }, ES: { status: 'visa-free', days: 90 },
     JP: { status: 'visa-free', days: 90 }, SG: { status: 'visa-free', days: 90 },
