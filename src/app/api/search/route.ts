@@ -45,10 +45,24 @@ interface AwardResult {
   transferFrom: string[];
 }
 
-async function searchAwards(origin: string, destination: string, cabin: string): Promise<AwardResult[]> {
-  if (!SEATS_API_KEY) return [];
+// Seats.aero enforces a daily request quota and every award search fans out to 12
+// sources, so results are cached in-process (Fluid Compute reuses instances) and
+// 429s are tracked so the UI can say "rate-limited" instead of "no awards".
+const AWARD_CACHE_TTL_MS = 45 * 60 * 1000;
+const awardCache = new Map<string, { at: number; results: AwardResult[] }>();
+
+async function searchAwards(origin: string, destination: string, cabin: string): Promise<{ results: AwardResult[]; rateLimited: boolean }> {
+  if (!SEATS_API_KEY) return { results: [], rateLimited: false };
+
+  const cacheKey = `${origin}-${destination}-${cabin}`;
+  const cached = awardCache.get(cacheKey);
+  if (cached && Date.now() - cached.at < AWARD_CACHE_TTL_MS) {
+    return { results: cached.results, rateLimited: false };
+  }
+
   const cabinKey = cabin === 'first' ? 'F' : cabin === 'business' ? 'J' : cabin === 'premium' ? 'W' : 'Y';
   const results: AwardResult[] = [];
+  let rateLimitedCount = 0;
 
   const searches = SOURCES.map(async (source) => {
     try {
@@ -56,6 +70,7 @@ async function searchAwards(origin: string, destination: string, cabin: string):
         `https://seats.aero/partnerapi/availability?source=${source}&origin=${origin}&destination=${destination}&cabin=${cabin}`,
         { headers: { 'Partner-Authorization': SEATS_API_KEY }, signal: AbortSignal.timeout(12000) }
       );
+      if (res.status === 429) { rateLimitedCount++; return []; }
       if (!res.ok) return [];
       const data = await res.json();
       const items = data.data || data || [];
@@ -91,7 +106,11 @@ async function searchAwards(origin: string, destination: string, cabin: string):
 
   (await Promise.all(searches)).forEach(batch => results.push(...batch));
   results.sort((a, b) => a.miles - b.miles);
-  return results;
+
+  const rateLimited = rateLimitedCount > 0 && results.length === 0;
+  // Don't cache rate-limited empties — they'd mask recovery for 45 minutes.
+  if (!rateLimited) awardCache.set(cacheKey, { at: Date.now(), results });
+  return { results, rateLimited };
 }
 
 // ═══════════════════════════════════════════════════
@@ -349,6 +368,9 @@ export async function GET(request: NextRequest) {
   const passengers = Number.isFinite(parsedPassengers) ? Math.min(Math.max(parsedPassengers, 1), 9) : 1;
   const requestedStops = searchParams.get('maxStops');
   const maxStops = requestedStops !== null ? parseInt(requestedStops, 10) : null;
+  // Award availability isn't date-specific, so multi-date clients pass skipAwards=1
+  // on every date after the first to protect the seats.aero quota.
+  const skipAwards = searchParams.get('skipAwards') === '1';
 
   if (!/^[A-Z]{3}$/.test(origin) || !/^[A-Z]{3}$/.test(destination)) {
     return NextResponse.json({ error: 'Invalid airport code' }, { status: 400 });
@@ -361,12 +383,13 @@ export async function GET(request: NextRequest) {
 
   try {
     // Fan out all searches in parallel
-    const [awards, cash, emptyLegs, hiddenCity] = await Promise.all([
-      searchAwards(origin, destination, cabin),
+    const [awardOutcome, cash, emptyLegs, hiddenCity] = await Promise.all([
+      skipAwards ? Promise.resolve({ results: [], rateLimited: false }) : searchAwards(origin, destination, cabin),
       searchCashFlights(origin, destination, date, cabin),
       searchEmptyLegs(origin),
       searchHiddenCity(origin, destination, date, cabin),
     ]);
+    const awards = awardOutcome.results;
 
     // Filter by max stops if specified
     const filteredCash = maxStops !== null && !isNaN(maxStops) 
@@ -420,7 +443,10 @@ export async function GET(request: NextRequest) {
         maxStops,
         sourcesSearched: SOURCES.length + 1,
         providerStatus: {
-          awards: SEATS_API_KEY ? 'configured' : 'missing-key',
+          awards: !SEATS_API_KEY ? 'missing-key'
+            : skipAwards ? 'skipped'
+            : awardOutcome.rateLimited ? 'rate-limited'
+            : awards.length > 0 ? 'live' : 'configured',
           cash: liveCash.length > 0 ? 'live' : 'fallback-links-only',
           hiddenCity: liveHiddenCity.length > 0 ? 'live' : 'manual-check-only',
           emptyLegs: emptyLegs.some(e => typeof e.price === 'number' && e.price > 0 && e.isLivePrice) ? 'live' : 'directory-links-only',

@@ -283,14 +283,19 @@ function SearchResults() {
         const allAwards: AwardResult[] = [];
         const seen = new Set<string>();
 
-        const dateSearches = searchDates.map((date) => withSlot(async () => {
+        const dateSearches = searchDates.map((date, dateIdx) => withSlot(async () => {
           const stopsParam = maxStops !== null && maxStops !== undefined ? `&maxStops=${maxStops}` : '';
-          const res = await fetch(`/api/search?origin=${origin}&destination=${dest.code}&cabin=${cabin}&date=${date}&passengers=${pax}${stopsParam}`, { signal: AbortSignal.timeout(20000) });
+          // Awards aren't date-specific — only the first date queries seats.aero,
+          // the rest skip it to protect the daily quota.
+          const awardsParam = dateIdx > 0 ? '&skipAwards=1' : '';
+          const res = await fetch(`/api/search?origin=${origin}&destination=${dest.code}&cabin=${cabin}&date=${date}&passengers=${pax}${stopsParam}${awardsParam}`, { signal: AbortSignal.timeout(20000) });
           const data = await res.json();
           const awards: AwardResult[] = data.results?.awards || [];
           const cash: CashResult[] = data.results?.cash || [];
           if (!isRegion && data.meta?.providerStatus) {
-            setProviderStatuses(prev => ({ ...prev, ...data.meta.providerStatus }));
+            const ps = { ...data.meta.providerStatus };
+            if (ps.awards === 'skipped') delete ps.awards;
+            setProviderStatuses(prev => ({ ...prev, ...ps }));
           }
 
           for (const c of cash) {
@@ -630,7 +635,9 @@ function SearchResults() {
             {selectedResults && !loading && (
               <div style={{ display: 'flex', gap: '8px', flexWrap: 'wrap', marginBottom: '14px' }}>
                 <StatusPill label={liveCashCount > 0 ? `${liveCashCount} live cash` : providerStatuses.cash === 'fallback-links-only' ? 'cash fallback' : 'cash pending'} tone={liveCashCount > 0 ? 'live' : providerStatuses.cash === 'fallback-links-only' ? 'fallback' : 'empty'} />
-                <StatusPill label={selectedAwards.length > 0 ? `${selectedAwards.length} award seats` : providerStatuses.awards === 'missing-key' ? 'awards missing key' : 'no awards'} tone={selectedAwards.length > 0 ? 'live' : providerStatuses.awards === 'missing-key' ? 'warning' : 'empty'} />
+                <StatusPill
+                  label={selectedAwards.length > 0 ? `${selectedAwards.length} award seats` : providerStatuses.awards === 'rate-limited' ? 'awards rate-limited — retry later' : providerStatuses.awards === 'missing-key' ? 'awards missing key' : 'no awards'}
+                  tone={selectedAwards.length > 0 ? 'live' : providerStatuses.awards === 'rate-limited' || providerStatuses.awards === 'missing-key' ? 'warning' : 'empty'} />
                 <StatusPill label={kiwiResults.length > 0 ? `${kiwiResults.length} creative` : providerStatuses.kiwi === 'unavailable' ? 'kiwi unavailable' : 'creative routes'} tone={kiwiResults.length > 0 ? 'live' : providerStatuses.kiwi === 'unavailable' ? 'fallback' : 'empty'} />
                 <StatusPill label={hiddenCity.length > 0 ? `${hiddenCity.length} hidden-city` : providerStatuses.skiplagged === 'not-configured' ? 'skiplagged not configured' : 'hidden city'} tone={hiddenCity.length > 0 ? 'live' : providerStatuses.skiplagged === 'not-configured' ? 'fallback' : 'empty'} />
               </div>
