@@ -1,3 +1,16 @@
+# What's New — 2026-07-13 (2): multi-city × multi-date search
+
+Searches now fan out across **cities and dates at the same time**, so one query surfaces the cheapest city/date combos instead of a single snapshot:
+
+- **Date ranges from natural language** — "next week" / "next month" / "flexible" now parse to a full window (7 days) instead of one day.
+- **Budgeted fan-out** — up to ~30 provider searches per query (max 4 dates/city, concurrency-capped at 12) sampled evenly across the window. A Europe search covers 10 cities × 3 dates.
+- **Date strip** — per-date best price above Cash Fares ("Mon 20 Jul · $1,521 · Fri 24 Jul · $1,312"), cheapest date outlined green, tap to filter results to that date.
+- **±days flex chips** — Exact / ±1 day / ±3 days in the refinement bar expand any exact date into a window (`&flex=` URL param, shareable).
+- **Cheapest-date tags** — multi-city overview cards show *which* date is cheapest per city ("best Mon 20 Jul"); result cards carry their date; trip header shows the searched window.
+- Fixed duplicate React keys when merging multi-date results.
+
+---
+
 # What's New — batch 2026-07-13: every result is now bookable
 
 ## 1. Clickable results everywhere

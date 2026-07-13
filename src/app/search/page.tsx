@@ -46,7 +46,7 @@ interface DuffelResult { id: string; price: number; currency: string; airlines: 
 interface RoomResult { hotel: string; chain: string; location: string; pointsPerNight: number; cashRate: number; centsPerPoint: number; roomType: string; availability: boolean }
 interface GemInfo { name: string; desc: string; type: string }
 interface HotelLinks { [key: string]: { url: string; name: string; color: string } }
-interface DestResult { code: string; city: string; cheapestCash: number | null; cheapestAward: number | null; cashResults: CashResult[]; awardResults: AwardResult[]; loading: boolean }
+interface DestResult { code: string; city: string; cheapestCash: number | null; cheapestCashDate: string | null; cheapestAward: number | null; cashResults: CashResult[]; awardResults: AwardResult[]; loading: boolean }
 
 type MainTab = 'flights' | 'stay' | 'explore';
 type FlightFilter = 'all' | 'cash' | 'points' | 'hidden' | 'creative';
@@ -133,6 +133,9 @@ function BookCta({ label }: { label: string }) {
   );
 }
 
+// "2026-07-20" → "Mon 20 Jul" for date chips and cheapest-date tags.
+const fmtDay = (d: string) => new Date(`${d}T12:00:00Z`).toLocaleDateString('en-GB', { weekday: 'short', day: 'numeric', month: 'short', timeZone: 'UTC' });
+
 // "10:30 PM" / "09:45" → minutes since midnight, for departure-time sorting.
 const parseTimeMin = (t: string): number => {
   const m = formatDep(t || '').match(/(\d{1,2}):(\d{2})\s*(AM|PM)?/i);
@@ -152,6 +155,11 @@ function SearchResults() {
   const [mainTab, setMainTab] = useState<MainTab>('flights');
   const [flightFilter, setFlightFilter] = useState<FlightFilter>('all');
   const [cashSort, setCashSort] = useState<'price' | 'duration' | 'departure'>('price');
+  // Multi-date search: which dates were actually searched, and an optional single-date filter.
+  const [searchedDates, setSearchedDates] = useState<string[]>([]);
+  const [dateFilter, setDateFilter] = useState<string | null>(null);
+  // ±N days flexibility around the parsed date, driven by the &flex= URL param.
+  const flexDays = Math.max(0, Math.min(3, parseInt(searchParams.get('flex') || '0', 10) || 0));
   const [loading, setLoading] = useState(true);
   const [destinations, setDestinations] = useState<DestResult[]>([]);
   const [parsed, setParsed] = useState<Record<string, unknown> | null>(null);
@@ -196,6 +204,8 @@ function SearchResults() {
     setRoomResults([]);
     setLiteHotels([]);
     setProviderStatuses({});
+    setSearchedDates([]);
+    setDateFilter(null);
 
     try {
     // 1. Parse the query
@@ -229,21 +239,50 @@ function SearchResults() {
     // Cap region searches at 10 cities max to avoid timeouts
     const destList = rawDestList.slice(0, 10);
 
-    const initDests: DestResult[] = destList.map(d => ({ code: d.code, city: d.city, cheapestCash: null, cheapestAward: null, cashResults: [], awardResults: [], loading: true }));
+    const initDests: DestResult[] = destList.map(d => ({ code: d.code, city: d.city, cheapestCash: null, cheapestCashDate: null, cheapestAward: null, cashResults: [], awardResults: [], loading: true }));
     setDestinations(initDests);
     setLoading(false);
 
-    // 2. Search flights for all destinations in parallel — search each date in range
+    // 2. Multi-city × multi-date fan-out under a fixed request budget.
+    // Expand ±flexDays around the first parsed date, merge with any parsed range.
+    let allDates = [...departDates];
+    if (flexDays > 0) {
+      const base = new Date(`${departDates[0]}T00:00:00.000Z`);
+      const expanded = new Set<string>(departDates);
+      for (let off = -flexDays; off <= flexDays; off++) {
+        const d = new Date(base.getTime() + off * 86400000);
+        if (d.getTime() > Date.now()) expanded.add(d.toISOString().split('T')[0]);
+      }
+      allDates = [...expanded].sort();
+    }
+    // Budget: at most ~30 searches per query, max 4 dates per city. Sample the
+    // range evenly so a 7-day window still covers start/middle/end.
+    const dateCap = Math.max(1, Math.min(4, Math.floor(30 / destList.length)));
+    const searchDates = allDates.length <= dateCap
+      ? allDates
+      : dateCap === 1
+        ? [allDates[0]]
+        : Array.from({ length: dateCap }, (_, i) => allDates[Math.round(i * (allDates.length - 1) / (dateCap - 1))]);
+    setSearchedDates(searchDates);
+
+    // Concurrency limiter: keep at most 12 provider searches in flight.
+    let inFlight = 0;
+    const waiters: (() => void)[] = [];
+    const withSlot = async (fn: () => Promise<void>): Promise<void> => {
+      if (inFlight >= 12) await new Promise<void>(r => waiters.push(r));
+      inFlight++;
+      try { await fn(); } catch { /* one failed date must not sink the city */ }
+      finally { inFlight--; waiters.shift()?.(); }
+    };
+
     const promises = destList.map(async (dest, idx) => {
       try {
-        // Search all dates and merge results (dedup by price+airline)
+        // Search all dates and merge results (dedup per date by airline+price+time)
         const allCash: CashResult[] = [];
         const allAwards: AwardResult[] = [];
         const seen = new Set<string>();
 
-        // Search each date — limit to 1 date for region searches (max 3 for single-city)
-        const searchDates = isRegion ? departDates.slice(0, 1) : departDates.slice(0, 3);
-        const dateSearches = searchDates.map(async (date) => {
+        const dateSearches = searchDates.map((date) => withSlot(async () => {
           const stopsParam = maxStops !== null && maxStops !== undefined ? `&maxStops=${maxStops}` : '';
           const res = await fetch(`/api/search?origin=${origin}&destination=${dest.code}&cabin=${cabin}&date=${date}&passengers=${pax}${stopsParam}`, { signal: AbortSignal.timeout(20000) });
           const data = await res.json();
@@ -252,26 +291,30 @@ function SearchResults() {
           if (!isRegion && data.meta?.providerStatus) {
             setProviderStatuses(prev => ({ ...prev, ...data.meta.providerStatus }));
           }
-          
+
           for (const c of cash) {
-            const key = `${c.airline}-${c.price}-${c.departureTime}`;
-            if (!seen.has(key)) { seen.add(key); allCash.push({ ...c, date }); }
+            const key = `${date}-${c.airline}-${c.price}-${c.departureTime}`;
+            // Re-key ids per date — the API numbers results per search, so merged
+            // dates would otherwise collide (duplicate React keys).
+            if (!seen.has(key)) { seen.add(key); allCash.push({ ...c, date, id: key }); }
           }
           for (const a of awards) {
             const key = `${a.airline}-${a.miles}-${a.date}`;
             if (!seen.has(key)) { seen.add(key); allAwards.push(a); }
           }
-        });
+        }));
         await Promise.all(dateSearches);
 
         allCash.sort((a, b) => (a.price ?? Infinity) - (b.price ?? Infinity));
         allAwards.sort((a, b) => a.miles - b.miles);
-        const cheapestCash = allCash.find(c => typeof c.price === 'number' && c.price > 0 && c.isLivePrice !== false)?.price || null;
+        const bestLive = allCash.find(c => typeof c.price === 'number' && c.price > 0 && c.isLivePrice !== false) || null;
+        const cheapestCash = bestLive?.price || null;
+        const cheapestCashDate = bestLive?.date || null;
         const cheapestAward = allAwards.filter(a => a.miles > 0)[0]?.miles || null;
 
         setDestinations(prev => {
           const updated = [...prev];
-          updated[idx] = { ...updated[idx], cashResults: allCash, awardResults: allAwards, cheapestCash, cheapestAward, loading: false };
+          updated[idx] = { ...updated[idx], cashResults: allCash, awardResults: allAwards, cheapestCash, cheapestCashDate, cheapestAward, loading: false };
           return updated;
         });
       } catch { setDestinations(prev => { const u = [...prev]; u[idx] = { ...u[idx], loading: false }; return u; }); }
@@ -334,7 +377,7 @@ function SearchResults() {
       setError('Something went wrong. Please try again.');
       setLoading(false);
     }
-  }, [q, passport]);
+  }, [q, passport, flexDays]);
 
   useEffect(() => {
     if (!q) return;
@@ -513,6 +556,15 @@ function SearchResults() {
                     {s.label}
                   </button>;
                 })}
+                <span style={{ width: '1px', height: '16px', background: COLORS.border, margin: '0 6px', flexShrink: 0 }} />
+                <span style={{ fontSize: '10px', color: COLORS.sub, fontWeight: 600, textTransform: 'uppercase', letterSpacing: '0.05em', marginRight: '4px', whiteSpace: 'nowrap' }}>Dates</span>
+                {[{ label: 'Exact', val: 0 }, { label: '±1 day', val: 1 }, { label: '±3 days', val: 3 }].map(o => {
+                  const active = flexDays === o.val;
+                  return <button key={o.val} onClick={() => { if (!active) router.push(`/search?q=${encodeURIComponent(searchInput || q)}${o.val ? `&flex=${o.val}` : ''}`); }}
+                    style={{ fontFamily: "'DM Sans'", fontSize: '11px', fontWeight: active ? 600 : 400, padding: '8px 12px', borderRadius: '100px', border: 'none', cursor: 'pointer', background: active ? COLORS.accent : COLORS.card, color: active ? '#fff' : COLORS.sub, transition: 'all 0.15s', whiteSpace: 'nowrap', minHeight: '36px' }}>
+                    {o.label}
+                  </button>;
+                })}
               </div>
             </div>
           </div>
@@ -545,7 +597,7 @@ function SearchResults() {
             <div style={{ display: 'flex', justifyContent: 'space-between', gap: '12px', alignItems: 'flex-start', flexWrap: 'wrap' }}>
               <div>
                 <div style={{ fontFamily: "'Space Grotesk'", fontSize: 16, fontWeight: 700, color: COLORS.text }}>{origin} → {isMulti ? destCity : selectedResults.code}</div>
-                <div style={{ fontFamily: "'DM Sans'", fontSize: 12, color: COLORS.sub, marginTop: 2 }}>{departDate || 'Flexible date'} · {passengers} passenger{passengers === 1 ? '' : 's'} · {(parsed?.cabin as string) || 'business'}</div>
+                <div style={{ fontFamily: "'DM Sans'", fontSize: 12, color: COLORS.sub, marginTop: 2 }}>{searchedDates.length > 1 ? `${fmtDay(searchedDates[0])} – ${fmtDay(searchedDates[searchedDates.length - 1])} (${searchedDates.length} dates)` : departDate || 'Flexible date'} · {passengers} passenger{passengers === 1 ? '' : 's'} · {(parsed?.cabin as string) || 'business'}</div>
               </div>
               <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
                 <button onClick={saveSearch} style={{ background: COLORS.card, border: `1px solid ${COLORS.border}`, color: COLORS.text, borderRadius: '10px', padding: '8px 11px', fontSize: 12, fontWeight: 700, cursor: 'pointer' }}>Save</button>
@@ -623,10 +675,15 @@ function SearchResults() {
                     <div style={{ fontFamily: "'DM Sans'", fontSize: '14px', fontWeight: 600, color: COLORS.text }}>{d.city}</div>
                     <div style={{ fontFamily: "'JetBrains Mono'", fontSize: '11px', color: COLORS.sub, marginTop: '2px' }}>{d.code}</div>
                     {d.loading ? <div style={{ marginTop: '8px', height: '20px', background: COLORS.card, borderRadius: '4px', animation: 'shimmer 1.5s infinite' }} /> : (
-                      <div style={{ marginTop: '8px', display: 'flex', gap: '8px' }}>
-                        {d.cheapestCash && <span style={{ fontFamily: "'JetBrains Mono'", fontSize: '13px', fontWeight: 700, color: COLORS.text }}>${d.cheapestCash.toLocaleString()}</span>}
-                        {d.cheapestAward && <span style={{ fontFamily: "'JetBrains Mono'", fontSize: '12px', color: COLORS.accent }}>{(d.cheapestAward / 1000).toFixed(0)}K mi</span>}
-                      </div>
+                      <>
+                        <div style={{ marginTop: '8px', display: 'flex', gap: '8px' }}>
+                          {d.cheapestCash && <span style={{ fontFamily: "'JetBrains Mono'", fontSize: '13px', fontWeight: 700, color: COLORS.text }}>${d.cheapestCash.toLocaleString()}</span>}
+                          {d.cheapestAward && <span style={{ fontFamily: "'JetBrains Mono'", fontSize: '12px', color: COLORS.accent }}>{(d.cheapestAward / 1000).toFixed(0)}K mi</span>}
+                        </div>
+                        {d.cheapestCashDate && searchedDates.length > 1 && (
+                          <div style={{ fontFamily: "'JetBrains Mono'", fontSize: '10px', color: '#22C55E', marginTop: '3px' }}>best {fmtDay(d.cheapestCashDate)}</div>
+                        )}
+                      </>
                     )}
                   </button>
                 ))}
@@ -653,19 +710,51 @@ function SearchResults() {
                 return null;
               };
               const cabinClass = (parsed?.cabin as string) || 'business';
-              const multiDate = ((parsed?.departDates as string[]) || []).length > 1;
+              const multiDate = searchedDates.length > 1;
               const liveCash = selectedResults.cashResults.filter(f => f.status !== 'fallback');
               const fallbackCash = selectedResults.cashResults.filter(f => f.status === 'fallback');
-              const sortedLive = [...liveCash].sort((a, b) => {
-                if (cashSort === 'duration') return parseDurationMin(a.duration) - parseDurationMin(b.duration);
-                if (cashSort === 'departure') return parseTimeMin(a.departureTime) - parseTimeMin(b.departureTime);
-                return (a.price ?? Infinity) - (b.price ?? Infinity);
-              });
+              // Best live price per searched date, for the date strip.
+              const priceByDate = new Map<string, number>();
+              for (const f of liveCash) {
+                if (typeof f.price === 'number' && f.price > 0 && f.isLivePrice !== false && f.date) {
+                  const cur = priceByDate.get(f.date);
+                  if (cur === undefined || f.price < cur) priceByDate.set(f.date, f.price);
+                }
+              }
+              const cheapestDate = [...priceByDate.entries()].sort((a, b) => a[1] - b[1])[0]?.[0];
+              const sortedLive = [...liveCash]
+                .filter(f => !dateFilter || f.date === dateFilter)
+                .sort((a, b) => {
+                  if (cashSort === 'duration') return parseDurationMin(a.duration) - parseDurationMin(b.duration);
+                  if (cashSort === 'departure') return parseTimeMin(a.departureTime) - parseTimeMin(b.departureTime);
+                  return (a.price ?? Infinity) - (b.price ?? Infinity);
+                });
               const displayCash = [...sortedLive, ...fallbackCash].slice(0, 10);
               return (
               <div style={{ marginBottom: '20px' }}>
+                {multiDate && (
+                  <div style={{ overflowX: 'auto', WebkitOverflowScrolling: 'touch', msOverflowStyle: 'none', scrollbarWidth: 'none', marginBottom: '10px' }}>
+                    <div style={{ display: 'flex', gap: '6px', alignItems: 'center', minWidth: 'max-content', paddingBottom: '2px' }}>
+                      <span style={{ fontSize: '10px', color: COLORS.sub, fontWeight: 600, textTransform: 'uppercase', letterSpacing: '0.05em', whiteSpace: 'nowrap', marginRight: '2px' }}>Dates</span>
+                      <button onClick={() => setDateFilter(null)}
+                        style={{ fontFamily: "'DM Sans'", fontSize: '11px', fontWeight: dateFilter === null ? 600 : 400, padding: '7px 12px', borderRadius: '100px', border: 'none', cursor: 'pointer', background: dateFilter === null ? COLORS.accent : COLORS.card, color: dateFilter === null ? '#fff' : COLORS.sub, whiteSpace: 'nowrap', transition: 'all 0.15s' }}>
+                        All dates
+                      </button>
+                      {searchedDates.map(d => {
+                        const p = priceByDate.get(d);
+                        const active = dateFilter === d;
+                        return (
+                          <button key={d} onClick={() => setDateFilter(active ? null : d)}
+                            style={{ fontFamily: "'DM Sans'", fontSize: '11px', fontWeight: active ? 600 : 400, padding: '7px 12px', borderRadius: '100px', border: d === cheapestDate && !active ? '1px solid rgba(34,197,94,0.4)' : 'none', cursor: 'pointer', background: active ? COLORS.accent : COLORS.card, color: active ? '#fff' : d === cheapestDate ? '#22C55E' : COLORS.sub, whiteSpace: 'nowrap', transition: 'all 0.15s' }}>
+                            {fmtDay(d)}{typeof p === 'number' ? ` · $${p.toLocaleString()}` : ''}
+                          </button>
+                        );
+                      })}
+                    </div>
+                  </div>
+                )}
                 <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '8px', flexWrap: 'wrap', marginBottom: '10px' }}>
-                  <h3 style={{ fontFamily: "'Space Grotesk'", fontSize: '15px', fontWeight: 600, color: COLORS.text, margin: 0 }}>Cash Fares</h3>
+                  <h3 style={{ fontFamily: "'Space Grotesk'", fontSize: '15px', fontWeight: 600, color: COLORS.text, margin: 0 }}>Cash Fares{dateFilter ? ` — ${fmtDay(dateFilter)}` : ''}</h3>
                   {liveCash.length > 1 && (
                     <div style={{ display: 'flex', gap: '4px', alignItems: 'center' }}>
                       <span style={{ fontSize: '10px', color: COLORS.sub, fontWeight: 600, textTransform: 'uppercase', letterSpacing: '0.05em', marginRight: '2px' }}>Sort</span>

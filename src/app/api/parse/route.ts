@@ -209,6 +209,13 @@ function parseDates(text: string): { dates: string[]; isRange: boolean } {
     return { dates, isRange: true };
   }
   
+  // "flexible" / "anytime" → search the whole coming week so the UI can offer options
+  if (/\b(flexible|flexi|anytime|any\s*time|any\s*day|whenever)\b/.test(lower)) {
+    const dates = [];
+    for (let i = 1; i <= 7; i++) dates.push(fmt(new Date(now.getTime() + i * 86400000)));
+    return { dates, isRange: true };
+  }
+
   // "this week" / "this weekend"
   if (/\bthis\s*week\b/.test(lower)) {
     const dates = [];
@@ -223,8 +230,18 @@ function parseDates(text: string): { dates: string[]; isRange: boolean } {
   
   if (lower.includes('today')) return { dates: [fmt(now)], isRange: false };
   if (lower.includes('tomorrow')) return { dates: [fmt(new Date(now.getTime() + 86400000))], isRange: false };
-  if (lower.includes('next week')) return { dates: [fmt(new Date(now.getTime() + 7 * 86400000))], isRange: false };
-  if (lower.includes('next month')) { const d = new Date(now); d.setMonth(d.getMonth() + 1); return { dates: [fmt(d)], isRange: false }; }
+  // "next week" / "next month" are windows, not single days — return the whole range
+  // so the search layer can offer the cheapest date within it.
+  if (lower.includes('next week')) {
+    const dates = [];
+    for (let i = 7; i <= 13; i++) dates.push(fmt(new Date(now.getTime() + i * 86400000)));
+    return { dates, isRange: true };
+  }
+  if (lower.includes('next month')) {
+    const dates = [];
+    for (let i = 28; i <= 34; i++) dates.push(fmt(new Date(now.getTime() + i * 86400000)));
+    return { dates, isRange: true };
+  }
   
   const inDays = lower.match(/in (\d+)\s*days?/);
   if (inDays) return { dates: [fmt(new Date(now.getTime() + parseInt(inDays[1]) * 86400000))], isRange: false };
