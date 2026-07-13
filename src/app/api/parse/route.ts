@@ -286,15 +286,18 @@ export async function POST(request: NextRequest) {
   let destCity: { code: string; city: string } | null = null;
   let destRegion: { code: string; city: string }[] | null = null;
   
-  if (isAnywhereSearch) {
-    destRegion = REGION_AIRPORTS['anywhere'];
-    destText = 'anywhere';
-  } else if (isNearbySearch) {
-    destRegion = REGION_AIRPORTS['nearby'];
-    destText = 'nearby';
-  } else {
-    destCity = findAirport(destText);
-    destRegion = !destCity ? findRegion(destText) : null;
+  // An explicit destination always wins — "UAE to Europe, cheapest" must search Europe,
+  // not the worldwide list. The anywhere/nearby keywords only apply when nothing parsed.
+  destCity = findAirport(destText);
+  destRegion = !destCity ? findRegion(destText) : null;
+  if (!destCity && !destRegion) {
+    if (isAnywhereSearch) {
+      destRegion = REGION_AIRPORTS['anywhere'];
+      destText = 'anywhere';
+    } else if (isNearbySearch) {
+      destRegion = REGION_AIRPORTS['nearby'];
+      destText = 'nearby';
+    }
   }
   
   // Parse common fields

@@ -583,8 +583,9 @@ function SearchResults() {
               </div>
             )}
 
-            {/* Compare-everywhere row: one tap to this exact route+date on every major engine */}
-            {selectedResults && !loading && !isMulti && (() => {
+            {/* Compare-everywhere row: one tap to this exact route+date on every major engine.
+                Shown for single-city searches and when a city is drilled into on a region search. */}
+            {selectedResults && !loading && (!isMulti || selectedDest) && (() => {
               const cmpDate = departDate || new Date(Date.now() + 7 * 86400000).toISOString().split('T')[0];
               const cmpCabin = (parsed?.cabin as string) || 'business';
               const cmpDest = selectedResults.code;
