@@ -101,7 +101,7 @@ export async function GET(req: NextRequest) {
       cancellationPolicies?: { refundableTag?: string; cancelPolicyInfos?: { type?: string }[] };
       commission?: LiteMoney[];
     }
-    interface LiteRoomType { offerRetailRate?: LiteMoney; rates?: LiteRate[] }
+    interface LiteRoomType { offerId?: string; offerRetailRate?: LiteMoney; rates?: LiteRate[] }
     interface LiteRateHotel { hotelId?: string; roomTypes?: LiteRoomType[] }
 
     let ratesData: { data?: LiteRateHotel[]; error?: { code?: number; message?: string } } = { data: [] };
@@ -114,7 +114,7 @@ export async function GET(req: NextRequest) {
     const nights = Math.max(1, Math.round((new Date(`${checkout}T00:00:00Z`).getTime() - new Date(`${checkin}T00:00:00Z`).getTime()) / 86400000));
 
     // Build a rates lookup — cheapest room type per hotel, price shown per night.
-    const ratesMap = new Map<string, { price: number; totalPrice: number; currency: string; roomType: string; board: string; freeCancellation: boolean; commission: number }>();
+    const ratesMap = new Map<string, { price: number; totalPrice: number; currency: string; roomType: string; board: string; freeCancellation: boolean; commission: number; offerId: string }>();
     for (const rh of (ratesData.data || [])) {
       if (!rh.hotelId) continue;
       const roomTypes = (rh.roomTypes || []).filter(rt => (rt.offerRetailRate?.amount || 0) > 0 || (rt.rates?.[0]?.retailRate?.total?.[0]?.amount || 0) > 0);
@@ -136,6 +136,7 @@ export async function GET(req: NextRequest) {
         board: rate?.boardName || rate?.boardType || '',
         freeCancellation: tag === 'RFN' || (rate?.cancellationPolicies?.cancelPolicyInfos || []).some(p => p.type === 'FREE_CANCELLATION'),
         commission: rate?.commission?.[0]?.amount || 0,
+        offerId: cheapestRt.offerId || '',
       });
     }
 
@@ -159,6 +160,7 @@ export async function GET(req: NextRequest) {
         board: rate?.board || '',
         freeCancellation: rate?.freeCancellation || false,
         commission: rate?.commission || 0,
+        offerId: rate?.offerId || '',
         source: 'liteapi',
       };
     });

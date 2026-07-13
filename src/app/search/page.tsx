@@ -42,7 +42,7 @@ interface HiddenCityResult { airline: string; price: number; from: string; to: s
 interface KiwiResult { price: number; airlines: string[]; from: string; to: string; departure: string; duration: number; stops: number; isVirtualInterline: boolean; bookingLink: string }
 interface VisaInfo { status: string; days?: number; note?: string; passport: string; destination: string }
 interface CurrencyInfo { from: string; to: string; name: string; symbol: string; rate: number; display: string }
-interface LiteHotelResult { id: string; name: string; stars: number; address: string; rating: number; reviews: number; image: string; price: number | null; totalPrice?: number | null; nights?: number; originalPrice: number; currency: string; roomType: string; board: string; freeCancellation: boolean; providerStatus?: string }
+interface LiteHotelResult { id: string; name: string; stars: number; address: string; rating: number; reviews: number; image: string; price: number | null; totalPrice?: number | null; nights?: number; originalPrice: number; currency: string; roomType: string; board: string; freeCancellation: boolean; offerId?: string; providerStatus?: string }
 interface DuffelResult { id: string; price: number; currency: string; airlines: string[]; from: string; to: string; departure: string; duration: string; stops: number; segments: { airline: string; flightNo: string; from: string; to: string }[]; bookable: boolean; offerId: string; source: string }
 interface RoomResult { hotel: string; chain: string; location: string; pointsPerNight: number; cashRate: number; centsPerPoint: number; roomType: string; availability: boolean }
 interface GemInfo { name: string; desc: string; type: string }
@@ -1003,7 +1003,22 @@ function SearchResults() {
                           ) : null}
                         </div>
                       </a>
-                      <div style={{ display: 'flex', gap: '6px', flexWrap: 'wrap', padding: '0 14px 14px' }}>
+                      <div style={{ display: 'flex', gap: '6px', flexWrap: 'wrap', padding: '0 14px 14px', alignItems: 'center' }}>
+                        {h.offerId && typeof h.price === 'number' && h.price > 0 && (
+                          <button onClick={() => {
+                            try {
+                              window.sessionStorage.setItem('tc_pending_booking', JSON.stringify({
+                                offerId: h.offerId, hotel: h.name, city: stayCity, image: h.image,
+                                checkin: stayDate, checkout: stayCheckoutDate, adults: passengers,
+                                nights: h.nights, price: h.price, totalPrice: h.totalPrice, currency: h.currency, roomType: h.roomType,
+                              }));
+                            } catch { /* sessionStorage unavailable */ }
+                            router.push('/book');
+                          }}
+                            style={{ fontSize: '12px', fontWeight: 700, color: '#fff', background: COLORS.accent, border: 'none', padding: '7px 16px', borderRadius: '6px', cursor: 'pointer', fontFamily: "'DM Sans', sans-serif" }}>
+                            Book now
+                          </button>
+                        )}
                         <a href={monetise(`https://www.booking.com/searchresults.html?ss=${hotelSearch}&checkin=${stayDate}&checkout=${stayCheckoutDate}&group_adults=${passengers}`)} target="_blank" rel="noopener noreferrer" style={{ fontSize: '11px', fontWeight: 600, color: '#5392F9', background: 'rgba(83,146,249,0.12)', padding: '6px 11px', borderRadius: '6px', textDecoration: 'none' }}>Booking.com</a>
                         <a href={monetise(`https://www.expedia.com/Hotel-Search?destination=${hotelSearch}&startDate=${stayDate}&endDate=${stayCheckoutDate}&adults=${passengers}`)} target="_blank" rel="noopener noreferrer" style={{ fontSize: '11px', fontWeight: 600, color: '#FBBF24', background: 'rgba(251,191,36,0.12)', padding: '6px 11px', borderRadius: '6px', textDecoration: 'none' }}>Expedia</a>
                         <a href={`https://www.google.com/travel/search?q=${hotelSearch}&checkin=${stayDate}&checkout=${stayCheckoutDate}`} target="_blank" rel="noopener noreferrer" style={{ fontSize: '11px', fontWeight: 600, color: '#A78BFA', background: 'rgba(139,92,246,0.12)', padding: '6px 11px', borderRadius: '6px', textDecoration: 'none' }}>Google</a>

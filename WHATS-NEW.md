@@ -1,3 +1,16 @@
+# What's New — 2026-07-13 (4): book hotels on-site (LiteAPI hosted checkout)
+
+Hotels are now bookable **inside TravelCheckpoint**, with commission on every booking:
+
+- Hotel cards (Stay tab + /stays) show a **Book now** button on any rate with a live offer.
+- `/book`: prebook confirms the exact price (incl. board + cancellation terms), guest details form, then **LiteAPI's hosted payment element** — card data never touches our servers. Sandbox keys automatically run test mode (4242… card) with a visible banner; a production key switches the same code to live payments.
+- `/book/confirm`: finalizes the reservation after payment and shows booking ID, hotel confirmation code, and cancellation terms; bookings are also kept in localStorage.
+- Verified end-to-end in sandbox: search → Book now → payment → **CONFIRMED**, booking ID 15YXoteBi, $58.56 commission on a $1,129 stay.
+
+To go live: swap `LITEAPI_KEY` for a production key — see MONETISATION.md.
+
+---
+
 # What's New — 2026-07-13 (3): live hotel rates + monetisation layer
 
 ## Live hotel nightly rates (fixed)

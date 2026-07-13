@@ -1,7 +1,7 @@
 'use client';
 
 import { Suspense, useEffect, useMemo, useState } from 'react';
-import { useSearchParams } from 'next/navigation';
+import { useRouter, useSearchParams } from 'next/navigation';
 import Link from 'next/link';
 import { monetise } from '@/lib/affiliates';
 
@@ -25,10 +25,13 @@ interface LiteHotel {
   address?: string;
   image?: string;
   price?: number | null;
+  totalPrice?: number | null;
+  nights?: number;
   currency?: string;
   roomType?: string;
   board?: string;
   freeCancellation?: boolean;
+  offerId?: string;
 }
 
 interface PointsRoom {
@@ -104,8 +107,19 @@ function StatusPill({ status }: { status?: string }) {
 }
 
 function HotelCard({ hotel, checkin, checkout, adults, city }: { hotel: LiteHotel; checkin: string; checkout: string; adults: number; city: string }) {
+  const router = useRouter();
   const bookingUrl = monetise(`https://www.booking.com/searchresults.html?ss=${encodeURIComponent(hotel.name || city)}&checkin=${checkin}&checkout=${checkout}&group_adults=${adults}`);
   const hasPrice = typeof hotel.price === 'number' && hotel.price > 0;
+  const startBooking = () => {
+    try {
+      window.sessionStorage.setItem('tc_pending_booking', JSON.stringify({
+        offerId: hotel.offerId, hotel: hotel.name, city, image: hotel.image,
+        checkin, checkout, adults, nights: hotel.nights,
+        price: hotel.price, totalPrice: hotel.totalPrice, currency: hotel.currency, roomType: hotel.roomType,
+      }));
+    } catch { /* sessionStorage unavailable */ }
+    router.push('/book');
+  };
   return (
     <article style={{ background: BG_CARD, border: `1px solid ${BORDER}`, borderRadius: '14px', overflow: 'hidden' }}>
       <div style={{ height: '136px', background: `linear-gradient(135deg, ${BG_INPUT}, ${BG_CARD})`, position: 'relative', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
@@ -125,7 +139,12 @@ function HotelCard({ hotel, checkin, checkout, adults, city }: { hotel: LiteHote
             <div style={{ color: hasPrice ? TEXT_LIGHT : TEXT_MID, fontFamily: mono, fontSize: '18px', fontWeight: 800 }}>{hasPrice ? `${hotel.currency || 'USD'} ${hotel.price!.toLocaleString()}` : 'Check live'}</div>
             <div style={{ color: TEXT_DIM, fontSize: '11px' }}>{hasPrice ? 'per night · LiteAPI' : 'rate unavailable from provider'}</div>
           </div>
-          <a href={bookingUrl} target="_blank" rel="noreferrer" style={{ color: '#fff', background: ACCENT, borderRadius: '8px', padding: '9px 11px', fontSize: '12px', fontWeight: 800, textDecoration: 'none', whiteSpace: 'nowrap' }}>Compare →</a>
+          <div style={{ display: 'flex', gap: '6px' }}>
+            {hotel.offerId && hasPrice && (
+              <button onClick={startBooking} style={{ color: '#fff', background: GREEN, border: 'none', borderRadius: '8px', padding: '9px 11px', fontSize: '12px', fontWeight: 800, cursor: 'pointer', whiteSpace: 'nowrap' }}>Book now</button>
+            )}
+            <a href={bookingUrl} target="_blank" rel="noreferrer" style={{ color: '#fff', background: ACCENT, borderRadius: '8px', padding: '9px 11px', fontSize: '12px', fontWeight: 800, textDecoration: 'none', whiteSpace: 'nowrap' }}>Compare →</a>
+          </div>
         </div>
       </div>
     </article>

@@ -21,19 +21,27 @@ Typical commissions: Booking.com 25–40% of *their* commission (~4% of booking 
 
 Not wired (no usable public program): Google Flights/Hotels, Kayak (network-based, invite), Airbnb (program closed), Skiplagged.
 
-## Channel 2 — LiteAPI native bookings (real "book on our site" revenue share)
+## Channel 2 — LiteAPI native bookings ✅ BUILT (2026-07-13), awaiting production key
 
-The hotel rates now shown on the site come from LiteAPI, and **every rate already includes a commission figure** (the API returns `commission` per rate — e.g. $58–$98/booking on London hotels; the route passes it through in each result). LiteAPI's model: bookings made through your key earn that commission, paid out monthly.
+On-site hotel booking is **live and tested end-to-end in sandbox**: hotel card "Book now" → `/book` (prebook + guest details + LiteAPI hosted payment element — card data never touches us) → `/book/confirm` (finalize + confirmation with booking ID, cancellation terms). Sandbox test run: Hampton by Hilton London, USD 1,129.04, booking CONFIRMED, **$58.56 commission** on the one booking.
 
-What exists today: rates display (fixed 2026-07-13). What's missing for actual on-site booking:
-1. **Production LiteAPI key** — current key is `sand_` (sandbox). Upgrade at dashboard.liteapi.travel (free; revenue-share model). Swap `LITEAPI_KEY` in Vercel.
-2. **Booking flow build** — LiteAPI prebook → book endpoints, guest details form, and payment. LiteAPI offers a hosted payment SDK ("Payment SDK / whitelabel checkout") that avoids us touching cards directly — strongly preferred over rolling our own Stripe integration.
-3. **Gary decision required** (money-moving + terms acceptance): accepting LiteAPI's terms, payout details, and enabling live payments are yours to do per the autonomy contract.
+Code map: [src/app/api/book/prebook/route.ts](src/app/api/book/prebook/route.ts), [src/app/api/book/complete/route.ts](src/app/api/book/complete/route.ts), [src/app/book/page.tsx](src/app/book/page.tsx), [src/app/book/confirm/page.tsx](src/app/book/confirm/page.tsx).
 
-Same applies to flights via Duffel (current `DUFFEL_API_KEY` is a test key): Duffel supports markup/managed content, but live ticketing means IATA-adjacent terms + payments — bigger lift, propose only if hotel bookings prove out.
+**To turn on real revenue (Gary actions — money-moving/terms):**
+1. Get a production key at dashboard.liteapi.travel (free, revenue-share; set payout details there).
+2. Replace `LITEAPI_KEY` in Vercel with the prod key (`printf '%s' 'KEY' | vercel env add LITEAPI_KEY production`) and redeploy.
+3. That's it — the code auto-switches: `sand_` keys run the payment SDK in sandbox mode with test cards; prod keys run live payments. The sandbox banner disappears automatically.
+
+Commission per booking is visible in every rates response (`commission` field) and in the LiteAPI dashboard.
+
+## Channel 3 — Flights (next)
+
+- **LiteAPI now has flight booking endpoints** (`/flights/prebooks` + book, same payment SDK pattern) — once the production account exists for hotels, flights can reuse ~80% of the checkout built here. This is the fastest path to flight revenue.
+- Duffel live ticketing (current key is test-mode) is the deeper alternative — markup model, but IATA-adjacent terms + payments setup. Bigger lift; consider after LiteAPI flights.
+- Kiwi Tequila affiliate covers creative-route bookings in the meantime (Channel 1).
 
 ## Suggested order
-1. Register Booking.com + Agoda affiliates (fastest approvals, hotel links already dominate the Stay tab) → set the two env vars → redeploy.
-2. Kiwi Tequila (creative-route cards already deep-link to Kiwi checkout).
-3. LiteAPI production key → rates become commissionable the day the booking flow ships.
-4. Decide on LiteAPI hosted checkout build (est. 1–2 days of work) once the prod key exists.
+1. **LiteAPI production key** → hotel bookings earn commission immediately (flow is already built and tested).
+2. Booking.com + Agoda affiliate IDs → the compare/OTA links start earning too.
+3. LiteAPI flights build (reuses the checkout; ~1 day) once the prod account exists.
+4. Kiwi Tequila + Skyscanner affiliate IDs for the remaining flight links.
