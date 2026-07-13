@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { addDaysToIsoDate, normalizeAirportCode, safeIsoDate } from '@/lib/travel-utils';
 
-const API_KEY = process.env.SEATS_AERO_API_KEY || '';
+const API_KEY = (process.env.SEATS_AERO_API_KEY || '').trim();
 
 // rooms.aero uses the same API key as seats.aero
 // Endpoint: https://rooms.aero/api/search

@@ -1,3 +1,17 @@
+# What's New — 2026-07-13 (3): live hotel rates + monetisation layer
+
+## Live hotel nightly rates (fixed)
+
+LiteAPI rates were being requested and then thrown away — the parser read `rooms` but LiteAPI v3 returns `roomTypes`. Hotel cards now show **live per-night prices, stay totals, real room names, board, and free-cancellation**, sorted cheapest first, and the provider pill reads LIVE HOTEL RATES. Each rate also carries LiteAPI's built-in commission figure (passed through in the API response) — $58–$98/booking on typical London hotels.
+
+Also hardened every API route against trailing-newline env values (several Vercel keys were added with `echo`, which appends `\n`).
+
+## Affiliate / referral monetisation layer
+
+All outbound booking links now pass through `monetise()` ([src/lib/affiliates.ts](src/lib/affiliates.ts)), which injects partner IDs the moment the env vars exist — Booking.com (`aid`), Agoda (`cid`), Expedia + Hotels.com (Partnerize `camref`), Kiwi (`affilid`), Skyscanner (`associateid`). No IDs configured → links unchanged. Signup steps, env var names, and the LiteAPI native-booking path are documented in [MONETISATION.md](MONETISATION.md).
+
+---
+
 # What's New — 2026-07-13 (2): multi-city × multi-date search
 
 Searches now fan out across **cities and dates at the same time**, so one query surfaces the cheapest city/date combos instead of a single snapshot:

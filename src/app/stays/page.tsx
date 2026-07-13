@@ -3,6 +3,7 @@
 import { Suspense, useEffect, useMemo, useState } from 'react';
 import { useSearchParams } from 'next/navigation';
 import Link from 'next/link';
+import { monetise } from '@/lib/affiliates';
 
 const mono = "'JetBrains Mono', monospace";
 const ACCENT = '#3B82F6';
@@ -103,7 +104,7 @@ function StatusPill({ status }: { status?: string }) {
 }
 
 function HotelCard({ hotel, checkin, checkout, adults, city }: { hotel: LiteHotel; checkin: string; checkout: string; adults: number; city: string }) {
-  const bookingUrl = `https://www.booking.com/searchresults.html?ss=${encodeURIComponent(hotel.name || city)}&checkin=${checkin}&checkout=${checkout}&group_adults=${adults}`;
+  const bookingUrl = monetise(`https://www.booking.com/searchresults.html?ss=${encodeURIComponent(hotel.name || city)}&checkin=${checkin}&checkout=${checkout}&group_adults=${adults}`);
   const hasPrice = typeof hotel.price === 'number' && hotel.price > 0;
   return (
     <article style={{ background: BG_CARD, border: `1px solid ${BORDER}`, borderRadius: '14px', overflow: 'hidden' }}>
@@ -122,7 +123,7 @@ function HotelCard({ hotel, checkin, checkout, adults, city }: { hotel: LiteHote
         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'end', gap: '12px' }}>
           <div>
             <div style={{ color: hasPrice ? TEXT_LIGHT : TEXT_MID, fontFamily: mono, fontSize: '18px', fontWeight: 800 }}>{hasPrice ? `${hotel.currency || 'USD'} ${hotel.price!.toLocaleString()}` : 'Check live'}</div>
-            <div style={{ color: TEXT_DIM, fontSize: '11px' }}>{hasPrice ? 'total from LiteAPI' : 'rate unavailable from provider'}</div>
+            <div style={{ color: TEXT_DIM, fontSize: '11px' }}>{hasPrice ? 'per night · LiteAPI' : 'rate unavailable from provider'}</div>
           </div>
           <a href={bookingUrl} target="_blank" rel="noreferrer" style={{ color: '#fff', background: ACCENT, borderRadius: '8px', padding: '9px 11px', fontSize: '12px', fontWeight: 800, textDecoration: 'none', whiteSpace: 'nowrap' }}>Compare →</a>
         </div>
@@ -244,7 +245,7 @@ function StaysContent() {
               <h2 style={{ color: TEXT_LIGHT, fontSize: '18px', margin: '0 0 10px' }}>Compare manually</h2>
               <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(190px, 1fr))', gap: '10px' }}>
                 {links.map(([key, link]) => (
-                  <a key={key} href={link.url} target="_blank" rel="noreferrer" style={{ background: BG_CARD, border: `1px solid ${BORDER}`, borderRadius: '12px', padding: '14px', textDecoration: 'none' }}>
+                  <a key={key} href={monetise(link.url)} target="_blank" rel="noreferrer" style={{ background: BG_CARD, border: `1px solid ${BORDER}`, borderRadius: '12px', padding: '14px', textDecoration: 'none' }}>
                     <div style={{ color: link.color || ACCENT, fontWeight: 900, fontSize: '14px' }}>{link.name}</div>
                     <div style={{ color: TEXT_DIM, fontSize: '12px', marginTop: '5px' }}>Open live search →</div>
                   </a>

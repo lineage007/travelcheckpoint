@@ -18,8 +18,8 @@ import { NextRequest, NextResponse } from 'next/server';
 //   DROP_THRESHOLD_PCT  — default 10, fires alert if price drops more than this %
 // ═══════════════════════════════════════════════════
 
-const BOT_TOKEN = process.env.TELEGRAM_BOT_TOKEN || '';
-const CHAT_ID = process.env.TELEGRAM_CHAT_ID || '';
+const BOT_TOKEN = (process.env.TELEGRAM_BOT_TOKEN || '').trim();
+const CHAT_ID = (process.env.TELEGRAM_CHAT_ID || '').trim();
 const DROP_THRESHOLD = parseFloat(process.env.DROP_THRESHOLD_PCT || '10');
 
 // In-process store — survives restarts only when running locally.

@@ -1,7 +1,9 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { addDaysToIsoDate, clampInt, normalizeAirportCode, safeIsoDate } from '@/lib/travel-utils';
 
-const API_KEY = process.env.LITEAPI_KEY || '';
+// .trim(): several Vercel env values carry a trailing newline from `echo | vercel env add`.
+// fetch() trims header values so requests still work, but never rely on that.
+const API_KEY = (process.env.LITEAPI_KEY || '').trim();
 const BASE = 'https://api.liteapi.travel/v3.0';
 
 const AIRPORT_TO_CITY: Record<string, { name: string; countryCode: string }> = {
@@ -87,45 +89,54 @@ export async function GET(req: NextRequest) {
       signal: AbortSignal.timeout(20000),
     });
 
-    interface LiteRateRoom {
-      roomName?: string;
-      offerId?: string;
-      rate?: { retailRate?: { total?: { amount?: string; currency?: string } }; maxOccupancy?: number };
+    // LiteAPI v3 rates shape: data[].roomTypes[].rates[] with retailRate.total as an
+    // ARRAY of {amount, currency}, plus roomType-level offerRetailRate and a per-rate
+    // commission array (LiteAPI's built-in revenue share).
+    interface LiteMoney { amount?: number; currency?: string }
+    interface LiteRate {
+      name?: string;
+      boardName?: string;
       boardType?: string;
-      cancellationPolicies?: { cancelPolicyInfos?: { type?: string }[] };
+      retailRate?: { total?: LiteMoney[] };
+      cancellationPolicies?: { refundableTag?: string; cancelPolicyInfos?: { type?: string }[] };
+      commission?: LiteMoney[];
     }
-
-    interface LiteRateHotel {
-      hotelId?: string;
-      rooms?: LiteRateRoom[];
-      currency?: string;
-    }
+    interface LiteRoomType { offerRetailRate?: LiteMoney; rates?: LiteRate[] }
+    interface LiteRateHotel { hotelId?: string; roomTypes?: LiteRoomType[] }
 
     let ratesData: { data?: LiteRateHotel[]; error?: { code?: number; message?: string } } = { data: [] };
     if (ratesRes.ok) {
       const ratesJson = await ratesRes.json();
-      // LiteAPI sandbox returns {error: {code, message}} when no rates
+      // LiteAPI returns {error: {code, message}} when no rates
       if (ratesJson.data) ratesData = ratesJson;
     }
 
-    // Build a rates lookup
-    const ratesMap = new Map<string, { price: number; currency: string; roomType: string; board: string; freeCancellation: boolean }>();
+    const nights = Math.max(1, Math.round((new Date(`${checkout}T00:00:00Z`).getTime() - new Date(`${checkin}T00:00:00Z`).getTime()) / 86400000));
+
+    // Build a rates lookup — cheapest room type per hotel, price shown per night.
+    const ratesMap = new Map<string, { price: number; totalPrice: number; currency: string; roomType: string; board: string; freeCancellation: boolean; commission: number }>();
     for (const rh of (ratesData.data || [])) {
-      const cheapest = (rh.rooms || []).sort((a, b) => {
-        const pa = parseFloat(a.rate?.retailRate?.total?.amount || '999999');
-        const pb = parseFloat(b.rate?.retailRate?.total?.amount || '999999');
+      if (!rh.hotelId) continue;
+      const roomTypes = (rh.roomTypes || []).filter(rt => (rt.offerRetailRate?.amount || 0) > 0 || (rt.rates?.[0]?.retailRate?.total?.[0]?.amount || 0) > 0);
+      const cheapestRt = roomTypes.sort((a, b) => {
+        const pa = a.offerRetailRate?.amount ?? a.rates?.[0]?.retailRate?.total?.[0]?.amount ?? Infinity;
+        const pb = b.offerRetailRate?.amount ?? b.rates?.[0]?.retailRate?.total?.[0]?.amount ?? Infinity;
         return pa - pb;
       })[0];
-      if (cheapest && rh.hotelId) {
-        const freeCancel = (cheapest.cancellationPolicies?.cancelPolicyInfos || []).some(p => p.type === 'FREE_CANCELLATION');
-        ratesMap.set(rh.hotelId, {
-          price: parseFloat(cheapest.rate?.retailRate?.total?.amount || '0'),
-          currency: cheapest.rate?.retailRate?.total?.currency || currency,
-          roomType: cheapest.roomName || 'Standard Room',
-          board: cheapest.boardType || '',
-          freeCancellation: freeCancel,
-        });
-      }
+      if (!cheapestRt) continue;
+      const rate = cheapestRt.rates?.[0];
+      const total = cheapestRt.offerRetailRate?.amount ?? rate?.retailRate?.total?.[0]?.amount ?? 0;
+      if (total <= 0) continue;
+      const tag = rate?.cancellationPolicies?.refundableTag;
+      ratesMap.set(rh.hotelId, {
+        price: Math.round(total / nights),
+        totalPrice: Math.round(total),
+        currency: cheapestRt.offerRetailRate?.currency || rate?.retailRate?.total?.[0]?.currency || currency,
+        roomType: rate?.name || 'Standard Room',
+        board: rate?.boardName || rate?.boardType || '',
+        freeCancellation: tag === 'RFN' || (rate?.cancellationPolicies?.cancelPolicyInfos || []).some(p => p.type === 'FREE_CANCELLATION'),
+        commission: rate?.commission?.[0]?.amount || 0,
+      });
     }
 
     // Merge hotel info + rates
@@ -140,11 +151,14 @@ export async function GET(req: NextRequest) {
         reviews: 0,
         image: h.main_photo || '',
         price: rate?.price || null,
+        totalPrice: rate?.totalPrice || null,
+        nights,
         originalPrice: 0,
         currency: rate?.currency || currency,
         roomType: rate?.roomType || 'Check rates',
         board: rate?.board || '',
         freeCancellation: rate?.freeCancellation || false,
+        commission: rate?.commission || 0,
         source: 'liteapi',
       };
     });

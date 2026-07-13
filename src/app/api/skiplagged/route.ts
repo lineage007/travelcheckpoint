@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { clampInt, normalizeAirportCode, safeIsoDate } from '@/lib/travel-utils';
 
-const SKIPLAGGED_PROXY = process.env.SKIPLAGGED_PROXY_URL || '';
+const SKIPLAGGED_PROXY = (process.env.SKIPLAGGED_PROXY_URL || '').trim();
 
 export async function GET(req: NextRequest) {
   const { searchParams } = new URL(req.url);

@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 
-const SEATS_API_KEY = process.env.SEATS_AERO_API_KEY || '';
+const SEATS_API_KEY = (process.env.SEATS_AERO_API_KEY || '').trim();
 
 // ═══════════════════════════════════════════════════
 // AIRLINE & PROGRAM MAPPINGS
@@ -112,7 +112,7 @@ async function searchCashFlights(origin: string, destination: string, date: stri
   const departDate = date || new Date(Date.now() + 7 * 86400000).toISOString().split('T')[0];
   
   // PRIMARY: Self-hosted fast-flights API (London VPS)
-  const cashApiUrl = process.env.CASH_FLIGHTS_API_URL;
+  const cashApiUrl = (process.env.CASH_FLIGHTS_API_URL || '').trim();
   if (cashApiUrl) {
     try {
       const res = await fetch(`${cashApiUrl}/search?origin=${origin}&destination=${destination}&date=${departDate}&cabin=${cabin}&currency=USD`, {
@@ -147,7 +147,7 @@ async function searchCashFlights(origin: string, destination: string, date: stri
   }
 
   // FALLBACK: SerpAPI Google Flights
-  const serpApiKey = process.env.SERPAPI_KEY || '';
+  const serpApiKey = (process.env.SERPAPI_KEY || '').trim();
   if (serpApiKey) {
     try {
       const travelClass = cabin === 'first' ? 4 : cabin === 'business' ? 3 : cabin === 'premium' ? 2 : 1;

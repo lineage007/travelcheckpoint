@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 
-const API_KEY = process.env.DUFFEL_API_KEY || '';
+const API_KEY = (process.env.DUFFEL_API_KEY || '').trim();
 const BASE = 'https://api.duffel.com';
 
 // Step 1: Create an offer request

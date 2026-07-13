@@ -3,6 +3,7 @@
 import { useState, useEffect, Suspense, useCallback } from 'react';
 import { useSearchParams, useRouter } from 'next/navigation';
 import { ArrowLeft, Plane, ExternalLink, Search, Hotel, Compass, Shield, DollarSign, Sparkles, Settings } from 'lucide-react';
+import { monetise } from '@/lib/affiliates';
 
 const AIRLINE_BOOK_URLS: Record<string, string> = {
   'Emirates': 'https://www.emirates.com/ae/english/manage-booking/redeem-miles/',
@@ -41,7 +42,7 @@ interface HiddenCityResult { airline: string; price: number; from: string; to: s
 interface KiwiResult { price: number; airlines: string[]; from: string; to: string; departure: string; duration: number; stops: number; isVirtualInterline: boolean; bookingLink: string }
 interface VisaInfo { status: string; days?: number; note?: string; passport: string; destination: string }
 interface CurrencyInfo { from: string; to: string; name: string; symbol: string; rate: number; display: string }
-interface LiteHotelResult { id: string; name: string; stars: number; address: string; rating: number; reviews: number; image: string; price: number | null; originalPrice: number; currency: string; roomType: string; board: string; freeCancellation: boolean; providerStatus?: string }
+interface LiteHotelResult { id: string; name: string; stars: number; address: string; rating: number; reviews: number; image: string; price: number | null; totalPrice?: number | null; nights?: number; originalPrice: number; currency: string; roomType: string; board: string; freeCancellation: boolean; providerStatus?: string }
 interface DuffelResult { id: string; price: number; currency: string; airlines: string[]; from: string; to: string; departure: string; duration: string; stops: number; segments: { airline: string; flightNo: string; from: string; to: string }[]; bookable: boolean; offerId: string; source: string }
 interface RoomResult { hotel: string; chain: string; location: string; pointsPerNight: number; cashRate: number; centsPerPoint: number; roomType: string; availability: boolean }
 interface GemInfo { name: string; desc: string; type: string }
@@ -643,9 +644,9 @@ function SearchResults() {
               const cmpDest = selectedResults.code;
               const engines = [
                 { name: 'Google Flights', url: gfUrl(origin, cmpDest, cmpDate, cmpCabin) },
-                { name: 'Skyscanner', url: skyscannerUrl(origin, cmpDest, cmpDate, cmpCabin, passengers) },
+                { name: 'Skyscanner', url: monetise(skyscannerUrl(origin, cmpDest, cmpDate, cmpCabin, passengers)) },
                 { name: 'Kayak', url: kayakUrl(origin, cmpDest, cmpDate, cmpCabin, passengers) },
-                { name: 'Kiwi', url: kiwiUrl(origin, cmpDest, cmpDate) },
+                { name: 'Kiwi', url: monetise(kiwiUrl(origin, cmpDest, cmpDate)) },
                 { name: 'Skiplagged', url: skiplaggedUrl(origin, cmpDest, cmpDate) },
               ];
               return (
@@ -775,9 +776,9 @@ function SearchResults() {
                 {displayCash.map((f, i) => {
                   const dealBadge = getDealBadge(f.price ?? null);
                   const isFallback = f.status === 'fallback';
-                  const href = isFallback
+                  const href = monetise(isFallback
                     ? f.bookingUrl
-                    : gfUrl(f.origin || origin, f.destination || selectedResults.code, f.date || departDate || new Date(Date.now() + 7 * 86400000).toISOString().split('T')[0], cabinClass, f.airline);
+                    : gfUrl(f.origin || origin, f.destination || selectedResults.code, f.date || departDate || new Date(Date.now() + 7 * 86400000).toISOString().split('T')[0], cabinClass, f.airline));
                   const depTime = formatDep(f.departureTime || '');
                   return (
                   <a key={f.id || i} className="result-card" href={href} target="_blank" rel="noopener noreferrer"
@@ -863,7 +864,7 @@ function SearchResults() {
                 {kiwiResults.slice(0, 6).map((f, i) => {
                   const kwDate = (f.departure || '').split('T')[0] || departDate || new Date(Date.now() + 7 * 86400000).toISOString().split('T')[0];
                   return (
-                  <a key={i} className="result-card" href={f.bookingLink || kiwiUrl(f.from || origin, f.to || selectedResults?.code || '', kwDate)} target="_blank" rel="noopener noreferrer"
+                  <a key={i} className="result-card" href={monetise(f.bookingLink || kiwiUrl(f.from || origin, f.to || selectedResults?.code || '', kwDate))} target="_blank" rel="noopener noreferrer"
                     aria-label={`Book ${f.airlines.join(' + ')} ${f.from} to ${f.to} on Kiwi.com`}
                     style={{ background: 'rgba(255,255,255,0.04)', border: `1px solid ${COLORS.border}`, borderRadius: '10px', padding: '14px', marginBottom: '8px', borderLeft: f.isVirtualInterline ? `3px solid ${COLORS.accent}` : undefined }}>
                     <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '2px' }}>
@@ -936,11 +937,11 @@ function SearchResults() {
           const stayDate = (parsed?.departDates as string[])?.[0] || (parsed?.departDate as string) || '';
           const stayCheckoutDate = stayDate ? (() => { const d = new Date(`${stayDate}T00:00:00.000Z`); d.setUTCDate(d.getUTCDate() + 3); return d.toISOString().split('T')[0]; })() : '';
           const stayLinks = [
-            { name: 'Booking.com', color: '#003580', url: `https://www.booking.com/searchresults.html?ss=${encodeURIComponent(stayCity)}&checkin=${stayDate}&checkout=${stayCheckoutDate}&group_adults=${passengers}` },
-            { name: 'Expedia', color: '#00355F', url: `https://www.expedia.com/Hotel-Search?destination=${encodeURIComponent(stayCity)}&startDate=${stayDate}&endDate=${stayCheckoutDate}&adults=${passengers}` },
-            { name: 'Agoda', color: '#5392F9', url: `https://www.agoda.com/search?city=${encodeURIComponent(stayCity)}&checkIn=${stayDate}&checkOut=${stayCheckoutDate}` },
+            { name: 'Booking.com', color: '#003580', url: monetise(`https://www.booking.com/searchresults.html?ss=${encodeURIComponent(stayCity)}&checkin=${stayDate}&checkout=${stayCheckoutDate}&group_adults=${passengers}`) },
+            { name: 'Expedia', color: '#00355F', url: monetise(`https://www.expedia.com/Hotel-Search?destination=${encodeURIComponent(stayCity)}&startDate=${stayDate}&endDate=${stayCheckoutDate}&adults=${passengers}`) },
+            { name: 'Agoda', color: '#5392F9', url: monetise(`https://www.agoda.com/search?city=${encodeURIComponent(stayCity)}&checkIn=${stayDate}&checkOut=${stayCheckoutDate}`) },
             { name: 'Airbnb', color: '#FF5A5F', url: `https://www.airbnb.com/s/${encodeURIComponent(stayCity)}/homes?checkin=${stayDate}&checkout=${stayCheckoutDate}&adults=${passengers}` },
-            { name: 'Hotels.com', color: '#D32F2F', url: `https://www.hotels.com/search.do?q-destination=${encodeURIComponent(stayCity)}&q-check-in=${stayDate}&q-check-out=${stayCheckoutDate}&q-rooms=1&q-room-0-adults=${passengers}` },
+            { name: 'Hotels.com', color: '#D32F2F', url: monetise(`https://www.hotels.com/search.do?q-destination=${encodeURIComponent(stayCity)}&q-check-in=${stayDate}&q-check-out=${stayCheckoutDate}&q-rooms=1&q-room-0-adults=${passengers}`) },
           ];
           return (
           <div>
@@ -988,16 +989,23 @@ function SearchResults() {
                             {h.freeCancellation && <span style={{ color: '#34D399' }}> · Free cancellation</span>}
                           </div>
                           {typeof h.price === 'number' && h.price > 0 ? (
-                            <div style={{ fontFamily: "'JetBrains Mono'", fontSize: '18px', fontWeight: 700, color: COLORS.text, marginBottom: '10px' }}>
-                              ${h.price} <span style={{ fontSize: '11px', fontWeight: 400, color: COLORS.sub }}>/night</span>
-                              {h.originalPrice > h.price && <span style={{ fontSize: '12px', color: COLORS.sub, textDecoration: 'line-through', marginLeft: '6px' }}>${h.originalPrice}</span>}
+                            <div style={{ marginBottom: '10px' }}>
+                              <div style={{ fontFamily: "'JetBrains Mono'", fontSize: '18px', fontWeight: 700, color: COLORS.text }}>
+                                ${h.price.toLocaleString()} <span style={{ fontSize: '11px', fontWeight: 400, color: COLORS.sub }}>/night</span>
+                                {h.originalPrice > h.price && <span style={{ fontSize: '12px', color: COLORS.sub, textDecoration: 'line-through', marginLeft: '6px' }}>${h.originalPrice}</span>}
+                              </div>
+                              {typeof h.totalPrice === 'number' && h.totalPrice > 0 && (
+                                <div style={{ fontFamily: "'JetBrains Mono'", fontSize: '11px', color: COLORS.sub, marginTop: '2px' }}>
+                                  ${h.totalPrice.toLocaleString()} total{h.nights ? ` · ${h.nights} night${h.nights > 1 ? 's' : ''}` : ''}{h.roomType && h.roomType !== 'Check rates' ? ` · ${h.roomType.toLowerCase()}` : ''}
+                                </div>
+                              )}
                             </div>
                           ) : null}
                         </div>
                       </a>
                       <div style={{ display: 'flex', gap: '6px', flexWrap: 'wrap', padding: '0 14px 14px' }}>
-                        <a href={`https://www.booking.com/searchresults.html?ss=${hotelSearch}&checkin=${stayDate}&checkout=${stayCheckoutDate}&group_adults=${passengers}`} target="_blank" rel="noopener noreferrer" style={{ fontSize: '11px', fontWeight: 600, color: '#5392F9', background: 'rgba(83,146,249,0.12)', padding: '6px 11px', borderRadius: '6px', textDecoration: 'none' }}>Booking.com</a>
-                        <a href={`https://www.expedia.com/Hotel-Search?destination=${hotelSearch}&startDate=${stayDate}&endDate=${stayCheckoutDate}&adults=${passengers}`} target="_blank" rel="noopener noreferrer" style={{ fontSize: '11px', fontWeight: 600, color: '#FBBF24', background: 'rgba(251,191,36,0.12)', padding: '6px 11px', borderRadius: '6px', textDecoration: 'none' }}>Expedia</a>
+                        <a href={monetise(`https://www.booking.com/searchresults.html?ss=${hotelSearch}&checkin=${stayDate}&checkout=${stayCheckoutDate}&group_adults=${passengers}`)} target="_blank" rel="noopener noreferrer" style={{ fontSize: '11px', fontWeight: 600, color: '#5392F9', background: 'rgba(83,146,249,0.12)', padding: '6px 11px', borderRadius: '6px', textDecoration: 'none' }}>Booking.com</a>
+                        <a href={monetise(`https://www.expedia.com/Hotel-Search?destination=${hotelSearch}&startDate=${stayDate}&endDate=${stayCheckoutDate}&adults=${passengers}`)} target="_blank" rel="noopener noreferrer" style={{ fontSize: '11px', fontWeight: 600, color: '#FBBF24', background: 'rgba(251,191,36,0.12)', padding: '6px 11px', borderRadius: '6px', textDecoration: 'none' }}>Expedia</a>
                         <a href={`https://www.google.com/travel/search?q=${hotelSearch}&checkin=${stayDate}&checkout=${stayCheckoutDate}`} target="_blank" rel="noopener noreferrer" style={{ fontSize: '11px', fontWeight: 600, color: '#A78BFA', background: 'rgba(139,92,246,0.12)', padding: '6px 11px', borderRadius: '6px', textDecoration: 'none' }}>Google</a>
                       </div>
                     </div>
