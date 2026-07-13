@@ -1,3 +1,29 @@
+# What's New — batch 2026-07-13: every result is now bookable
+
+## 1. Clickable results everywhere
+
+The core fix: result cards used to show prices with no way to act on them. Now every card on the search page is a full-card link with a visible CTA and hover state:
+
+- **Cash fares** → Google Flights pre-filled with route, date, cabin, and airline ("Book ↗")
+- **Award seats** → the airline's own award portal (Emirates Skywards, Qatar Privilege Club, …), or seats.aero search when the program isn't mapped ("Book award ↗")
+- **Hidden-city fares** → Skiplagged for the exact route and date
+- **Creative routes** → Kiwi.com booking link from the API
+- **Duffel live fares** → Google Flights for the airline (renamed section "Live Airline Fares" — honest until a real checkout exists)
+- **Hotels** → card links to Google Hotels with check-in/out dates; OTA chips (Booking.com / Expedia / Google) recoloured to be readable on the dark theme
+- **Points hotels** → Google Hotels for the property
+
+## 2. Compare-on row
+
+One-tap escape hatch above results: the exact route+date+cabin+pax on Google Flights, Skyscanner, Kayak, Kiwi, and Skiplagged. Always available even when a provider returns nothing.
+
+## 3. Cash fare sorting + departure times
+
+- Sort chips: **Price / Fastest / Departure**
+- Cards now show departure time ("7:00 PM on Mon, Jul 20") and the date when a multi-date search merged results
+- Duffel ISO durations humanized (PT7H54M → "7h 54m")
+
+---
+
 # What's New — batch 2026-05-27
 
 ## 1. Search History (`/history`)

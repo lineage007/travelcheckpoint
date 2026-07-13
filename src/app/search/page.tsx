@@ -53,6 +53,51 @@ type FlightFilter = 'all' | 'cash' | 'points' | 'hidden' | 'creative';
 
 const COLORS = { bg: '#06060a', card: 'rgba(255,255,255,0.04)', border: 'rgba(255,255,255,0.06)', accent: '#8B5CF6', text: '#ffffff', sub: 'rgba(255,255,255,0.4)', warm: 'rgba(255,255,255,0.03)' };
 
+// ─── Booking deep links ───
+// Every result card must lead somewhere actionable. These builders produce the most
+// specific booking surface we can reach without holding inventory ourselves.
+const gfUrl = (origin: string, dest: string, date: string, cabin: string, airline?: string) =>
+  `https://www.google.com/travel/flights?q=${encodeURIComponent(`Flights from ${origin} to ${dest} on ${date} ${cabin === 'premium-economy' ? 'premium economy' : cabin} class${airline ? ` on ${airline}` : ''}`)}&curr=USD`;
+
+const skyscannerUrl = (origin: string, dest: string, date: string, cabin: string, pax: number) =>
+  `https://www.skyscanner.net/transport/flights/${origin.toLowerCase()}/${dest.toLowerCase()}/${date.replace(/-/g, '').slice(2)}/?adultsv2=${pax}&cabinclass=${cabin === 'premium-economy' ? 'premiumeconomy' : cabin}`;
+
+const kayakUrl = (origin: string, dest: string, date: string, cabin: string, pax: number) =>
+  `https://www.kayak.com/flights/${origin}-${dest}/${date}${cabin === 'business' ? '/business' : cabin === 'first' ? '/first' : cabin === 'premium-economy' ? '/premium' : ''}/${pax}adults?sort=bestflight_a`;
+
+const kiwiUrl = (origin: string, dest: string, date: string) =>
+  `https://www.kiwi.com/en/search/results/${origin}/${dest}/${date}`;
+
+const skiplaggedUrl = (origin: string, dest: string, date: string) =>
+  `https://skiplagged.com/flights/${origin}/${dest}/${date}`;
+
+const googleHotelUrl = (hotelName: string, city: string, checkin: string, checkout: string) =>
+  `https://www.google.com/travel/search?q=${encodeURIComponent(`${hotelName} ${city}`)}${checkin ? `&checkin=${checkin}&checkout=${checkout}` : ''}`;
+
+// Award seats: airline program portal when we know it, otherwise seats.aero's own search UI.
+const awardBookUrl = (airline: string, origin: string, dest: string) =>
+  AIRLINE_BOOK_URLS[airline] || `https://seats.aero/search?origin=${origin}&destination=${dest}`;
+
+// Provider departure strings vary ("2026-07-20 09:45" from SerpAPI, "10:30 PM" from the
+// cash API). Strip a leading ISO date so the card shows just the time.
+const formatDep = (dep: string) => dep.replace(/^\d{4}-\d{2}-\d{2}[ T]?/, '').trim();
+
+// Duffel returns ISO-8601 durations ("PT7H54M") — humanize for display.
+const fmtDuration = (d: string): string => {
+  const m = (d || '').match(/^PT(?:(\d+)H)?(?:(\d+)M)?$/i);
+  if (!m) return d;
+  return [m[1] ? `${m[1]}h` : '', m[2] ? `${m[2]}m` : ''].filter(Boolean).join(' ') || d;
+};
+
+const parseDurationMin = (d: string): number => {
+  if (!d) return Infinity;
+  const hr = d.match(/(\d+)\s*h/i);
+  const min = d.match(/(\d+)\s*m/i);
+  if (hr || min) return (hr ? parseInt(hr[1]) * 60 : 0) + (min ? parseInt(min[1]) : 0);
+  const num = parseInt(d);
+  return Number.isFinite(num) && num > 0 ? num : Infinity;
+};
+
 type ProviderTone = 'live' | 'fallback' | 'warning' | 'empty';
 
 function ProviderNotice({ tone, title, children }: { tone: ProviderTone; title: string; children: React.ReactNode }) {
@@ -79,6 +124,26 @@ function StatusPill({ label, tone }: { label: string; tone: ProviderTone }) {
   return <span style={{ fontFamily: "'JetBrains Mono'", fontSize: '10px', fontWeight: 700, color, background: `${color}18`, border: `1px solid ${color}28`, padding: '3px 7px', borderRadius: '999px', textTransform: 'uppercase' }}>{label}</span>;
 }
 
+function BookCta({ label }: { label: string }) {
+  return (
+    <span className="book-cta" style={{ display: 'inline-flex', alignItems: 'center', gap: 3, fontFamily: "'DM Sans'", fontSize: '11px', fontWeight: 700, color: COLORS.accent, whiteSpace: 'nowrap', marginTop: 2 }}>
+      {label}
+      <svg width={11} height={11} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2.5}><line x1="7" y1="17" x2="17" y2="7" /><polyline points="7 7 17 7 17 17" /></svg>
+    </span>
+  );
+}
+
+// "10:30 PM" / "09:45" → minutes since midnight, for departure-time sorting.
+const parseTimeMin = (t: string): number => {
+  const m = formatDep(t || '').match(/(\d{1,2}):(\d{2})\s*(AM|PM)?/i);
+  if (!m) return Infinity;
+  let h = parseInt(m[1]);
+  const ap = m[3]?.toUpperCase();
+  if (ap === 'PM' && h !== 12) h += 12;
+  if (ap === 'AM' && h === 12) h = 0;
+  return h * 60 + parseInt(m[2]);
+};
+
 function SearchResults() {
   const router = useRouter();
   const searchParams = useSearchParams();
@@ -86,6 +151,7 @@ function SearchResults() {
 
   const [mainTab, setMainTab] = useState<MainTab>('flights');
   const [flightFilter, setFlightFilter] = useState<FlightFilter>('all');
+  const [cashSort, setCashSort] = useState<'price' | 'duration' | 'departure'>('price');
   const [loading, setLoading] = useState(true);
   const [destinations, setDestinations] = useState<DestResult[]>([]);
   const [parsed, setParsed] = useState<Record<string, unknown> | null>(null);
@@ -517,6 +583,34 @@ function SearchResults() {
               </div>
             )}
 
+            {/* Compare-everywhere row: one tap to this exact route+date on every major engine */}
+            {selectedResults && !loading && !isMulti && (() => {
+              const cmpDate = departDate || new Date(Date.now() + 7 * 86400000).toISOString().split('T')[0];
+              const cmpCabin = (parsed?.cabin as string) || 'business';
+              const cmpDest = selectedResults.code;
+              const engines = [
+                { name: 'Google Flights', url: gfUrl(origin, cmpDest, cmpDate, cmpCabin) },
+                { name: 'Skyscanner', url: skyscannerUrl(origin, cmpDest, cmpDate, cmpCabin, passengers) },
+                { name: 'Kayak', url: kayakUrl(origin, cmpDest, cmpDate, cmpCabin, passengers) },
+                { name: 'Kiwi', url: kiwiUrl(origin, cmpDest, cmpDate) },
+                { name: 'Skiplagged', url: skiplaggedUrl(origin, cmpDest, cmpDate) },
+              ];
+              return (
+                <div style={{ overflowX: 'auto', WebkitOverflowScrolling: 'touch', msOverflowStyle: 'none', scrollbarWidth: 'none', marginBottom: '16px' }}>
+                  <div style={{ display: 'flex', gap: '6px', alignItems: 'center', minWidth: 'max-content', paddingBottom: '2px' }}>
+                    <span style={{ fontSize: '10px', color: COLORS.sub, fontWeight: 600, textTransform: 'uppercase', letterSpacing: '0.05em', whiteSpace: 'nowrap', marginRight: '2px' }}>Compare on</span>
+                    {engines.map(e => (
+                      <a key={e.name} className="compare-chip" href={e.url} target="_blank" rel="noopener noreferrer"
+                        style={{ background: COLORS.card, border: `1px solid ${COLORS.border}`, borderRadius: '999px', padding: '8px 13px', fontFamily: "'DM Sans'", fontSize: '11px', fontWeight: 600, color: COLORS.sub }}>
+                        {e.name}
+                        <svg width={10} height={10} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2.5}><line x1="7" y1="17" x2="17" y2="7" /><polyline points="7 7 17 7 17 17" /></svg>
+                      </a>
+                    ))}
+                  </div>
+                </div>
+              );
+            })()}
+
             {/* Multi-destination overview */}
             {isMulti && !selectedDest && (
               <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(200px, 1fr))', gap: '10px', marginBottom: '16px' }}>
@@ -557,34 +651,64 @@ function SearchResults() {
                 if (ratio <= 0.82) return { label: 'Good Deal', bg: 'rgba(16,185,129,0.12)', color: '#10B981' };
                 return null;
               };
+              const cabinClass = (parsed?.cabin as string) || 'business';
+              const multiDate = ((parsed?.departDates as string[]) || []).length > 1;
+              const liveCash = selectedResults.cashResults.filter(f => f.status !== 'fallback');
+              const fallbackCash = selectedResults.cashResults.filter(f => f.status === 'fallback');
+              const sortedLive = [...liveCash].sort((a, b) => {
+                if (cashSort === 'duration') return parseDurationMin(a.duration) - parseDurationMin(b.duration);
+                if (cashSort === 'departure') return parseTimeMin(a.departureTime) - parseTimeMin(b.departureTime);
+                return (a.price ?? Infinity) - (b.price ?? Infinity);
+              });
+              const displayCash = [...sortedLive, ...fallbackCash].slice(0, 10);
               return (
               <div style={{ marginBottom: '20px' }}>
-                <h3 style={{ fontFamily: "'Space Grotesk'", fontSize: '15px', fontWeight: 600, color: COLORS.text, marginBottom: '10px' }}>Cash Fares</h3>
+                <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '8px', flexWrap: 'wrap', marginBottom: '10px' }}>
+                  <h3 style={{ fontFamily: "'Space Grotesk'", fontSize: '15px', fontWeight: 600, color: COLORS.text, margin: 0 }}>Cash Fares</h3>
+                  {liveCash.length > 1 && (
+                    <div style={{ display: 'flex', gap: '4px', alignItems: 'center' }}>
+                      <span style={{ fontSize: '10px', color: COLORS.sub, fontWeight: 600, textTransform: 'uppercase', letterSpacing: '0.05em', marginRight: '2px' }}>Sort</span>
+                      {([['price', 'Price'], ['duration', 'Fastest'], ['departure', 'Departure']] as const).map(([val, label]) => (
+                        <button key={val} onClick={() => setCashSort(val)}
+                          style={{ fontFamily: "'DM Sans'", fontSize: '11px', fontWeight: cashSort === val ? 600 : 400, padding: '5px 11px', borderRadius: '100px', border: 'none', cursor: 'pointer', background: cashSort === val ? COLORS.accent : COLORS.card, color: cashSort === val ? '#fff' : COLORS.sub, transition: 'all 0.15s' }}>
+                          {label}
+                        </button>
+                      ))}
+                    </div>
+                  )}
+                </div>
                 {selectedResults.cashResults.every(f => f.status === 'fallback') && (
                   <ProviderNotice tone="fallback" title="Live cash fares are not connected yet">
                     These are direct search links to Google Flights and Skyscanner. They are not ranked prices, so TravelCheckpoint is being honest instead of pretending a $0 fare exists.
                   </ProviderNotice>
                 )}
-                {selectedResults.cashResults.slice(0, 8).map((f, i) => {
+                {displayCash.map((f, i) => {
                   const dealBadge = getDealBadge(f.price ?? null);
+                  const isFallback = f.status === 'fallback';
+                  const href = isFallback
+                    ? f.bookingUrl
+                    : gfUrl(f.origin || origin, f.destination || selectedResults.code, f.date || departDate || new Date(Date.now() + 7 * 86400000).toISOString().split('T')[0], cabinClass, f.airline);
+                  const depTime = formatDep(f.departureTime || '');
                   return (
-                  <div key={f.id || i} style={{ background: 'rgba(255,255,255,0.04)', border: `1px solid ${dealBadge ? 'rgba(34,197,94,0.2)' : COLORS.border}`, borderRadius: '10px', padding: '14px', marginBottom: '8px', display: 'flex', alignItems: 'center', gap: '12px', animation: `fadeIn 0.3s ease ${i * 0.05}s both` }}>
+                  <a key={f.id || i} className="result-card" href={href} target="_blank" rel="noopener noreferrer"
+                    aria-label={isFallback ? `Search ${f.route} on ${f.airline}` : `Book ${f.airline} ${f.route} — opens Google Flights`}
+                    style={{ background: 'rgba(255,255,255,0.04)', border: `1px solid ${dealBadge ? 'rgba(34,197,94,0.2)' : COLORS.border}`, borderRadius: '10px', padding: '14px', marginBottom: '8px', animation: `fadeIn 0.3s ease ${Math.min(i, 8) * 0.05}s both` }}>
                     <AirlineLogo airline={f.airline} />
                     <div style={{ flex: 1, minWidth: 0 }}>
                       <div style={{ fontFamily: "'DM Sans'", fontSize: '13px', fontWeight: 600, color: COLORS.text, display: 'flex', alignItems: 'center', gap: '6px', flexWrap: 'wrap' }}>
                         {f.airline}
                         {dealBadge && <span style={{ fontFamily: "'DM Sans'", fontSize: '10px', fontWeight: 700, padding: '2px 7px', borderRadius: '999px', background: dealBadge.bg, color: dealBadge.color }}>{dealBadge.label}</span>}
                       </div>
-                      <div style={{ fontFamily: "'JetBrains Mono'", fontSize: '11px', color: COLORS.sub }}>
-                        {f.route}{f.duration ? ` · ${f.duration}` : ''} · {f.stops === 0 ? 'Direct' : `${f.stops} stop${f.stops > 1 ? 's' : ''}`}
+                      <div style={{ fontFamily: "'JetBrains Mono'", fontSize: '11px', color: COLORS.sub, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
+                        {depTime ? `${depTime} · ` : ''}{f.route}{f.duration ? ` · ${f.duration}` : ''} · {f.stops === 0 ? 'Direct' : `${f.stops} stop${f.stops > 1 ? 's' : ''}`}{multiDate && f.date ? ` · ${f.date.slice(5)}` : ''}
                       </div>
                     </div>
-                    <div style={{ textAlign: 'right' }}>
+                    <div style={{ textAlign: 'right', flexShrink: 0 }}>
                       <div style={{ fontFamily: "'JetBrains Mono'", fontSize: '15px', fontWeight: 700, color: dealBadge ? '#22C55E' : COLORS.text }}>{typeof f.price === 'number' && f.price > 0 ? `$${f.price.toLocaleString()}` : 'Check live'}</div>
                       {typeof f.price === 'number' && f.price > 0 && passengers > 1 && <div style={{ fontFamily: "'JetBrains Mono'", fontSize: '10px', color: COLORS.sub }}>${(f.price * passengers).toLocaleString()} total</div>}
-                      {f.status === 'fallback' && <a href={f.bookingUrl} target="_blank" rel="noopener noreferrer" style={{ fontSize: '10px', color: COLORS.accent, textDecoration: 'none' }}>Open search →</a>}
+                      <BookCta label={isFallback ? 'Open search' : 'Book'} />
                     </div>
-                  </div>
+                  </a>
                   );
                 })}
               </div>
@@ -596,19 +720,21 @@ function SearchResults() {
               <div style={{ marginBottom: '20px' }}>
                 <h3 style={{ fontFamily: "'Space Grotesk'", fontSize: '15px', fontWeight: 600, color: COLORS.text, marginBottom: '10px' }}>Award Seats</h3>
                 {selectedResults.awardResults.slice(0, 8).map((f, i) => (
-                  <div key={f.id || i} style={{ background: 'rgba(255,255,255,0.04)', border: `1px solid ${COLORS.border}`, borderRadius: '10px', padding: '14px', marginBottom: '8px', display: 'flex', alignItems: 'center', gap: '12px', animation: `fadeIn 0.3s ease ${i * 0.05}s both` }}>
+                  <a key={f.id || i} className="result-card" href={awardBookUrl(f.airline, f.origin, f.destination)} target="_blank" rel="noopener noreferrer"
+                    aria-label={`Book ${f.airline} award seat via ${f.program}`}
+                    style={{ background: 'rgba(255,255,255,0.04)', border: `1px solid ${COLORS.border}`, borderRadius: '10px', padding: '14px', marginBottom: '8px', animation: `fadeIn 0.3s ease ${i * 0.05}s both` }}>
                     <AirlineLogo airline={f.airline} />
                     <div style={{ flex: 1, minWidth: 0 }}>
                       <div style={{ fontFamily: "'DM Sans'", fontSize: '13px', fontWeight: 600, color: COLORS.text }}>{f.airline} <span style={{ fontSize: '11px', color: COLORS.sub, fontWeight: 400 }}>via {f.program}</span></div>
-                      <div style={{ fontFamily: "'JetBrains Mono'", fontSize: '11px', color: COLORS.sub }}>{f.route} · {f.cabin} · {f.seats} seat{f.seats > 1 ? 's' : ''} · {f.isDirect ? 'Direct' : 'Connection'}</div>
+                      <div style={{ fontFamily: "'JetBrains Mono'", fontSize: '11px', color: COLORS.sub }}>{f.date ? `${f.date.slice(5)} · ` : ''}{f.route} · {f.cabin} · {f.seats} seat{f.seats > 1 ? 's' : ''} · {f.isDirect ? 'Direct' : 'Connection'}</div>
                       {f.transferFrom.length > 0 && <div style={{ fontSize: '10px', color: COLORS.accent, marginTop: '2px' }}>Transfer from: {f.transferFrom.join(', ')}</div>}
                     </div>
-                    <div style={{ textAlign: 'right' }}>
+                    <div style={{ textAlign: 'right', flexShrink: 0 }}>
                       <div style={{ fontFamily: "'JetBrains Mono'", fontSize: '15px', fontWeight: 700, color: COLORS.accent }}>{(f.miles / 1000).toFixed(0)}K mi</div>
                       <div style={{ fontFamily: "'JetBrains Mono'", fontSize: '10px', color: COLORS.sub }}>+${f.taxes} tax</div>
-                      <a href={AIRLINE_BOOK_URLS[f.airline] || '#'} target="_blank" rel="noopener noreferrer" style={{ fontSize: '10px', color: COLORS.accent, textDecoration: 'none' }}>Book →</a>
+                      <BookCta label={AIRLINE_BOOK_URLS[f.airline] ? 'Book award' : 'Find on seats.aero'} />
                     </div>
-                  </div>
+                  </a>
                 ))}
               </div>
             )}
@@ -618,16 +744,24 @@ function SearchResults() {
               <div style={{ marginBottom: '20px' }}>
                 <h3 style={{ fontFamily: "'Space Grotesk'", fontSize: '15px', fontWeight: 600, color: COLORS.text, marginBottom: '4px' }}>Hidden City Fares <span style={{ fontSize: '11px', fontWeight: 400, color: COLORS.sub }}>via Skiplagged</span></h3>
                 <p style={{ fontFamily: "'DM Sans'", fontSize: '11px', color: COLORS.sub, marginBottom: '10px' }}>Get off at the layover — often 30-60% cheaper. Carry-on only, no checked bags.</p>
-                {hiddenCity.slice(0, 6).map((f, i) => (
-                  <div key={i} style={{ background: 'rgba(255,255,255,0.04)', border: `1px solid ${COLORS.border}`, borderRadius: '10px', padding: '14px', marginBottom: '8px', display: 'flex', alignItems: 'center', gap: '12px', borderLeft: f.isHiddenCity ? '3px solid #F59E0B' : undefined }}>
+                {hiddenCity.slice(0, 6).map((f, i) => {
+                  const hcDate = (f.departure || '').split('T')[0] || departDate || new Date(Date.now() + 7 * 86400000).toISOString().split('T')[0];
+                  return (
+                  <a key={i} className="result-card" href={skiplaggedUrl(f.from || origin, f.to || selectedResults?.code || '', hcDate)} target="_blank" rel="noopener noreferrer"
+                    aria-label={`Open ${f.from} to ${f.to} hidden-city fare on Skiplagged`}
+                    style={{ background: 'rgba(255,255,255,0.04)', border: `1px solid ${COLORS.border}`, borderRadius: '10px', padding: '14px', marginBottom: '8px', borderLeft: f.isHiddenCity ? '3px solid #F59E0B' : undefined }}>
                     <div style={{ width: 28, height: 28, borderRadius: '50%', background: '#FFF7ED', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '14px', flexShrink: 0 }}>🎭</div>
-                    <div style={{ flex: 1 }}>
+                    <div style={{ flex: 1, minWidth: 0 }}>
                       <div style={{ fontFamily: "'DM Sans'", fontSize: '13px', fontWeight: 600, color: COLORS.text }}>{f.airline}</div>
                       <div style={{ fontFamily: "'JetBrains Mono'", fontSize: '11px', color: COLORS.sub }}>{f.from}→{f.to}{f.isHiddenCity ? ` (via ${f.actualDestination})` : ''} · {f.duration}h · {f.stops} stop{f.stops !== 1 ? 's' : ''}</div>
                     </div>
-                    <div style={{ fontFamily: "'JetBrains Mono'", fontSize: '15px', fontWeight: 700, color: COLORS.text }}>${f.price.toLocaleString()}</div>
-                  </div>
-                ))}
+                    <div style={{ textAlign: 'right', flexShrink: 0 }}>
+                      <div style={{ fontFamily: "'JetBrains Mono'", fontSize: '15px', fontWeight: 700, color: COLORS.text }}>${f.price.toLocaleString()}</div>
+                      <BookCta label="Skiplagged" />
+                    </div>
+                  </a>
+                  );
+                })}
               </div>
             )}
 
@@ -636,46 +770,57 @@ function SearchResults() {
               <div style={{ marginBottom: '20px' }}>
                 <h3 style={{ fontFamily: "'Space Grotesk'", fontSize: '15px', fontWeight: 600, color: COLORS.text, marginBottom: '4px' }}>Creative Routes <span style={{ fontSize: '11px', fontWeight: 400, color: COLORS.sub }}>via Kiwi.com</span></h3>
                 <p style={{ fontFamily: "'DM Sans'", fontSize: '11px', color: COLORS.sub, marginBottom: '10px' }}>Multi-airline combinations with Kiwi Guarantee — if you miss a connection, they rebook you.</p>
-                {kiwiResults.slice(0, 6).map((f, i) => (
-                  <div key={i} style={{ background: 'rgba(255,255,255,0.04)', border: `1px solid ${COLORS.border}`, borderRadius: '10px', padding: '14px', marginBottom: '8px', display: 'flex', alignItems: 'center', gap: '12px', borderLeft: f.isVirtualInterline ? `3px solid ${COLORS.accent}` : undefined }}>
+                {kiwiResults.slice(0, 6).map((f, i) => {
+                  const kwDate = (f.departure || '').split('T')[0] || departDate || new Date(Date.now() + 7 * 86400000).toISOString().split('T')[0];
+                  return (
+                  <a key={i} className="result-card" href={f.bookingLink || kiwiUrl(f.from || origin, f.to || selectedResults?.code || '', kwDate)} target="_blank" rel="noopener noreferrer"
+                    aria-label={`Book ${f.airlines.join(' + ')} ${f.from} to ${f.to} on Kiwi.com`}
+                    style={{ background: 'rgba(255,255,255,0.04)', border: `1px solid ${COLORS.border}`, borderRadius: '10px', padding: '14px', marginBottom: '8px', borderLeft: f.isVirtualInterline ? `3px solid ${COLORS.accent}` : undefined }}>
                     <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '2px' }}>
                       {f.airlines.slice(0, 2).map((a, j) => <AirlineLogo key={j} airline={a} size={20} />)}
                     </div>
-                    <div style={{ flex: 1 }}>
+                    <div style={{ flex: 1, minWidth: 0 }}>
                       <div style={{ fontFamily: "'DM Sans'", fontSize: '13px', fontWeight: 600, color: COLORS.text }}>{f.airlines.join(' + ')}</div>
                       <div style={{ fontFamily: "'JetBrains Mono'", fontSize: '11px', color: COLORS.sub }}>{f.from}→{f.to} · {f.duration ? `${Math.floor(f.duration / 60)}h ${f.duration % 60}m` : 'Duration TBC'} · {f.stops} stop{f.stops !== 1 ? 's' : ''}</div>
                       {f.isVirtualInterline && <span style={{ fontSize: '10px', background: '#ECFDF5', color: '#065F46', padding: '1px 6px', borderRadius: '4px' }}>Kiwi Guarantee</span>}
                     </div>
-                    <div style={{ textAlign: 'right' }}>
+                    <div style={{ textAlign: 'right', flexShrink: 0 }}>
                       <div style={{ fontFamily: "'JetBrains Mono'", fontSize: '15px', fontWeight: 700, color: COLORS.text }}>${f.price.toLocaleString()}</div>
-                      <a href={f.bookingLink} target="_blank" rel="noopener noreferrer" style={{ fontSize: '10px', color: COLORS.accent, textDecoration: 'none' }}>Book on Kiwi →</a>
+                      <BookCta label="Book on Kiwi" />
                     </div>
-                  </div>
-                ))}
+                  </a>
+                  );
+                })}
               </div>
             )}
 
             {/* Duffel bookable flights */}
             {(flightFilter === 'all' || flightFilter === 'cash') && duffelResults.length > 0 && (
               <div style={{ marginBottom: '20px' }}>
-                <h3 style={{ fontFamily: "'Space Grotesk'", fontSize: '15px', fontWeight: 600, color: COLORS.text, marginBottom: '4px' }}>Bookable Fares <span style={{ fontSize: '11px', fontWeight: 400, color: COLORS.sub }}>via Duffel</span></h3>
-                <p style={{ fontFamily: "'DM Sans'", fontSize: '11px', color: COLORS.sub, marginBottom: '10px' }}>Real-time airline prices — book directly through TravelCheckpoint.</p>
-                {duffelResults.slice(0, 8).map((f, i) => (
-                  <div key={f.id || i} style={{ background: 'rgba(255,255,255,0.04)', border: `1px solid ${COLORS.border}`, borderRadius: '10px', padding: '14px', marginBottom: '8px', display: 'flex', alignItems: 'center', gap: '12px', borderLeft: `3px solid #6366F1`, animation: `fadeIn 0.3s ease ${i * 0.05}s both` }}>
+                <h3 style={{ fontFamily: "'Space Grotesk'", fontSize: '15px', fontWeight: 600, color: COLORS.text, marginBottom: '4px' }}>Live Airline Fares <span style={{ fontSize: '11px', fontWeight: 400, color: COLORS.sub }}>via Duffel</span></h3>
+                <p style={{ fontFamily: "'DM Sans'", fontSize: '11px', color: COLORS.sub, marginBottom: '10px' }}>Real-time airline prices — tap a fare to book it with the airline.</p>
+                {duffelResults.slice(0, 8).map((f, i) => {
+                  const dfDate = (f.departure || '').split('T')[0] || departDate || new Date(Date.now() + 7 * 86400000).toISOString().split('T')[0];
+                  return (
+                  <a key={f.id || i} className="result-card" href={gfUrl(f.from || origin, f.to || selectedResults?.code || '', dfDate, (parsed?.cabin as string) || 'business', f.airlines[0])} target="_blank" rel="noopener noreferrer"
+                    aria-label={`Book ${f.airlines.join(' + ')} ${f.from} to ${f.to} — opens Google Flights`}
+                    style={{ background: 'rgba(255,255,255,0.04)', border: `1px solid ${COLORS.border}`, borderRadius: '10px', padding: '14px', marginBottom: '8px', borderLeft: `3px solid #6366F1`, animation: `fadeIn 0.3s ease ${i * 0.05}s both` }}>
                     <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '2px' }}>
                       {f.airlines.slice(0, 2).map((a, j) => <AirlineLogo key={j} airline={a} size={20} />)}
                     </div>
-                    <div style={{ flex: 1 }}>
+                    <div style={{ flex: 1, minWidth: 0 }}>
                       <div style={{ fontFamily: "'DM Sans'", fontSize: '13px', fontWeight: 600, color: COLORS.text }}>{f.airlines.join(' + ')}</div>
-                      <div style={{ fontFamily: "'JetBrains Mono'", fontSize: '11px', color: COLORS.sub }}>{f.from}→{f.to} · {f.duration} · {f.stops === 0 ? 'Direct' : `${f.stops} stop${f.stops > 1 ? 's' : ''}`}</div>
-                      <span style={{ fontSize: '10px', background: '#EEF2FF', color: '#4338CA', padding: '1px 6px', borderRadius: '4px' }}>Bookable</span>
+                      <div style={{ fontFamily: "'JetBrains Mono'", fontSize: '11px', color: COLORS.sub }}>{f.from}→{f.to} · {fmtDuration(f.duration)} · {f.stops === 0 ? 'Direct' : `${f.stops} stop${f.stops > 1 ? 's' : ''}`}</div>
+                      <span style={{ fontSize: '10px', background: 'rgba(99,102,241,0.15)', color: '#A5B4FC', padding: '1px 6px', borderRadius: '4px' }}>Live price</span>
                     </div>
-                    <div style={{ textAlign: 'right' }}>
+                    <div style={{ textAlign: 'right', flexShrink: 0 }}>
                       <div style={{ fontFamily: "'JetBrains Mono'", fontSize: '15px', fontWeight: 700, color: COLORS.text }}>{f.currency === 'GBP' ? '£' : '$'}{f.price.toLocaleString()}</div>
                       {passengers > 1 && <div style={{ fontFamily: "'JetBrains Mono'", fontSize: '10px', color: COLORS.sub }}>{f.currency === 'GBP' ? '£' : '$'}{(f.price * passengers).toLocaleString()} total</div>}
+                      <BookCta label="Book" />
                     </div>
-                  </div>
-                ))}
+                  </a>
+                  );
+                })}
               </div>
             )}
 
@@ -734,31 +879,36 @@ function SearchResults() {
                     const hotelSearch = encodeURIComponent(h.name + ' ' + stayCity);
                     return (
                     <div key={h.id || i} style={{ background: 'rgba(255,255,255,0.04)', border: `1px solid ${COLORS.border}`, borderRadius: '12px', overflow: 'hidden', animation: `fadeIn 0.3s ease ${i * 0.05}s both` }}>
-                      {h.image && (
-                        <>
-                          {/* eslint-disable-next-line @next/next/no-img-element */}
-                          <img src={h.image} alt={h.name} style={{ width: '100%', height: '160px', objectFit: 'cover' }} onError={e => { (e.target as HTMLImageElement).style.display = 'none'; }} />
-                        </>
-                      )}
-                      <div style={{ padding: '14px' }}>
-                        <div style={{ fontFamily: "'DM Sans'", fontSize: '14px', fontWeight: 600, color: COLORS.text, marginBottom: '4px' }}>{h.name}</div>
-                        <div style={{ fontFamily: "'DM Sans'", fontSize: '11px', color: COLORS.sub, marginBottom: '2px' }}>{h.address}</div>
-                        <div style={{ fontFamily: "'DM Sans'", fontSize: '11px', color: COLORS.sub, marginBottom: '10px' }}>
-                          {h.stars > 0 && <span>{'★'.repeat(h.stars)}{'☆'.repeat(Math.max(0, 5 - h.stars))}</span>}
-                          {h.board && <span style={{ marginLeft: '6px' }}> · {h.board}</span>}
-                          {h.freeCancellation && <span style={{ color: '#34D399' }}> · Free cancellation</span>}
-                        </div>
-                        {typeof h.price === 'number' && h.price > 0 ? (
-                          <div style={{ fontFamily: "'JetBrains Mono'", fontSize: '18px', fontWeight: 700, color: COLORS.text, marginBottom: '10px' }}>
-                            ${h.price} <span style={{ fontSize: '11px', fontWeight: 400, color: COLORS.sub }}>/night</span>
-                            {h.originalPrice > h.price && <span style={{ fontSize: '12px', color: COLORS.sub, textDecoration: 'line-through', marginLeft: '6px' }}>${h.originalPrice}</span>}
+                      <a href={googleHotelUrl(h.name, stayCity, stayDate, stayCheckoutDate)} target="_blank" rel="noopener noreferrer" aria-label={`View ${h.name} rates on Google Hotels`} style={{ display: 'block', textDecoration: 'none', cursor: 'pointer' }}>
+                        {h.image && (
+                          <>
+                            {/* eslint-disable-next-line @next/next/no-img-element */}
+                            <img src={h.image} alt={h.name} style={{ width: '100%', height: '160px', objectFit: 'cover' }} onError={e => { (e.target as HTMLImageElement).style.display = 'none'; }} />
+                          </>
+                        )}
+                        <div style={{ padding: '14px 14px 0' }}>
+                          <div style={{ fontFamily: "'DM Sans'", fontSize: '14px', fontWeight: 600, color: COLORS.text, marginBottom: '4px', display: 'flex', justifyContent: 'space-between', gap: '8px' }}>
+                            <span>{h.name}</span>
+                            <BookCta label="Rates" />
                           </div>
-                        ) : null}
-                        <div style={{ display: 'flex', gap: '6px', flexWrap: 'wrap' }}>
-                          <a href={`https://www.booking.com/searchresults.html?ss=${hotelSearch}&checkin=${stayDate}&checkout=${stayCheckoutDate}&group_adults=${passengers}`} target="_blank" rel="noopener noreferrer" style={{ fontSize: '11px', fontWeight: 600, color: '#003580', background: 'rgba(0,53,128,0.1)', padding: '5px 10px', borderRadius: '6px', textDecoration: 'none' }}>Booking.com</a>
-                          <a href={`https://www.expedia.com/Hotel-Search?destination=${hotelSearch}&startDate=${stayDate}&endDate=${stayCheckoutDate}&adults=${passengers}`} target="_blank" rel="noopener noreferrer" style={{ fontSize: '11px', fontWeight: 600, color: '#00355F', background: 'rgba(0,53,95,0.1)', padding: '5px 10px', borderRadius: '6px', textDecoration: 'none' }}>Expedia</a>
-                          <a href={`https://www.google.com/travel/hotels/${hotelSearch}?q=${hotelSearch}&checkin=${stayDate}&checkout=${stayCheckoutDate}`} target="_blank" rel="noopener noreferrer" style={{ fontSize: '11px', fontWeight: 600, color: COLORS.accent, background: 'rgba(6,182,212,0.1)', padding: '5px 10px', borderRadius: '6px', textDecoration: 'none' }}>Google</a>
+                          <div style={{ fontFamily: "'DM Sans'", fontSize: '11px', color: COLORS.sub, marginBottom: '2px' }}>{h.address}</div>
+                          <div style={{ fontFamily: "'DM Sans'", fontSize: '11px', color: COLORS.sub, marginBottom: '10px' }}>
+                            {h.stars > 0 && <span>{'★'.repeat(h.stars)}{'☆'.repeat(Math.max(0, 5 - h.stars))}</span>}
+                            {h.board && <span style={{ marginLeft: '6px' }}> · {h.board}</span>}
+                            {h.freeCancellation && <span style={{ color: '#34D399' }}> · Free cancellation</span>}
+                          </div>
+                          {typeof h.price === 'number' && h.price > 0 ? (
+                            <div style={{ fontFamily: "'JetBrains Mono'", fontSize: '18px', fontWeight: 700, color: COLORS.text, marginBottom: '10px' }}>
+                              ${h.price} <span style={{ fontSize: '11px', fontWeight: 400, color: COLORS.sub }}>/night</span>
+                              {h.originalPrice > h.price && <span style={{ fontSize: '12px', color: COLORS.sub, textDecoration: 'line-through', marginLeft: '6px' }}>${h.originalPrice}</span>}
+                            </div>
+                          ) : null}
                         </div>
+                      </a>
+                      <div style={{ display: 'flex', gap: '6px', flexWrap: 'wrap', padding: '0 14px 14px' }}>
+                        <a href={`https://www.booking.com/searchresults.html?ss=${hotelSearch}&checkin=${stayDate}&checkout=${stayCheckoutDate}&group_adults=${passengers}`} target="_blank" rel="noopener noreferrer" style={{ fontSize: '11px', fontWeight: 600, color: '#5392F9', background: 'rgba(83,146,249,0.12)', padding: '6px 11px', borderRadius: '6px', textDecoration: 'none' }}>Booking.com</a>
+                        <a href={`https://www.expedia.com/Hotel-Search?destination=${hotelSearch}&startDate=${stayDate}&endDate=${stayCheckoutDate}&adults=${passengers}`} target="_blank" rel="noopener noreferrer" style={{ fontSize: '11px', fontWeight: 600, color: '#FBBF24', background: 'rgba(251,191,36,0.12)', padding: '6px 11px', borderRadius: '6px', textDecoration: 'none' }}>Expedia</a>
+                        <a href={`https://www.google.com/travel/search?q=${hotelSearch}&checkin=${stayDate}&checkout=${stayCheckoutDate}`} target="_blank" rel="noopener noreferrer" style={{ fontSize: '11px', fontWeight: 600, color: '#A78BFA', background: 'rgba(139,92,246,0.12)', padding: '6px 11px', borderRadius: '6px', textDecoration: 'none' }}>Google</a>
                       </div>
                     </div>
                     );
@@ -797,7 +947,9 @@ function SearchResults() {
                 <h3 style={{ fontFamily: "'Space Grotesk'", fontSize: '16px', fontWeight: 600, color: COLORS.text, marginBottom: '4px' }}>Book with Points <span style={{ fontSize: '11px', fontWeight: 400, color: COLORS.sub }}>via rooms.aero</span></h3>
                 <p style={{ fontFamily: "'DM Sans'", fontSize: '12px', color: COLORS.sub, marginBottom: '12px' }}>Use hotel loyalty points — sorted by best value (cents per point).</p>
                 {roomResults.slice(0, 8).map((r, i) => (
-                  <div key={i} style={{ background: 'rgba(255,255,255,0.04)', border: `1px solid ${COLORS.border}`, borderRadius: '10px', padding: '14px', marginBottom: '8px', display: 'flex', alignItems: 'center', gap: '12px' }}>
+                  <a key={i} className="result-card" href={googleHotelUrl(r.hotel, r.location || stayCity, stayDate, stayCheckoutDate)} target="_blank" rel="noopener noreferrer"
+                    aria-label={`View ${r.hotel} — compare points vs cash rates`}
+                    style={{ background: 'rgba(255,255,255,0.04)', border: `1px solid ${COLORS.border}`, borderRadius: '10px', padding: '14px', marginBottom: '8px' }}>
                     <div style={{ width: 36, height: 36, borderRadius: '10px', background: COLORS.card, display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
                       <Hotel size={18} color={COLORS.accent} />
                     </div>
@@ -808,9 +960,9 @@ function SearchResults() {
                     <div style={{ textAlign: 'right', flexShrink: 0 }}>
                       <div style={{ fontFamily: "'JetBrains Mono'", fontSize: '14px', fontWeight: 700, color: COLORS.accent }}>{(r.pointsPerNight / 1000).toFixed(0)}K pts</div>
                       <div style={{ fontFamily: "'JetBrains Mono'", fontSize: '10px', color: COLORS.sub }}>vs ${r.cashRate}/night</div>
-                      {r.centsPerPoint > 0 && <div style={{ fontFamily: "'JetBrains Mono'", fontSize: '10px', color: r.centsPerPoint >= 1 ? '#065F46' : '#92400E' }}>{r.centsPerPoint.toFixed(1)}¢/pt</div>}
+                      {r.centsPerPoint > 0 && <div style={{ fontFamily: "'JetBrains Mono'", fontSize: '10px', color: r.centsPerPoint >= 1 ? '#34D399' : '#FBBF24' }}>{r.centsPerPoint.toFixed(1)}¢/pt</div>}
                     </div>
-                  </div>
+                  </a>
                 ))}
               </div>
             )}
@@ -908,6 +1060,14 @@ function SearchResults() {
       <style jsx global>{`
         @keyframes fadeIn { from { opacity: 0; transform: translateY(8px); } to { opacity: 1; transform: translateY(0); } }
         @keyframes shimmer { 0% { opacity: 0.5; } 50% { opacity: 0.8; } 100% { opacity: 0.5; } }
+        a.result-card { display: flex; align-items: center; gap: 12px; text-decoration: none; cursor: pointer; transition: border-color 0.15s ease, background 0.15s ease, transform 0.15s ease; }
+        a.result-card:hover { background: rgba(255,255,255,0.07) !important; border-color: rgba(139,92,246,0.45) !important; transform: translateY(-1px); }
+        a.result-card:hover .book-cta { color: #A78BFA; }
+        a.result-card:hover .book-cta svg { transform: translateX(2px); }
+        a.result-card .book-cta svg { transition: transform 0.15s ease; }
+        a.result-card:focus-visible { outline: 2px solid #8B5CF6; outline-offset: 2px; }
+        a.compare-chip { display: inline-flex; align-items: center; gap: 5px; text-decoration: none; white-space: nowrap; transition: border-color 0.15s ease, color 0.15s ease, background 0.15s ease; }
+        a.compare-chip:hover { border-color: rgba(139,92,246,0.5) !important; color: #fff !important; background: rgba(139,92,246,0.12) !important; }
       `}</style>
     </div>
   );
