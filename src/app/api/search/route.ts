@@ -13,7 +13,8 @@ const AIRLINE_NAMES: Record<string, string> = {
   DL: 'Delta', AF: 'Air France', KL: 'KLM', LX: 'Swiss', OS: 'Austrian',
   TG: 'Thai Airways', MH: 'Malaysia Airlines', SV: 'Saudia', GF: 'Gulf Air',
   WY: 'Oman Air', AI: 'Air India', VS: 'Virgin Atlantic', QF: 'Qantas',
-  AS: 'Alaska Airlines', TP: 'TAP Portugal', AZ: 'ITA Airways',
+  AS: 'Alaska Airlines', TP: 'TAP Portugal', AZ: 'ITA Airways', FZ: 'flydubai',
+  MS: 'EgyptAir', ME: 'MEA', RJ: 'Royal Jordanian', KE: 'Korean Air', AY: 'Finnair',
 };
 
 const SOURCE_PROGRAMS: Record<string, { name: string; transferFrom: string[] }> = {
@@ -31,7 +32,6 @@ const SOURCE_PROGRAMS: Record<string, { name: string; transferFrom: string[] }> 
   lufthansa: { name: 'Miles & More', transferFrom: ['Amex MR'] },
 };
 
-const SOURCES = Object.keys(SOURCE_PROGRAMS);
 
 // ═══════════════════════════════════════════════════
 // 1. AWARD FLIGHTS (Seats.aero)
@@ -45,9 +45,12 @@ interface AwardResult {
   transferFrom: string[];
 }
 
-// Seats.aero enforces a daily request quota and every award search fans out to 12
-// sources, so results are cached in-process (Fluid Compute reuses instances) and
-// 429s are tracked so the UI can say "rate-limited" instead of "no awards".
+// Seats.aero award search. Uses the Cached Search endpoint (/partnerapi/search),
+// which filters by route SERVER-side and spans all mileage programs in ONE call.
+// (The old /availability endpoint ignores origin/destination and returns the
+// source's entire paginated feed — client-side filtering of page 1 meant most
+// routes silently showed zero awards.) Results are cached in-process and 429s
+// are tracked so the UI can say "rate-limited" instead of "no awards".
 const AWARD_CACHE_TTL_MS = 45 * 60 * 1000;
 const awardCache = new Map<string, { at: number; results: AwardResult[] }>();
 
@@ -61,29 +64,32 @@ async function searchAwards(origin: string, destination: string, cabin: string):
   }
 
   const cabinKey = cabin === 'first' ? 'F' : cabin === 'business' ? 'J' : cabin === 'premium' ? 'W' : 'Y';
-  const results: AwardResult[] = [];
-  let rateLimitedCount = 0;
+  let results: AwardResult[] = [];
+  let rateLimited = false;
 
-  const searches = SOURCES.map(async (source) => {
-    try {
-      const res = await fetch(
-        `https://seats.aero/partnerapi/availability?source=${source}&origin=${origin}&destination=${destination}&cabin=${cabin}`,
-        { headers: { 'Partner-Authorization': SEATS_API_KEY }, signal: AbortSignal.timeout(12000) }
-      );
-      if (res.status === 429) { rateLimitedCount++; return []; }
-      if (!res.ok) return [];
+  try {
+    const today = new Date().toISOString().split('T')[0];
+    // seats.aero requires start_date and end_date together; ~11 months covers
+    // every airline's booking horizon.
+    const horizon = new Date(Date.now() + 330 * 86400000).toISOString().split('T')[0];
+    const res = await fetch(
+      `https://seats.aero/partnerapi/search?origin_airport=${origin}&destination_airport=${destination}&cabin=${cabin}&start_date=${today}&end_date=${horizon}&take=100`,
+      { headers: { 'Partner-Authorization': SEATS_API_KEY, 'Accept': 'application/json' }, signal: AbortSignal.timeout(15000) }
+    );
+    if (res.status === 429) rateLimited = true;
+    if (res.ok) {
       const data = await res.json();
-      const items = data.data || data || [];
-
-      return items
-        .filter((r: Record<string, unknown>) => {
+      const items = (data.data || []) as Record<string, unknown>[];
+      results = items
+        .filter((r) => {
           const route = r.Route as Record<string, string> | undefined;
           if (!route) return false;
           return route.OriginAirport === origin && route.DestinationAirport === destination && r[`${cabinKey}Available`] === true;
         })
-        .map((r: Record<string, unknown>): AwardResult => {
+        .map((r): AwardResult => {
           const route = r.Route as Record<string, string>;
-          const airlineCode = ((r[`${cabinKey}Airlines`] || r[`${cabinKey}DirectAirlines`] || '') as string).split(',')[0];
+          const source = ((r.Source as string) || '').toLowerCase();
+          const airlineCode = ((r[`${cabinKey}Airlines`] || r[`${cabinKey}DirectAirlines`] || '') as string).split(',')[0]?.trim();
           const program = SOURCE_PROGRAMS[source];
           return {
             id: r.ID as string, type: 'points',
@@ -100,17 +106,16 @@ async function searchAwards(origin: string, destination: string, cabin: string):
             source, program: program?.name || source,
             transferFrom: program?.transferFrom || [],
           };
-        });
-    } catch { return []; }
-  });
+        })
+        .filter(a => a.miles > 0);
+    }
+  } catch { /* provider unreachable — fall through with empty results */ }
 
-  (await Promise.all(searches)).forEach(batch => results.push(...batch));
   results.sort((a, b) => a.miles - b.miles);
 
-  const rateLimited = rateLimitedCount > 0 && results.length === 0;
   // Don't cache rate-limited empties — they'd mask recovery for 45 minutes.
-  if (!rateLimited) awardCache.set(cacheKey, { at: Date.now(), results });
-  return { results, rateLimited };
+  if (!(rateLimited && results.length === 0)) awardCache.set(cacheKey, { at: Date.now(), results });
+  return { results, rateLimited: rateLimited && results.length === 0 };
 }
 
 // ═══════════════════════════════════════════════════
@@ -371,6 +376,8 @@ export async function GET(request: NextRequest) {
   // Award availability isn't date-specific, so multi-date clients pass skipAwards=1
   // on every date after the first to protect the seats.aero quota.
   const skipAwards = searchParams.get('skipAwards') === '1';
+  // priceOnly=1: calendar probes — cash fares only, skip every other provider.
+  const priceOnly = searchParams.get('priceOnly') === '1';
 
   if (!/^[A-Z]{3}$/.test(origin) || !/^[A-Z]{3}$/.test(destination)) {
     return NextResponse.json({ error: 'Invalid airport code' }, { status: 400 });
@@ -384,10 +391,10 @@ export async function GET(request: NextRequest) {
   try {
     // Fan out all searches in parallel
     const [awardOutcome, cash, emptyLegs, hiddenCity] = await Promise.all([
-      skipAwards ? Promise.resolve({ results: [], rateLimited: false }) : searchAwards(origin, destination, cabin),
+      skipAwards || priceOnly ? Promise.resolve({ results: [], rateLimited: false }) : searchAwards(origin, destination, cabin),
       searchCashFlights(origin, destination, date, cabin),
-      searchEmptyLegs(origin),
-      searchHiddenCity(origin, destination, date, cabin),
+      priceOnly ? Promise.resolve([]) : searchEmptyLegs(origin),
+      priceOnly ? Promise.resolve([]) : searchHiddenCity(origin, destination, date, cabin),
     ]);
     const awards = awardOutcome.results;
 
@@ -441,7 +448,7 @@ export async function GET(request: NextRequest) {
         emptyLegResults: emptyLegs.length,
         passengers,
         maxStops,
-        sourcesSearched: SOURCES.length + 1,
+        sourcesSearched: Object.keys(SOURCE_PROGRAMS).length + 1,
         providerStatus: {
           awards: !SEATS_API_KEY ? 'missing-key'
             : skipAwards ? 'skipped'

@@ -137,9 +137,8 @@ export default function Home() {
   );
 
   return (
-    <div style={{ minHeight: '100vh', background: T.bg, color: T.text, fontFamily: "'Outfit', 'DM Sans', system-ui, sans-serif", position: 'relative', overflow: 'hidden' }}>
+    <div style={{ minHeight: '100vh', background: T.bg, color: T.text, fontFamily: 'var(--font-body)', position: 'relative', overflow: 'hidden' }}>
       <style>{`
-        @import url('https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;500;600;700&display=swap');
         @keyframes meshMove { 0% { transform: translate(0,0) scale(1); } 33% { transform: translate(30px,-50px) scale(1.1); } 66% { transform: translate(-20px,20px) scale(0.95); } 100% { transform: translate(0,0) scale(1); } }
         @keyframes fadeSlideUp { from { opacity:0; transform:translateY(24px); } to { opacity:1; transform:translateY(0); } }
         @keyframes shimmer { 0% { background-position:-200% 0; } 100% { background-position:200% 0; } }

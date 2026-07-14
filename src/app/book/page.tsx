@@ -29,7 +29,7 @@ declare global {
 const inputStyle: React.CSSProperties = {
   width: '100%', background: 'rgba(255,255,255,0.05)', border: '1px solid rgba(255,255,255,0.1)',
   borderRadius: '10px', padding: '12px 14px', color: C.text, fontSize: '14px',
-  fontFamily: "'DM Sans', sans-serif", outline: 'none', minHeight: '44px',
+  fontFamily: 'var(--font-sans)', outline: 'none', minHeight: '44px',
 };
 
 export default function BookPage() {
@@ -105,13 +105,13 @@ export default function BookPage() {
   const fmt = (d: string) => d ? new Date(`${d}T12:00:00Z`).toLocaleDateString('en-GB', { weekday: 'short', day: 'numeric', month: 'short', year: 'numeric', timeZone: 'UTC' }) : '';
 
   return (
-    <div style={{ minHeight: '100vh', background: C.bg, fontFamily: "'Outfit', 'DM Sans', system-ui, sans-serif" }}>
+    <div style={{ minHeight: '100vh', background: C.bg, fontFamily: 'var(--font-body)' }}>
       <Script src="https://payment-wrapper.liteapi.travel/dist/liteAPIPayment.js?v=a1" onLoad={() => setSdkReady(true)} onError={() => setError('payment-sdk-failed')} />
 
       <div style={{ background: 'rgba(6,6,10,0.95)', borderBottom: `1px solid ${C.border}`, padding: '12px 16px' }}>
         <div style={{ maxWidth: '640px', margin: '0 auto', display: 'flex', alignItems: 'center', gap: '12px' }}>
           <button onClick={() => router.back()} style={{ background: 'none', border: 'none', cursor: 'pointer', color: C.sub }} aria-label="Back"><ArrowLeft size={20} /></button>
-          <span style={{ fontFamily: "'Space Grotesk'", fontSize: '16px', fontWeight: 700, color: C.text }}>Complete your booking</span>
+          <span style={{ fontFamily: 'var(--font-display)', fontSize: '16px', fontWeight: 700, color: C.text }}>Complete your booking</span>
           <span style={{ marginLeft: 'auto', display: 'inline-flex', alignItems: 'center', gap: '5px', fontSize: '11px', color: C.sub }}><Lock size={12} /> Secure payment</span>
         </div>
       </div>
@@ -143,14 +143,14 @@ export default function BookPage() {
           <>
             {/* Stay summary */}
             <div style={{ background: 'linear-gradient(135deg, rgba(139,92,246,0.14), rgba(6,182,212,0.08))', border: `1px solid ${C.border}`, borderRadius: '14px', padding: '16px', marginTop: '16px', marginBottom: '16px' }}>
-              <div style={{ fontFamily: "'Space Grotesk'", fontSize: '16px', fontWeight: 700, color: C.text }}>{prebook?.hotelName || pending.hotel}</div>
+              <div style={{ fontFamily: 'var(--font-display)', fontSize: '16px', fontWeight: 700, color: C.text }}>{prebook?.hotelName || pending.hotel}</div>
               <div style={{ fontSize: '12px', color: C.sub, marginTop: '4px' }}>
                 {fmt(prebook?.checkin || pending.checkin)} → {fmt(prebook?.checkout || pending.checkout)} · {pending.adults} adult{pending.adults > 1 ? 's' : ''}
                 {(prebook?.roomName || pending.roomType) ? ` · ${(prebook?.roomName || pending.roomType || '').toLowerCase()}` : ''}
                 {prebook?.boardName ? ` · ${prebook.boardName}` : ''}
               </div>
               <div style={{ display: 'flex', alignItems: 'baseline', gap: '8px', marginTop: '10px' }}>
-                <span style={{ fontFamily: "'JetBrains Mono'", fontSize: '22px', fontWeight: 800, color: C.text }}>
+                <span style={{ fontFamily: 'var(--font-mono)', fontSize: '22px', fontWeight: 800, color: C.text }}>
                   {prebook
                     ? `${prebook.currency} ${prebook.price?.toLocaleString()}`
                     : pending.totalPrice ? `${pending.currency || 'USD'} ${pending.totalPrice.toLocaleString()}` : ''}
@@ -166,7 +166,7 @@ export default function BookPage() {
 
             {/* Guest details */}
             <div style={{ background: C.card, border: `1px solid ${C.border}`, borderRadius: '14px', padding: '16px', marginBottom: '16px' }}>
-              <div style={{ fontFamily: "'Space Grotesk'", fontSize: '14px', fontWeight: 700, color: C.text, marginBottom: '12px' }}>Guest details</div>
+              <div style={{ fontFamily: 'var(--font-display)', fontSize: '14px', fontWeight: 700, color: C.text, marginBottom: '12px' }}>Guest details</div>
               <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '10px', marginBottom: '10px' }}>
                 <input placeholder="First name" value={holder.firstName} onChange={e => setHolder(h => ({ ...h, firstName: e.target.value }))} style={inputStyle} autoComplete="given-name" />
                 <input placeholder="Last name" value={holder.lastName} onChange={e => setHolder(h => ({ ...h, lastName: e.target.value }))} style={inputStyle} autoComplete="family-name" />
@@ -177,12 +177,12 @@ export default function BookPage() {
 
             {/* Payment */}
             <div style={{ background: C.card, border: `1px solid ${C.border}`, borderRadius: '14px', padding: '16px', marginBottom: '24px' }}>
-              <div style={{ fontFamily: "'Space Grotesk'", fontSize: '14px', fontWeight: 700, color: C.text, marginBottom: '4px' }}>Payment</div>
+              <div style={{ fontFamily: 'var(--font-display)', fontSize: '14px', fontWeight: 700, color: C.text, marginBottom: '4px' }}>Payment</div>
               <div style={{ fontSize: '11px', color: C.sub, marginBottom: '12px' }}>Handled by LiteAPI&apos;s secure payment portal — card details never touch TravelCheckpoint.</div>
               {!prebook && <div style={{ height: '120px', background: 'rgba(255,255,255,0.03)', borderRadius: '10px', animation: 'shimmer 1.5s infinite' }} />}
               {prebook && !paymentMounted && (
                 <button onClick={continueToPayment} disabled={!holderComplete || !sdkReady}
-                  style={{ width: '100%', background: holderComplete && sdkReady ? C.accent : 'rgba(255,255,255,0.08)', color: holderComplete && sdkReady ? '#fff' : C.sub, border: 'none', borderRadius: '10px', padding: '13px', fontWeight: 700, cursor: holderComplete && sdkReady ? 'pointer' : 'default', fontSize: '14px', fontFamily: "'DM Sans', sans-serif" }}>
+                  style={{ width: '100%', background: holderComplete && sdkReady ? C.accent : 'rgba(255,255,255,0.08)', color: holderComplete && sdkReady ? '#fff' : C.sub, border: 'none', borderRadius: '10px', padding: '13px', fontWeight: 700, cursor: holderComplete && sdkReady ? 'pointer' : 'default', fontSize: '14px', fontFamily: 'var(--font-sans)' }}>
                   {holderComplete ? (sdkReady ? `Continue to payment — ${prebook.currency} ${prebook.price?.toLocaleString()}` : 'Loading payment portal…') : 'Fill in guest details to continue'}
                 </button>
               )}

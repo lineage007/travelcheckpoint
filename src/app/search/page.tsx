@@ -1,8 +1,9 @@
 'use client';
 
-import { useState, useEffect, Suspense, useCallback } from 'react';
+import { useState, useEffect, Suspense, useCallback, useMemo, useRef } from 'react';
 import { useSearchParams, useRouter } from 'next/navigation';
-import { ArrowLeft, Plane, ExternalLink, Search, Hotel, Compass, Shield, DollarSign, Sparkles, Settings } from 'lucide-react';
+import { ArrowLeft, Plane, ExternalLink, Search, Hotel, Compass, Shield, DollarSign, Sparkles, Settings, CalendarDays } from 'lucide-react';
+import PriceCalendar from './price-calendar';
 import { monetise } from '@/lib/affiliates';
 
 const AIRLINE_BOOK_URLS: Record<string, string> = {
@@ -25,15 +26,27 @@ const AIRLINE_IATA: Record<string, string> = {
   'Royal Jordanian':'RJ','EgyptAir':'MS','MEA':'ME','Korean Air':'KE','Asiana':'OZ',
   'Malaysia Airlines':'MH','Garuda Indonesia':'GA','SAS':'SK','Iberia':'IB','TAP':'TP',
   'Air India':'AI','Gulf Air':'GF','Oman Air':'WY','Saudia':'SV','Air New Zealand':'NZ',
-  'LATAM':'LA','Ethiopian':'ET','Finnair':'AY','LOT':'LO','Aegean':'A3',
+  'LATAM':'LA','Ethiopian':'ET','Finnair':'AY','LOT':'LO','Aegean':'A3','flydubai':'FZ','ITA Airways':'AZ',
 };
 
 function AirlineLogo({ airline, size = 28 }: { airline: string; size?: number }) {
   const code = AIRLINE_IATA[airline] || (airline.length === 2 ? airline : '');
-  if (!code) return <div style={{ width: size, height: size, borderRadius: '50%', background: '#F5F3EE', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 11, color: '#9C958C', fontWeight: 700, flexShrink: 0 }}>{airline.charAt(0)}</div>;
-  // External airline badge CDN does not support Next Image static sizing reliably here.
-  // eslint-disable-next-line @next/next/no-img-element
-  return <img src={`https://pics.avs.io/${size}/${size}/${code}.png`} alt={airline} width={size} height={size} style={{ borderRadius: '50%', flexShrink: 0, background: 'rgba(255,255,255,0.04)' }} onError={(e) => { (e.target as HTMLImageElement).style.display = 'none'; }} />;
+  // Deterministic tint per airline for the monogram fallback, so unknown carriers
+  // still get a distinct, stable identity instead of a grey blob.
+  const hue = [...airline].reduce((a, c) => a + c.charCodeAt(0), 0) % 360;
+  const box = size + 6;
+  return (
+    <span aria-hidden="true" style={{ position: 'relative', width: box, height: box, borderRadius: '50%', background: `hsl(${hue} 45% 26%)`, color: '#fff', display: 'inline-flex', alignItems: 'center', justifyContent: 'center', fontSize: Math.round(size * 0.45), fontWeight: 700, flexShrink: 0, fontFamily: 'var(--font-sans)', border: '1px solid rgba(255,255,255,0.12)' }}>
+      {airline.charAt(0)}
+      {code && (
+        // External airline badge CDN does not support Next Image static sizing reliably here.
+        // eslint-disable-next-line @next/next/no-img-element
+        <img src={`https://pics.avs.io/${size}/${size}/${code}.png`} alt="" loading="lazy"
+          style={{ position: 'absolute', inset: 0, width: '100%', height: '100%', borderRadius: '50%', background: '#fff', objectFit: 'contain', padding: '2px', boxSizing: 'border-box' }}
+          onError={(e) => { (e.target as HTMLImageElement).style.display = 'none'; }} />
+      )}
+    </span>
+  );
 }
 
 interface AwardResult { id: string; airline: string; route: string; origin: string; destination: string; date: string; cabin: string; miles: number; taxes: number; seats: number; isDirect: boolean; source: string; program: string; transferFrom: string[] }
@@ -53,6 +66,9 @@ type MainTab = 'flights' | 'stay' | 'explore';
 type FlightFilter = 'all' | 'cash' | 'points' | 'hidden' | 'creative';
 
 const COLORS = { bg: '#06060a', card: 'rgba(255,255,255,0.04)', border: 'rgba(255,255,255,0.06)', accent: '#8B5CF6', text: '#ffffff', sub: 'rgba(255,255,255,0.4)', warm: 'rgba(255,255,255,0.03)' };
+
+const CURRENCIES = ['AUD', 'USD', 'EUR', 'GBP', 'AED', 'TRY'] as const;
+const CUR_SYMBOLS: Record<string, string> = { USD: '$', AUD: 'A$', EUR: '€', GBP: '£', AED: 'AED ', TRY: '₺' };
 
 // ─── Booking deep links ───
 // Every result card must lead somewhere actionable. These builders produce the most
@@ -111,10 +127,10 @@ function ProviderNotice({ tone, title, children }: { tone: ProviderTone; title: 
 
   return (
     <div style={{ background: palette.bg, border: `1px solid ${palette.border}`, borderRadius: '12px', padding: '12px 14px', marginBottom: '14px', display: 'flex', gap: '10px', alignItems: 'flex-start' }}>
-      <span style={{ width: 20, height: 20, borderRadius: '50%', background: palette.border, color: palette.fg, display: 'inline-flex', alignItems: 'center', justifyContent: 'center', fontFamily: "'JetBrains Mono'", fontSize: '11px', fontWeight: 700, flexShrink: 0 }}>{palette.icon}</span>
+      <span style={{ width: 20, height: 20, borderRadius: '50%', background: palette.border, color: palette.fg, display: 'inline-flex', alignItems: 'center', justifyContent: 'center', fontFamily: 'var(--font-mono)', fontSize: '11px', fontWeight: 700, flexShrink: 0 }}>{palette.icon}</span>
       <div>
-        <div style={{ fontFamily: "'DM Sans'", fontSize: '12px', fontWeight: 700, color: COLORS.text, marginBottom: '2px' }}>{title}</div>
-        <div style={{ fontFamily: "'DM Sans'", fontSize: '11px', lineHeight: 1.45, color: COLORS.sub }}>{children}</div>
+        <div style={{ fontFamily: 'var(--font-sans)', fontSize: '12px', fontWeight: 700, color: COLORS.text, marginBottom: '2px' }}>{title}</div>
+        <div style={{ fontFamily: 'var(--font-sans)', fontSize: '11px', lineHeight: 1.45, color: COLORS.sub }}>{children}</div>
       </div>
     </div>
   );
@@ -122,12 +138,63 @@ function ProviderNotice({ tone, title, children }: { tone: ProviderTone; title: 
 
 function StatusPill({ label, tone }: { label: string; tone: ProviderTone }) {
   const color = tone === 'live' ? '#22C55E' : tone === 'fallback' ? '#F59E0B' : tone === 'warning' ? '#EF4444' : COLORS.accent;
-  return <span style={{ fontFamily: "'JetBrains Mono'", fontSize: '10px', fontWeight: 700, color, background: `${color}18`, border: `1px solid ${color}28`, padding: '3px 7px', borderRadius: '999px', textTransform: 'uppercase' }}>{label}</span>;
+  return <span style={{ fontFamily: 'var(--font-mono)', fontSize: '10px', fontWeight: 700, color, background: `${color}18`, border: `1px solid ${color}28`, padding: '3px 7px', borderRadius: '999px', textTransform: 'uppercase' }}>{label}</span>;
+}
+
+// Airline-style departure-board progress: a plane crossing a dashed route line
+// with rotating provider names, so searching never looks like a dead page.
+const SEARCH_PROVIDERS = [
+  'Google Flights', 'Emirates Skywards', 'Qatar Privilege Club', 'Turkish Miles&Smiles',
+  'seats.aero award space', 'Virgin Flying Club', 'Kiwi creative routes', 'Duffel live fares',
+  'Skiplagged hidden-city', 'KrisFlyer', 'Aeroplan', 'hotel rates',
+];
+
+function FlightProgress({ origin, dest }: { origin: string; dest: string }) {
+  const [tick, setTick] = useState(0);
+  useEffect(() => {
+    const t = window.setInterval(() => setTick(x => x + 1), 1300);
+    return () => window.clearInterval(t);
+  }, []);
+  return (
+    <div style={{ background: COLORS.card, border: `1px solid ${COLORS.border}`, borderRadius: '14px', padding: '26px 22px', textAlign: 'center', marginBottom: '12px' }}>
+      <div style={{ display: 'flex', alignItems: 'center', gap: '14px', maxWidth: '440px', margin: '0 auto 14px' }}>
+        <span style={{ fontFamily: 'var(--font-mono)', fontSize: '15px', fontWeight: 800, color: COLORS.text }}>{origin || '···'}</span>
+        <div style={{ flex: 1, position: 'relative', height: '26px' }}>
+          <div style={{ position: 'absolute', top: '50%', left: 0, right: 0, borderTop: '2px dashed rgba(139,92,246,0.35)' }} />
+          <div className="fly-plane" aria-hidden="true">
+            <Plane size={17} style={{ transform: 'rotate(45deg)', display: 'block' }} />
+          </div>
+        </div>
+        <span style={{ fontFamily: 'var(--font-mono)', fontSize: '15px', fontWeight: 800, color: COLORS.text }}>{dest || '···'}</span>
+      </div>
+      <div style={{ fontFamily: 'var(--font-sans)', fontSize: '12px', color: COLORS.sub }} aria-live="polite">
+        Searching <span style={{ color: '#A78BFA', fontWeight: 600 }}>{SEARCH_PROVIDERS[tick % SEARCH_PROVIDERS.length]}</span>…
+      </div>
+    </div>
+  );
+}
+
+function EmptyFlights({ onFlex, onAnyStops }: { onFlex: () => void; onAnyStops: () => void }) {
+  return (
+    <div style={{ background: COLORS.card, border: `1px solid ${COLORS.border}`, borderRadius: '14px', padding: '36px 24px', textAlign: 'center' }}>
+      <div style={{ width: 56, height: 56, borderRadius: '50%', border: '2px dashed rgba(139,92,246,0.4)', display: 'inline-flex', alignItems: 'center', justifyContent: 'center', marginBottom: '12px' }}>
+        <Plane size={22} color="#A78BFA" style={{ transform: 'rotate(45deg)' }} />
+      </div>
+      <div style={{ fontFamily: 'var(--font-display)', fontSize: '16px', fontWeight: 700, color: COLORS.text, marginBottom: '6px' }}>No flights on these exact dates</div>
+      <div style={{ fontFamily: 'var(--font-sans)', fontSize: '13px', color: COLORS.sub, marginBottom: '18px', maxWidth: '380px', marginLeft: 'auto', marginRight: 'auto' }}>
+        Providers returned nothing for this exact search — widen the dates or allow stops, or use the compare links above to double-check.
+      </div>
+      <div style={{ display: 'flex', gap: '8px', justifyContent: 'center', flexWrap: 'wrap' }}>
+        <button onClick={onFlex} style={{ background: COLORS.accent, color: '#fff', border: 'none', borderRadius: '10px', padding: '10px 16px', fontWeight: 700, cursor: 'pointer', fontSize: '13px', fontFamily: 'var(--font-sans)' }}>Try ±3 days</button>
+        <button onClick={onAnyStops} style={{ background: COLORS.card, color: COLORS.text, border: `1px solid ${COLORS.border}`, borderRadius: '10px', padding: '10px 16px', fontWeight: 700, cursor: 'pointer', fontSize: '13px', fontFamily: 'var(--font-sans)' }}>Allow any stops</button>
+      </div>
+    </div>
+  );
 }
 
 function BookCta({ label }: { label: string }) {
   return (
-    <span className="book-cta" style={{ display: 'inline-flex', alignItems: 'center', gap: 3, fontFamily: "'DM Sans'", fontSize: '11px', fontWeight: 700, color: COLORS.accent, whiteSpace: 'nowrap', marginTop: 2 }}>
+    <span className="book-cta" style={{ display: 'inline-flex', alignItems: 'center', gap: 3, fontFamily: 'var(--font-sans)', fontSize: '11px', fontWeight: 700, color: COLORS.accent, whiteSpace: 'nowrap', marginTop: 2 }}>
       {label}
       <svg width={11} height={11} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2.5}><line x1="7" y1="17" x2="17" y2="7" /><polyline points="7 7 17 7 17 17" /></svg>
     </span>
@@ -158,6 +225,19 @@ function SearchResults() {
   const [cashSort, setCashSort] = useState<'price' | 'duration' | 'departure'>('price');
   // Multi-date search: which dates were actually searched, and an optional single-date filter.
   const [searchedDates, setSearchedDates] = useState<string[]>([]);
+  const [calendarOpen, setCalendarOpen] = useState(false);
+  const searchBoxRef = useRef<HTMLInputElement>(null);
+  useEffect(() => {
+    const onKey = (e: KeyboardEvent) => {
+      const t = e.target as HTMLElement;
+      if (e.key === '/' && !['INPUT', 'TEXTAREA', 'SELECT'].includes(t?.tagName)) {
+        e.preventDefault();
+        searchBoxRef.current?.focus();
+      }
+    };
+    window.addEventListener('keydown', onKey);
+    return () => window.removeEventListener('keydown', onKey);
+  }, []);
   const [dateFilter, setDateFilter] = useState<string | null>(null);
   // ±N days flexibility around the parsed date, driven by the &flex= URL param.
   const flexDays = Math.max(0, Math.min(3, parseInt(searchParams.get('flex') || '0', 10) || 0));
@@ -189,6 +269,37 @@ function SearchResults() {
   });
 
   const [error, setError] = useState<string | null>(null);
+
+  // Display-currency toggle — converts USD-priced provider data for display only.
+  // Defaults to AUD; the saved preference and live FX rates load post-mount.
+  // (Named dispCurrency: `currency` above is the destination-currency info card.)
+  const [dispCurrency, setDispCurrencyState] = useState('AUD');
+  const [fx, setFx] = useState<Record<string, number>>({ USD: 1 });
+  useEffect(() => {
+    let cancelled = false;
+    (async () => {
+      try {
+        const saved = window.localStorage.getItem('tc_currency');
+        const res = await fetch('/api/rates');
+        const data = await res.json();
+        if (cancelled) return;
+        if (data.rates) setFx(data.rates);
+        if (saved && (CURRENCIES as readonly string[]).includes(saved)) setDispCurrencyState(saved);
+      } catch { /* prices stay unconverted */ }
+    })();
+    return () => { cancelled = true; };
+  }, []);
+  const setDispCurrency = (c: string) => {
+    setDispCurrencyState(c);
+    try { window.localStorage.setItem('tc_currency', c); } catch { /* ignore */ }
+  };
+  const moneyFrom = useCallback((amount: number | null | undefined, from = 'USD'): string => {
+    if (typeof amount !== 'number' || !(amount > 0)) return '—';
+    const usd = from === 'USD' ? amount : amount / (fx[from] || 1);
+    const out = usd * (fx[dispCurrency] || 1);
+    return `${CUR_SYMBOLS[dispCurrency] ?? `${dispCurrency} `}${Math.round(out).toLocaleString()}`;
+  }, [fx, dispCurrency]);
+  const money = useCallback((amount: number | null | undefined) => moneyFrom(amount, 'USD'), [moneyFrom]);
 
   const doSearch = useCallback(async () => {
     setLoading(true);
@@ -428,6 +539,24 @@ function SearchResults() {
   const bestAward = selectedAwards.filter(a => a.miles > 0).sort((a, b) => a.miles - b.miles)[0] || null;
   const bestHotel = liteHotels.filter(h => typeof h.price === 'number' && h.price > 0).sort((a, b) => (a.price || Infinity) - (b.price || Infinity))[0] || null;
 
+  // Per-day best live USD price from the current results — seeds the price calendar.
+  const knownPrices = useMemo(() => {
+    const map: Record<string, number> = {};
+    for (const f of selectedResults?.cashResults || []) {
+      if (typeof f.price === 'number' && f.price > 0 && f.isLivePrice !== false && f.date) {
+        if (map[f.date] === undefined || f.price < map[f.date]) map[f.date] = f.price;
+      }
+    }
+    return map;
+  }, [selectedResults]);
+
+  const pickDate = (d: string) => {
+    setCalendarOpen(false);
+    const base = searchInput || q;
+    const newQ = base.replace(/\d{4}-\d{2}-\d{2}|tomorrow|next week|next month|this weekend|this week|today|flexible|anytime/i, d);
+    router.push(`/search?q=${encodeURIComponent(newQ === base ? `${base} ${d}` : newQ)}`);
+  };
+
   const showToast = (message: string) => {
     setToast(message);
     window.setTimeout(() => setToast(null), 2200);
@@ -472,9 +601,9 @@ function SearchResults() {
       `TravelCheckpoint: ${origin} → ${isMulti ? destCity : (selectedResults?.code || destCity)}`,
       departDate ? `Date: ${departDate}` : '',
       `Passengers: ${passengers}`,
-      bestCash ? `Best live cash: $${bestCash.price?.toLocaleString()} ${bestCash.airline}` : fallbackCashCount ? 'Cash: fallback search links only' : '',
+      bestCash ? `Best live cash: ${money(bestCash.price)} ${bestCash.airline}` : fallbackCashCount ? 'Cash: fallback search links only' : '',
       bestAward ? `Best award: ${(bestAward.miles / 1000).toFixed(0)}K miles via ${bestAward.program}` : '',
-      bestHotel ? `Hotel from: ${bestHotel.currency || 'USD'} ${bestHotel.price?.toLocaleString()} (${bestHotel.name})` : '',
+      bestHotel ? `Hotel from: ${moneyFrom(bestHotel.price, bestHotel.currency || 'USD')} (${bestHotel.name})` : '',
       visa ? `Visa: ${visa.status}${visa.days ? ` (${visa.days}d)` : ''}` : '',
       `Link: ${window.location.href}`,
     ].filter(Boolean).join('\n');
@@ -487,14 +616,14 @@ function SearchResults() {
   };
 
   const chipStyle = (active: boolean) => ({
-    fontFamily: "'DM Sans', sans-serif", fontSize: '12px', fontWeight: active ? 600 : 400,
+    fontFamily: 'var(--font-sans)', fontSize: '12px', fontWeight: active ? 600 : 400,
     padding: '6px 14px', borderRadius: '100px', border: 'none', cursor: 'pointer',
     background: active ? COLORS.accent : COLORS.card, color: active ? '#fff' : COLORS.sub,
     transition: 'all 0.15s',
   });
 
   const tabStyle = (active: boolean) => ({
-    fontFamily: "'Outfit', 'DM Sans', sans-serif", fontSize: '13px', fontWeight: 600,
+    fontFamily: 'var(--font-body)', fontSize: '13px', fontWeight: 600,
     padding: '10px 20px', border: 'none', cursor: 'pointer', borderRadius: '10px 10px 0 0',
     background: active ? 'rgba(139,92,246,0.1)' : 'transparent', color: active ? COLORS.accent : COLORS.sub,
     borderBottom: active ? `2px solid ${COLORS.accent}` : '2px solid transparent',
@@ -509,10 +638,14 @@ function SearchResults() {
           <button onClick={() => router.push('/')} style={{ background: 'none', border: 'none', cursor: 'pointer', color: COLORS.sub }}><ArrowLeft size={20} /></button>
           <div style={{ flex: 1, display: 'flex', alignItems: 'center', background: 'rgba(255,255,255,0.05)', border: `1px solid rgba(255,255,255,0.08)`, borderRadius: '10px', padding: '8px 14px', gap: '8px' }}>
             <Search size={16} color={COLORS.sub} />
-            <input value={searchInput || q} onChange={e => setSearchInput(e.target.value)}
+            <input ref={searchBoxRef} value={searchInput || q} onChange={e => setSearchInput(e.target.value)}
               onKeyDown={e => { if (e.key === 'Enter' && searchInput.trim()) router.push(`/search?q=${encodeURIComponent(searchInput)}`); }}
-              placeholder="Search again..." style={{ flex: 1, border: 'none', background: 'none', outline: 'none', fontFamily: "'Outfit', 'DM Sans', sans-serif", fontSize: '14px', color: COLORS.text }} />
+              placeholder="Search again..." style={{ flex: 1, border: 'none', background: 'none', outline: 'none', fontFamily: 'var(--font-body)', fontSize: '14px', color: COLORS.text }} />
           </div>
+          <select value={dispCurrency} onChange={e => setDispCurrency(e.target.value)} aria-label="Display currency"
+            style={{ fontFamily: 'var(--font-mono)', fontSize: '12px', fontWeight: 700, background: COLORS.card, border: `1px solid ${COLORS.border}`, borderRadius: '10px', padding: '9px 8px', color: COLORS.text, outline: 'none', cursor: 'pointer', minHeight: '38px' }}>
+            {CURRENCIES.map(c => <option key={c} value={c} style={{ background: '#15151c' }}>{c}</option>)}
+          </select>
         </div>
 
         {/* Interactive refinement bar */}
@@ -522,23 +655,26 @@ function SearchResults() {
             <div style={{ overflowX: 'auto', WebkitOverflowScrolling: 'touch', msOverflowStyle: 'none', scrollbarWidth: 'none', marginBottom: '6px' }}>
               <div style={{ display: 'flex', gap: '6px', alignItems: 'center', minWidth: 'max-content', paddingBottom: '2px' }}>
                 <input defaultValue={origin} placeholder="From" onBlur={e => { if (e.target.value && e.target.value.toUpperCase() !== origin) { const newQ = (searchInput || q).replace(new RegExp(origin, 'i'), e.target.value.toUpperCase()); router.push(`/search?q=${encodeURIComponent(newQ)}`); } }}
-                  style={{ width: '60px', fontFamily: "'JetBrains Mono', monospace", fontSize: '12px', fontWeight: 700, background: COLORS.card, border: `1px solid ${COLORS.border}`, borderRadius: '6px', padding: '9px 8px', color: COLORS.text, textAlign: 'center', textTransform: 'uppercase', outline: 'none', minHeight: '38px' }} />
+                  style={{ width: '60px', fontFamily: 'var(--font-mono)', fontSize: '12px', fontWeight: 700, background: COLORS.card, border: `1px solid ${COLORS.border}`, borderRadius: '6px', padding: '9px 8px', color: COLORS.text, textAlign: 'center', textTransform: 'uppercase', outline: 'none', minHeight: '38px' }} />
                 <span style={{ fontSize: '12px', color: COLORS.sub, flexShrink: 0 }}>→</span>
                 <input defaultValue={isMulti ? (parsed.regionName as string || 'Multiple') : (dest0?.code || '')} placeholder="To"
                   onBlur={e => { if (e.target.value) { const destStr = isMulti ? (parsed.regionName as string || '') : (dest0?.code || ''); const newQ = destStr ? (searchInput || q).replace(new RegExp(destStr, 'i'), e.target.value) : `${origin} to ${e.target.value}`; router.push(`/search?q=${encodeURIComponent(newQ)}`); } }}
-                  style={{ width: isMulti ? '90px' : '60px', fontFamily: "'JetBrains Mono', monospace", fontSize: '12px', fontWeight: 700, background: COLORS.card, border: `1px solid ${COLORS.border}`, borderRadius: '6px', padding: '9px 8px', color: COLORS.text, textAlign: 'center', textTransform: 'uppercase', outline: 'none', minHeight: '38px' }} />
-                <input type="date" defaultValue={(parsed.departDates as string[])?.[0] || ''} onChange={e => { if (e.target.value) { const base = searchInput || q; const newQ = base.replace(/\d{4}-\d{2}-\d{2}|tomorrow|next week|next month|this week|today/i, e.target.value); router.push(`/search?q=${encodeURIComponent(newQ === base ? `${base} ${e.target.value}` : newQ)}`); } }}
-                  style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: '11px', background: COLORS.card, border: `1px solid ${COLORS.border}`, borderRadius: '6px', padding: '9px 8px', color: COLORS.text, outline: 'none', minHeight: '38px' }} />
+                  style={{ width: isMulti ? '90px' : '60px', fontFamily: 'var(--font-mono)', fontSize: '12px', fontWeight: 700, background: COLORS.card, border: `1px solid ${COLORS.border}`, borderRadius: '6px', padding: '9px 8px', color: COLORS.text, textAlign: 'center', textTransform: 'uppercase', outline: 'none', minHeight: '38px' }} />
+                <button onClick={() => setCalendarOpen(true)} title="See prices per day"
+                  style={{ fontFamily: 'var(--font-mono)', fontSize: '11px', background: COLORS.card, border: `1px solid ${COLORS.border}`, borderRadius: '6px', padding: '9px 10px', color: COLORS.text, cursor: 'pointer', minHeight: '38px', display: 'flex', alignItems: 'center', gap: '6px', whiteSpace: 'nowrap' }}>
+                  <CalendarDays size={13} color="#A78BFA" />
+                  {departDate ? fmtDay(departDate) : 'Pick date'}{searchedDates.length > 1 ? ` +${searchedDates.length - 1}` : ''}
+                </button>
                 <select defaultValue={passengers} onChange={e => { const pax = parseInt(e.target.value); const base = searchInput || q; const newQ = base.replace(/\d+\s*(people|person|pax|passengers?|adults?)/i, `${pax} people`); router.push(`/search?q=${encodeURIComponent(newQ === base ? `${base}, ${pax} people` : newQ)}`); }}
-                  style={{ fontFamily: "'DM Sans', sans-serif", fontSize: '12px', background: COLORS.card, border: `1px solid ${COLORS.border}`, borderRadius: '6px', padding: '9px 8px', color: COLORS.text, outline: 'none', cursor: 'pointer', minHeight: '38px' }}>
+                  style={{ fontFamily: 'var(--font-sans)', fontSize: '12px', background: COLORS.card, border: `1px solid ${COLORS.border}`, borderRadius: '6px', padding: '9px 8px', color: COLORS.text, outline: 'none', cursor: 'pointer', minHeight: '38px' }}>
                   {[1,2,3,4,5,6,7,8,9,10].map(n => <option key={n} value={n}>{n} pax</option>)}
                 </select>
                 {visa && (
-                  <span style={{ padding: '9px 10px', borderRadius: '6px', fontSize: '11px', fontFamily: "'JetBrains Mono', monospace", background: visa.status === 'visa-free' ? '#ECFDF5' : visa.status === 'e-visa' || visa.status === 'visa-on-arrival' ? '#FFF7ED' : '#FEF2F2', color: visa.status === 'visa-free' ? '#065F46' : visa.status === 'visa-required' ? '#991B1B' : '#92400E', whiteSpace: 'nowrap', minHeight: '38px', display: 'flex', alignItems: 'center' }}>
+                  <span style={{ padding: '9px 10px', borderRadius: '6px', fontSize: '11px', fontFamily: 'var(--font-mono)', background: visa.status === 'visa-free' ? '#ECFDF5' : visa.status === 'e-visa' || visa.status === 'visa-on-arrival' ? '#FFF7ED' : '#FEF2F2', color: visa.status === 'visa-free' ? '#065F46' : visa.status === 'visa-required' ? '#991B1B' : '#92400E', whiteSpace: 'nowrap', minHeight: '38px', display: 'flex', alignItems: 'center' }}>
                     {visa.status === 'visa-free' ? '✓' : visa.status === 'visa-required' ? '✕' : '⚡'} {visa.status.replace('-', ' ')}{visa.days ? ` (${visa.days}d)` : ''}
                   </span>
                 )}
-                {currency && <span style={{ background: COLORS.card, padding: '9px 10px', borderRadius: '6px', fontSize: '11px', fontFamily: "'JetBrains Mono', monospace", color: COLORS.sub, whiteSpace: 'nowrap', minHeight: '38px', display: 'flex', alignItems: 'center' }}>{currency.display}</span>}
+                {currency && <span style={{ background: COLORS.card, padding: '9px 10px', borderRadius: '6px', fontSize: '11px', fontFamily: 'var(--font-mono)', color: COLORS.sub, whiteSpace: 'nowrap', minHeight: '38px', display: 'flex', alignItems: 'center' }}>{currency.display}</span>}
               </div>
             </div>
             {/* Row 2: Cabin class + stops — scrollable pill row */}
@@ -548,7 +684,7 @@ function SearchResults() {
                 {['economy', 'premium-economy', 'business', 'first'].map(c => {
                   const active = (parsed.cabin as string || 'business') === c;
                   return <button key={c} onClick={() => { if (!active) { const base = searchInput || q; const cabins = ['economy','premium-economy','business','first']; const oldCabin = cabins.find(cb => base.toLowerCase().includes(cb)) || ''; const newQ = oldCabin ? base.replace(new RegExp(oldCabin, 'i'), c) : `${base}, ${c}`; router.push(`/search?q=${encodeURIComponent(newQ)}`); } }}
-                    style={{ fontFamily: "'DM Sans', sans-serif", fontSize: '11px', fontWeight: active ? 600 : 400, padding: '8px 12px', borderRadius: '100px', border: 'none', cursor: 'pointer', background: active ? COLORS.accent : COLORS.card, color: active ? '#fff' : COLORS.sub, transition: 'all 0.15s', whiteSpace: 'nowrap', minHeight: '36px' }}>
+                    style={{ fontFamily: 'var(--font-sans)', fontSize: '11px', fontWeight: active ? 600 : 400, padding: '8px 12px', borderRadius: '100px', border: 'none', cursor: 'pointer', background: active ? COLORS.accent : COLORS.card, color: active ? '#fff' : COLORS.sub, transition: 'all 0.15s', whiteSpace: 'nowrap', minHeight: '36px' }}>
                     {c === 'premium-economy' ? 'Premium' : c.charAt(0).toUpperCase() + c.slice(1)}
                   </button>;
                 })}
@@ -558,7 +694,7 @@ function SearchResults() {
                   const curStops = parsed.maxStops === null || parsed.maxStops === undefined ? 'any' : String(parsed.maxStops);
                   const active = curStops === s.val;
                   return <button key={s.val} onClick={() => { if (!active) { const base = searchInput || q; let newQ = base.replace(/\b(direct|nonstop|non-stop|no stops?|max \d stops?|one stop|two stops?|\d stops?|all the options|any stops?)\b/gi, '').trim(); if (s.val === 'any') newQ += ', all the options'; else if (s.val === '0') newQ += ', direct'; else newQ += `, max ${s.val} stop${s.val === '1' ? '' : 's'}`; router.push(`/search?q=${encodeURIComponent(newQ)}`); } }}
-                    style={{ fontFamily: "'DM Sans', sans-serif", fontSize: '11px', fontWeight: active ? 600 : 400, padding: '8px 12px', borderRadius: '100px', border: 'none', cursor: 'pointer', background: active ? COLORS.accent : COLORS.card, color: active ? '#fff' : COLORS.sub, transition: 'all 0.15s', whiteSpace: 'nowrap', minHeight: '36px' }}>
+                    style={{ fontFamily: 'var(--font-sans)', fontSize: '11px', fontWeight: active ? 600 : 400, padding: '8px 12px', borderRadius: '100px', border: 'none', cursor: 'pointer', background: active ? COLORS.accent : COLORS.card, color: active ? '#fff' : COLORS.sub, transition: 'all 0.15s', whiteSpace: 'nowrap', minHeight: '36px' }}>
                     {s.label}
                   </button>;
                 })}
@@ -567,7 +703,7 @@ function SearchResults() {
                 {[{ label: 'Exact', val: 0 }, { label: '±1 day', val: 1 }, { label: '±3 days', val: 3 }].map(o => {
                   const active = flexDays === o.val;
                   return <button key={o.val} onClick={() => { if (!active) router.push(`/search?q=${encodeURIComponent(searchInput || q)}${o.val ? `&flex=${o.val}` : ''}`); }}
-                    style={{ fontFamily: "'DM Sans'", fontSize: '11px', fontWeight: active ? 600 : 400, padding: '8px 12px', borderRadius: '100px', border: 'none', cursor: 'pointer', background: active ? COLORS.accent : COLORS.card, color: active ? '#fff' : COLORS.sub, transition: 'all 0.15s', whiteSpace: 'nowrap', minHeight: '36px' }}>
+                    style={{ fontFamily: 'var(--font-sans)', fontSize: '11px', fontWeight: active ? 600 : 400, padding: '8px 12px', borderRadius: '100px', border: 'none', cursor: 'pointer', background: active ? COLORS.accent : COLORS.card, color: active ? '#fff' : COLORS.sub, transition: 'all 0.15s', whiteSpace: 'nowrap', minHeight: '36px' }}>
                     {o.label}
                   </button>;
                 })}
@@ -590,20 +726,20 @@ function SearchResults() {
         {error && (
           <div style={{ background: 'rgba(239,68,68,0.1)', border: '1px solid rgba(239,68,68,0.2)', borderRadius: '10px', padding: '14px 16px', marginBottom: '16px', display: 'flex', alignItems: 'center', gap: '10px' }}>
             <span style={{ fontSize: '16px' }}>⚠️</span>
-            <span style={{ fontFamily: "'DM Sans'", fontSize: '13px', color: '#FCA5A5' }}>{error}</span>
-            <button onClick={() => doSearch()} style={{ marginLeft: 'auto', fontFamily: "'DM Sans'", fontSize: '12px', fontWeight: 600, color: COLORS.accent, background: 'none', border: 'none', cursor: 'pointer' }}>Retry</button>
+            <span style={{ fontFamily: 'var(--font-sans)', fontSize: '13px', color: '#FCA5A5' }}>{error}</span>
+            <button onClick={() => doSearch()} style={{ marginLeft: 'auto', fontFamily: 'var(--font-sans)', fontSize: '12px', fontWeight: 600, color: COLORS.accent, background: 'none', border: 'none', cursor: 'pointer' }}>Retry</button>
           </div>
         )}
         {toast && (
-          <div style={{ position: 'fixed', left: '50%', bottom: 24, transform: 'translateX(-50%)', zIndex: 100, background: 'rgba(15,15,20,0.96)', border: `1px solid ${COLORS.border}`, borderRadius: '999px', padding: '10px 16px', color: COLORS.text, fontFamily: "'DM Sans'", fontSize: 13, boxShadow: '0 10px 30px rgba(0,0,0,0.35)' }}>{toast}</div>
+          <div style={{ position: 'fixed', left: '50%', bottom: 24, transform: 'translateX(-50%)', zIndex: 100, background: 'rgba(15,15,20,0.96)', border: `1px solid ${COLORS.border}`, borderRadius: '999px', padding: '10px 16px', color: COLORS.text, fontFamily: 'var(--font-sans)', fontSize: 13, boxShadow: '0 10px 30px rgba(0,0,0,0.35)' }}>{toast}</div>
         )}
 
         {selectedResults && !loading && (
           <div style={{ background: 'linear-gradient(135deg, rgba(139,92,246,0.14), rgba(6,182,212,0.08))', border: `1px solid ${COLORS.border}`, borderRadius: '16px', padding: '14px', marginBottom: '16px' }}>
             <div style={{ display: 'flex', justifyContent: 'space-between', gap: '12px', alignItems: 'flex-start', flexWrap: 'wrap' }}>
               <div>
-                <div style={{ fontFamily: "'Space Grotesk'", fontSize: 16, fontWeight: 700, color: COLORS.text }}>{origin} → {isMulti ? destCity : selectedResults.code}</div>
-                <div style={{ fontFamily: "'DM Sans'", fontSize: 12, color: COLORS.sub, marginTop: 2 }}>{searchedDates.length > 1 ? `${fmtDay(searchedDates[0])} – ${fmtDay(searchedDates[searchedDates.length - 1])} (${searchedDates.length} dates)` : departDate || 'Flexible date'} · {passengers} passenger{passengers === 1 ? '' : 's'} · {(parsed?.cabin as string) || 'business'}</div>
+                <div style={{ fontFamily: 'var(--font-display)', fontSize: 16, fontWeight: 700, color: COLORS.text }}>{origin} → {isMulti ? destCity : selectedResults.code}</div>
+                <div style={{ fontFamily: 'var(--font-sans)', fontSize: 12, color: COLORS.sub, marginTop: 2 }}>{searchedDates.length > 1 ? `${fmtDay(searchedDates[0])} – ${fmtDay(searchedDates[searchedDates.length - 1])} (${searchedDates.length} dates)` : departDate || 'Flexible date'} · {passengers} passenger{passengers === 1 ? '' : 's'} · {(parsed?.cabin as string) || 'business'}</div>
               </div>
               <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
                 <button onClick={saveSearch} style={{ background: COLORS.card, border: `1px solid ${COLORS.border}`, color: COLORS.text, borderRadius: '10px', padding: '8px 11px', fontSize: 12, fontWeight: 700, cursor: 'pointer' }}>Save</button>
@@ -613,10 +749,10 @@ function SearchResults() {
               </div>
             </div>
             <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(150px, 1fr))', gap: '8px', marginTop: '12px' }}>
-              <div style={{ background: 'rgba(0,0,0,0.18)', borderRadius: '10px', padding: '10px' }}><div style={{ color: COLORS.sub, fontSize: 10, textTransform: 'uppercase', letterSpacing: '0.08em' }}>Best cash</div><div style={{ color: COLORS.text, fontFamily: "'JetBrains Mono'", fontWeight: 800, marginTop: 3 }}>{bestCash ? `$${bestCash.price?.toLocaleString()}` : fallbackCashCount ? 'Check live' : '—'}</div></div>
-              <div style={{ background: 'rgba(0,0,0,0.18)', borderRadius: '10px', padding: '10px' }}><div style={{ color: COLORS.sub, fontSize: 10, textTransform: 'uppercase', letterSpacing: '0.08em' }}>Best award</div><div style={{ color: COLORS.text, fontFamily: "'JetBrains Mono'", fontWeight: 800, marginTop: 3 }}>{bestAward ? `${(bestAward.miles / 1000).toFixed(0)}K mi` : '—'}</div></div>
-              <div style={{ background: 'rgba(0,0,0,0.18)', borderRadius: '10px', padding: '10px' }}><div style={{ color: COLORS.sub, fontSize: 10, textTransform: 'uppercase', letterSpacing: '0.08em' }}>Hotel</div><div style={{ color: COLORS.text, fontFamily: "'JetBrains Mono'", fontWeight: 800, marginTop: 3 }}>{bestHotel ? `${bestHotel.currency || 'USD'} ${bestHotel.price?.toLocaleString()}` : providerStatuses.liteapi === 'hotel-list-only' ? 'List only' : '—'}</div></div>
-              <div style={{ background: 'rgba(0,0,0,0.18)', borderRadius: '10px', padding: '10px' }}><div style={{ color: COLORS.sub, fontSize: 10, textTransform: 'uppercase', letterSpacing: '0.08em' }}>Visa</div><div style={{ color: COLORS.text, fontFamily: "'JetBrains Mono'", fontWeight: 800, marginTop: 3 }}>{visa ? visa.status.replace('-', ' ') : '—'}</div></div>
+              <div style={{ background: 'rgba(0,0,0,0.18)', borderRadius: '10px', padding: '10px' }}><div style={{ color: COLORS.sub, fontSize: 10, textTransform: 'uppercase', letterSpacing: '0.08em' }}>Best cash</div><div style={{ color: COLORS.text, fontFamily: 'var(--font-mono)', fontWeight: 800, marginTop: 3 }}>{bestCash ? money(bestCash.price) : fallbackCashCount ? 'Check live' : '—'}</div></div>
+              <div style={{ background: 'rgba(0,0,0,0.18)', borderRadius: '10px', padding: '10px' }}><div style={{ color: COLORS.sub, fontSize: 10, textTransform: 'uppercase', letterSpacing: '0.08em' }}>Best award</div><div style={{ color: COLORS.text, fontFamily: 'var(--font-mono)', fontWeight: 800, marginTop: 3 }}>{bestAward ? `${(bestAward.miles / 1000).toFixed(0)}K mi` : '—'}</div></div>
+              <div style={{ background: 'rgba(0,0,0,0.18)', borderRadius: '10px', padding: '10px' }}><div style={{ color: COLORS.sub, fontSize: 10, textTransform: 'uppercase', letterSpacing: '0.08em' }}>Hotel</div><div style={{ color: COLORS.text, fontFamily: 'var(--font-mono)', fontWeight: 800, marginTop: 3 }}>{bestHotel ? moneyFrom(bestHotel.price, bestHotel.currency || 'USD') : providerStatuses.liteapi === 'hotel-list-only' ? 'List only' : '—'}</div></div>
+              <div style={{ background: 'rgba(0,0,0,0.18)', borderRadius: '10px', padding: '10px' }}><div style={{ color: COLORS.sub, fontSize: 10, textTransform: 'uppercase', letterSpacing: '0.08em' }}>Visa</div><div style={{ color: COLORS.text, fontFamily: 'var(--font-mono)', fontWeight: 800, marginTop: 3 }}>{visa ? visa.status.replace('-', ' ') : '—'}</div></div>
             </div>
           </div>
         )}
@@ -662,7 +798,7 @@ function SearchResults() {
                     <span style={{ fontSize: '10px', color: COLORS.sub, fontWeight: 600, textTransform: 'uppercase', letterSpacing: '0.05em', whiteSpace: 'nowrap', marginRight: '2px' }}>Compare on</span>
                     {engines.map(e => (
                       <a key={e.name} className="compare-chip" href={e.url} target="_blank" rel="noopener noreferrer"
-                        style={{ background: COLORS.card, border: `1px solid ${COLORS.border}`, borderRadius: '999px', padding: '8px 13px', fontFamily: "'DM Sans'", fontSize: '11px', fontWeight: 600, color: COLORS.sub }}>
+                        style={{ background: COLORS.card, border: `1px solid ${COLORS.border}`, borderRadius: '999px', padding: '8px 13px', fontFamily: 'var(--font-sans)', fontSize: '11px', fontWeight: 600, color: COLORS.sub }}>
                         {e.name}
                         <svg width={10} height={10} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2.5}><line x1="7" y1="17" x2="17" y2="7" /><polyline points="7 7 17 7 17 17" /></svg>
                       </a>
@@ -680,16 +816,16 @@ function SearchResults() {
                     background: 'rgba(255,255,255,0.04)', border: `1px solid ${COLORS.border}`, borderRadius: '12px', padding: '16px', cursor: 'pointer', textAlign: 'left',
                     borderLeft: di === 0 ? `3px solid ${COLORS.accent}` : undefined,
                   }}>
-                    <div style={{ fontFamily: "'DM Sans'", fontSize: '14px', fontWeight: 600, color: COLORS.text }}>{d.city}</div>
-                    <div style={{ fontFamily: "'JetBrains Mono'", fontSize: '11px', color: COLORS.sub, marginTop: '2px' }}>{d.code}</div>
+                    <div style={{ fontFamily: 'var(--font-sans)', fontSize: '14px', fontWeight: 600, color: COLORS.text }}>{d.city}</div>
+                    <div style={{ fontFamily: 'var(--font-mono)', fontSize: '11px', color: COLORS.sub, marginTop: '2px' }}>{d.code}</div>
                     {d.loading ? <div style={{ marginTop: '8px', height: '20px', background: COLORS.card, borderRadius: '4px', animation: 'shimmer 1.5s infinite' }} /> : (
                       <>
                         <div style={{ marginTop: '8px', display: 'flex', gap: '8px' }}>
-                          {d.cheapestCash && <span style={{ fontFamily: "'JetBrains Mono'", fontSize: '13px', fontWeight: 700, color: COLORS.text }}>${d.cheapestCash.toLocaleString()}</span>}
-                          {d.cheapestAward && <span style={{ fontFamily: "'JetBrains Mono'", fontSize: '12px', color: COLORS.accent }}>{(d.cheapestAward / 1000).toFixed(0)}K mi</span>}
+                          {d.cheapestCash && <span style={{ fontFamily: 'var(--font-mono)', fontSize: '13px', fontWeight: 700, color: COLORS.text }}>{money(d.cheapestCash)}</span>}
+                          {d.cheapestAward && <span style={{ fontFamily: 'var(--font-mono)', fontSize: '12px', color: COLORS.accent }}>{(d.cheapestAward / 1000).toFixed(0)}K mi</span>}
                         </div>
                         {d.cheapestCashDate && searchedDates.length > 1 && (
-                          <div style={{ fontFamily: "'JetBrains Mono'", fontSize: '10px', color: '#22C55E', marginTop: '3px' }}>best {fmtDay(d.cheapestCashDate)}</div>
+                          <div style={{ fontFamily: 'var(--font-mono)', fontSize: '10px', color: '#22C55E', marginTop: '3px' }}>best {fmtDay(d.cheapestCashDate)}</div>
                         )}
                       </>
                     )}
@@ -698,7 +834,7 @@ function SearchResults() {
               </div>
             )}
 
-            {selectedDest && <button onClick={() => setSelectedDest(null)} style={{ background: 'none', border: 'none', cursor: 'pointer', fontFamily: "'DM Sans'", fontSize: '12px', color: COLORS.accent, marginBottom: '12px' }}>← Back to all cities</button>}
+            {selectedDest && <button onClick={() => setSelectedDest(null)} style={{ background: 'none', border: 'none', cursor: 'pointer', fontFamily: 'var(--font-sans)', fontSize: '12px', color: COLORS.accent, marginBottom: '12px' }}>← Back to all cities</button>}
 
             {/* Cash flights */}
             {(flightFilter === 'all' || flightFilter === 'cash') && selectedResults && selectedResults.cashResults.length > 0 && (() => {
@@ -745,7 +881,7 @@ function SearchResults() {
                     <div style={{ display: 'flex', gap: '6px', alignItems: 'center', minWidth: 'max-content', paddingBottom: '2px' }}>
                       <span style={{ fontSize: '10px', color: COLORS.sub, fontWeight: 600, textTransform: 'uppercase', letterSpacing: '0.05em', whiteSpace: 'nowrap', marginRight: '2px' }}>Dates</span>
                       <button onClick={() => setDateFilter(null)}
-                        style={{ fontFamily: "'DM Sans'", fontSize: '11px', fontWeight: dateFilter === null ? 600 : 400, padding: '7px 12px', borderRadius: '100px', border: 'none', cursor: 'pointer', background: dateFilter === null ? COLORS.accent : COLORS.card, color: dateFilter === null ? '#fff' : COLORS.sub, whiteSpace: 'nowrap', transition: 'all 0.15s' }}>
+                        style={{ fontFamily: 'var(--font-sans)', fontSize: '11px', fontWeight: dateFilter === null ? 600 : 400, padding: '7px 12px', borderRadius: '100px', border: 'none', cursor: 'pointer', background: dateFilter === null ? COLORS.accent : COLORS.card, color: dateFilter === null ? '#fff' : COLORS.sub, whiteSpace: 'nowrap', transition: 'all 0.15s' }}>
                         All dates
                       </button>
                       {searchedDates.map(d => {
@@ -753,8 +889,8 @@ function SearchResults() {
                         const active = dateFilter === d;
                         return (
                           <button key={d} onClick={() => setDateFilter(active ? null : d)}
-                            style={{ fontFamily: "'DM Sans'", fontSize: '11px', fontWeight: active ? 600 : 400, padding: '7px 12px', borderRadius: '100px', border: d === cheapestDate && !active ? '1px solid rgba(34,197,94,0.4)' : 'none', cursor: 'pointer', background: active ? COLORS.accent : COLORS.card, color: active ? '#fff' : d === cheapestDate ? '#22C55E' : COLORS.sub, whiteSpace: 'nowrap', transition: 'all 0.15s' }}>
-                            {fmtDay(d)}{typeof p === 'number' ? ` · $${p.toLocaleString()}` : ''}
+                            style={{ fontFamily: 'var(--font-sans)', fontSize: '11px', fontWeight: active ? 600 : 400, padding: '7px 12px', borderRadius: '100px', border: d === cheapestDate && !active ? '1px solid rgba(34,197,94,0.4)' : 'none', cursor: 'pointer', background: active ? COLORS.accent : COLORS.card, color: active ? '#fff' : d === cheapestDate ? '#22C55E' : COLORS.sub, whiteSpace: 'nowrap', transition: 'all 0.15s' }}>
+                            {fmtDay(d)}{typeof p === 'number' ? ` · ${money(p)}` : ''}
                           </button>
                         );
                       })}
@@ -762,13 +898,13 @@ function SearchResults() {
                   </div>
                 )}
                 <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '8px', flexWrap: 'wrap', marginBottom: '10px' }}>
-                  <h3 style={{ fontFamily: "'Space Grotesk'", fontSize: '15px', fontWeight: 600, color: COLORS.text, margin: 0 }}>Cash Fares{dateFilter ? ` — ${fmtDay(dateFilter)}` : ''}</h3>
+                  <h3 style={{ fontFamily: 'var(--font-display)', fontSize: '15px', fontWeight: 600, color: COLORS.text, margin: 0 }}>Cash Fares{dateFilter ? ` — ${fmtDay(dateFilter)}` : ''}</h3>
                   {liveCash.length > 1 && (
                     <div style={{ display: 'flex', gap: '4px', alignItems: 'center' }}>
                       <span style={{ fontSize: '10px', color: COLORS.sub, fontWeight: 600, textTransform: 'uppercase', letterSpacing: '0.05em', marginRight: '2px' }}>Sort</span>
                       {([['price', 'Price'], ['duration', 'Fastest'], ['departure', 'Departure']] as const).map(([val, label]) => (
                         <button key={val} onClick={() => setCashSort(val)}
-                          style={{ fontFamily: "'DM Sans'", fontSize: '11px', fontWeight: cashSort === val ? 600 : 400, padding: '5px 11px', borderRadius: '100px', border: 'none', cursor: 'pointer', background: cashSort === val ? COLORS.accent : COLORS.card, color: cashSort === val ? '#fff' : COLORS.sub, transition: 'all 0.15s' }}>
+                          style={{ fontFamily: 'var(--font-sans)', fontSize: '11px', fontWeight: cashSort === val ? 600 : 400, padding: '5px 11px', borderRadius: '100px', border: 'none', cursor: 'pointer', background: cashSort === val ? COLORS.accent : COLORS.card, color: cashSort === val ? '#fff' : COLORS.sub, transition: 'all 0.15s' }}>
                           {label}
                         </button>
                       ))}
@@ -793,17 +929,17 @@ function SearchResults() {
                     style={{ background: 'rgba(255,255,255,0.04)', border: `1px solid ${dealBadge ? 'rgba(34,197,94,0.2)' : COLORS.border}`, borderRadius: '10px', padding: '14px', marginBottom: '8px', animation: `fadeIn 0.3s ease ${Math.min(i, 8) * 0.05}s both` }}>
                     <AirlineLogo airline={f.airline} />
                     <div style={{ flex: 1, minWidth: 0 }}>
-                      <div style={{ fontFamily: "'DM Sans'", fontSize: '13px', fontWeight: 600, color: COLORS.text, display: 'flex', alignItems: 'center', gap: '6px', flexWrap: 'wrap' }}>
+                      <div style={{ fontFamily: 'var(--font-sans)', fontSize: '13px', fontWeight: 600, color: COLORS.text, display: 'flex', alignItems: 'center', gap: '6px', flexWrap: 'wrap' }}>
                         {f.airline}
-                        {dealBadge && <span style={{ fontFamily: "'DM Sans'", fontSize: '10px', fontWeight: 700, padding: '2px 7px', borderRadius: '999px', background: dealBadge.bg, color: dealBadge.color }}>{dealBadge.label}</span>}
+                        {dealBadge && <span style={{ fontFamily: 'var(--font-sans)', fontSize: '10px', fontWeight: 700, padding: '2px 7px', borderRadius: '999px', background: dealBadge.bg, color: dealBadge.color }}>{dealBadge.label}</span>}
                       </div>
-                      <div style={{ fontFamily: "'JetBrains Mono'", fontSize: '11px', color: COLORS.sub, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
+                      <div style={{ fontFamily: 'var(--font-mono)', fontSize: '11px', color: COLORS.sub, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
                         {depTime ? `${depTime} · ` : ''}{f.route}{f.duration ? ` · ${f.duration}` : ''} · {f.stops === 0 ? 'Direct' : `${f.stops} stop${f.stops > 1 ? 's' : ''}`}{multiDate && f.date ? ` · ${f.date.slice(5)}` : ''}
                       </div>
                     </div>
                     <div style={{ textAlign: 'right', flexShrink: 0 }}>
-                      <div style={{ fontFamily: "'JetBrains Mono'", fontSize: '15px', fontWeight: 700, color: dealBadge ? '#22C55E' : COLORS.text }}>{typeof f.price === 'number' && f.price > 0 ? `$${f.price.toLocaleString()}` : 'Check live'}</div>
-                      {typeof f.price === 'number' && f.price > 0 && passengers > 1 && <div style={{ fontFamily: "'JetBrains Mono'", fontSize: '10px', color: COLORS.sub }}>${(f.price * passengers).toLocaleString()} total</div>}
+                      <div style={{ fontFamily: 'var(--font-mono)', fontSize: '15px', fontWeight: 700, color: dealBadge ? '#22C55E' : COLORS.text }}>{typeof f.price === 'number' && f.price > 0 ? money(f.price) : 'Check live'}</div>
+                      {typeof f.price === 'number' && f.price > 0 && passengers > 1 && <div style={{ fontFamily: 'var(--font-mono)', fontSize: '10px', color: COLORS.sub }}>{money((f.price ?? 0) * passengers)} total</div>}
                       <BookCta label={isFallback ? 'Open search' : 'Book'} />
                     </div>
                   </a>
@@ -816,20 +952,28 @@ function SearchResults() {
             {/* Award flights */}
             {(flightFilter === 'all' || flightFilter === 'points') && selectedResults && selectedResults.awardResults.length > 0 && (
               <div style={{ marginBottom: '20px' }}>
-                <h3 style={{ fontFamily: "'Space Grotesk'", fontSize: '15px', fontWeight: 600, color: COLORS.text, marginBottom: '10px' }}>Award Seats</h3>
+                <h3 style={{ fontFamily: 'var(--font-display)', fontSize: '15px', fontWeight: 600, color: COLORS.text, marginBottom: '10px' }}>Award Seats</h3>
                 {selectedResults.awardResults.slice(0, 8).map((f, i) => (
                   <a key={f.id || i} className="result-card" href={awardBookUrl(f.airline, f.origin, f.destination)} target="_blank" rel="noopener noreferrer"
                     aria-label={`Book ${f.airline} award seat via ${f.program}`}
                     style={{ background: 'rgba(255,255,255,0.04)', border: `1px solid ${COLORS.border}`, borderRadius: '10px', padding: '14px', marginBottom: '8px', animation: `fadeIn 0.3s ease ${i * 0.05}s both` }}>
                     <AirlineLogo airline={f.airline} />
                     <div style={{ flex: 1, minWidth: 0 }}>
-                      <div style={{ fontFamily: "'DM Sans'", fontSize: '13px', fontWeight: 600, color: COLORS.text }}>{f.airline} <span style={{ fontSize: '11px', color: COLORS.sub, fontWeight: 400 }}>via {f.program}</span></div>
-                      <div style={{ fontFamily: "'JetBrains Mono'", fontSize: '11px', color: COLORS.sub }}>{f.date ? `${f.date.slice(5)} · ` : ''}{f.route} · {f.cabin} · {f.seats} seat{f.seats > 1 ? 's' : ''} · {f.isDirect ? 'Direct' : 'Connection'}</div>
+                      <div style={{ fontFamily: 'var(--font-sans)', fontSize: '13px', fontWeight: 600, color: COLORS.text, display: 'flex', alignItems: 'center', gap: '6px', flexWrap: 'wrap' }}>
+                        {f.airline} <span style={{ fontSize: '11px', color: COLORS.sub, fontWeight: 400 }}>via {f.program}</span>
+                        {(() => {
+                          const cpm = bestCash?.price && f.miles > 0 ? ((bestCash.price - f.taxes) / f.miles) * 100 : null;
+                          if (!cpm || cpm < 1) return null;
+                          const great = cpm >= 1.5;
+                          return <span style={{ fontFamily: 'var(--font-sans)', fontSize: '10px', fontWeight: 700, padding: '2px 7px', borderRadius: '999px', background: great ? 'rgba(34,197,94,0.15)' : 'rgba(16,185,129,0.12)', color: great ? '#22C55E' : '#10B981' }}>{great ? 'Great value' : 'Good value'} · {cpm.toFixed(1)}¢/mi</span>;
+                        })()}
+                      </div>
+                      <div style={{ fontFamily: 'var(--font-mono)', fontSize: '11px', color: COLORS.sub }}>{f.date ? `${f.date.slice(5)} · ` : ''}{f.route} · {f.cabin} · {f.seats} seat{f.seats > 1 ? 's' : ''} · {f.isDirect ? 'Direct' : 'Connection'}</div>
                       {f.transferFrom.length > 0 && <div style={{ fontSize: '10px', color: COLORS.accent, marginTop: '2px' }}>Transfer from: {f.transferFrom.join(', ')}</div>}
                     </div>
                     <div style={{ textAlign: 'right', flexShrink: 0 }}>
-                      <div style={{ fontFamily: "'JetBrains Mono'", fontSize: '15px', fontWeight: 700, color: COLORS.accent }}>{(f.miles / 1000).toFixed(0)}K mi</div>
-                      <div style={{ fontFamily: "'JetBrains Mono'", fontSize: '10px', color: COLORS.sub }}>+${f.taxes} tax</div>
+                      <div style={{ fontFamily: 'var(--font-mono)', fontSize: '15px', fontWeight: 700, color: COLORS.accent }}>{(f.miles / 1000).toFixed(0)}K mi</div>
+                      <div style={{ fontFamily: 'var(--font-mono)', fontSize: '10px', color: COLORS.sub }}>+{money(f.taxes)} tax</div>
                       <BookCta label={AIRLINE_BOOK_URLS[f.airline] ? 'Book award' : 'Find on seats.aero'} />
                     </div>
                   </a>
@@ -840,8 +984,8 @@ function SearchResults() {
             {/* Hidden city fares */}
             {(flightFilter === 'all' || flightFilter === 'hidden') && hiddenCity.length > 0 && (
               <div style={{ marginBottom: '20px' }}>
-                <h3 style={{ fontFamily: "'Space Grotesk'", fontSize: '15px', fontWeight: 600, color: COLORS.text, marginBottom: '4px' }}>Hidden City Fares <span style={{ fontSize: '11px', fontWeight: 400, color: COLORS.sub }}>via Skiplagged</span></h3>
-                <p style={{ fontFamily: "'DM Sans'", fontSize: '11px', color: COLORS.sub, marginBottom: '10px' }}>Get off at the layover — often 30-60% cheaper. Carry-on only, no checked bags.</p>
+                <h3 style={{ fontFamily: 'var(--font-display)', fontSize: '15px', fontWeight: 600, color: COLORS.text, marginBottom: '4px' }}>Hidden City Fares <span style={{ fontSize: '11px', fontWeight: 400, color: COLORS.sub }}>via Skiplagged</span></h3>
+                <p style={{ fontFamily: 'var(--font-sans)', fontSize: '11px', color: COLORS.sub, marginBottom: '10px' }}>Get off at the layover — often 30-60% cheaper. Carry-on only, no checked bags.</p>
                 {hiddenCity.slice(0, 6).map((f, i) => {
                   const hcDate = (f.departure || '').split('T')[0] || departDate || new Date(Date.now() + 7 * 86400000).toISOString().split('T')[0];
                   return (
@@ -850,11 +994,11 @@ function SearchResults() {
                     style={{ background: 'rgba(255,255,255,0.04)', border: `1px solid ${COLORS.border}`, borderRadius: '10px', padding: '14px', marginBottom: '8px', borderLeft: f.isHiddenCity ? '3px solid #F59E0B' : undefined }}>
                     <div style={{ width: 28, height: 28, borderRadius: '50%', background: '#FFF7ED', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '14px', flexShrink: 0 }}>🎭</div>
                     <div style={{ flex: 1, minWidth: 0 }}>
-                      <div style={{ fontFamily: "'DM Sans'", fontSize: '13px', fontWeight: 600, color: COLORS.text }}>{f.airline}</div>
-                      <div style={{ fontFamily: "'JetBrains Mono'", fontSize: '11px', color: COLORS.sub }}>{f.from}→{f.to}{f.isHiddenCity ? ` (via ${f.actualDestination})` : ''} · {f.duration}h · {f.stops} stop{f.stops !== 1 ? 's' : ''}</div>
+                      <div style={{ fontFamily: 'var(--font-sans)', fontSize: '13px', fontWeight: 600, color: COLORS.text }}>{f.airline}</div>
+                      <div style={{ fontFamily: 'var(--font-mono)', fontSize: '11px', color: COLORS.sub }}>{f.from}→{f.to}{f.isHiddenCity ? ` (via ${f.actualDestination})` : ''} · {f.duration}h · {f.stops} stop{f.stops !== 1 ? 's' : ''}</div>
                     </div>
                     <div style={{ textAlign: 'right', flexShrink: 0 }}>
-                      <div style={{ fontFamily: "'JetBrains Mono'", fontSize: '15px', fontWeight: 700, color: COLORS.text }}>${f.price.toLocaleString()}</div>
+                      <div style={{ fontFamily: 'var(--font-mono)', fontSize: '15px', fontWeight: 700, color: COLORS.text }}>{money(f.price)}</div>
                       <BookCta label="Skiplagged" />
                     </div>
                   </a>
@@ -866,8 +1010,8 @@ function SearchResults() {
             {/* Creative routes (Kiwi) */}
             {(flightFilter === 'all' || flightFilter === 'creative') && kiwiResults.length > 0 && (
               <div style={{ marginBottom: '20px' }}>
-                <h3 style={{ fontFamily: "'Space Grotesk'", fontSize: '15px', fontWeight: 600, color: COLORS.text, marginBottom: '4px' }}>Creative Routes <span style={{ fontSize: '11px', fontWeight: 400, color: COLORS.sub }}>via Kiwi.com</span></h3>
-                <p style={{ fontFamily: "'DM Sans'", fontSize: '11px', color: COLORS.sub, marginBottom: '10px' }}>Multi-airline combinations with Kiwi Guarantee — if you miss a connection, they rebook you.</p>
+                <h3 style={{ fontFamily: 'var(--font-display)', fontSize: '15px', fontWeight: 600, color: COLORS.text, marginBottom: '4px' }}>Creative Routes <span style={{ fontSize: '11px', fontWeight: 400, color: COLORS.sub }}>via Kiwi.com</span></h3>
+                <p style={{ fontFamily: 'var(--font-sans)', fontSize: '11px', color: COLORS.sub, marginBottom: '10px' }}>Multi-airline combinations with Kiwi Guarantee — if you miss a connection, they rebook you.</p>
                 {kiwiResults.slice(0, 6).map((f, i) => {
                   const kwDate = (f.departure || '').split('T')[0] || departDate || new Date(Date.now() + 7 * 86400000).toISOString().split('T')[0];
                   return (
@@ -878,12 +1022,12 @@ function SearchResults() {
                       {f.airlines.slice(0, 2).map((a, j) => <AirlineLogo key={j} airline={a} size={20} />)}
                     </div>
                     <div style={{ flex: 1, minWidth: 0 }}>
-                      <div style={{ fontFamily: "'DM Sans'", fontSize: '13px', fontWeight: 600, color: COLORS.text }}>{f.airlines.join(' + ')}</div>
-                      <div style={{ fontFamily: "'JetBrains Mono'", fontSize: '11px', color: COLORS.sub }}>{f.from}→{f.to} · {f.duration ? `${Math.floor(f.duration / 60)}h ${f.duration % 60}m` : 'Duration TBC'} · {f.stops} stop{f.stops !== 1 ? 's' : ''}</div>
+                      <div style={{ fontFamily: 'var(--font-sans)', fontSize: '13px', fontWeight: 600, color: COLORS.text }}>{f.airlines.join(' + ')}</div>
+                      <div style={{ fontFamily: 'var(--font-mono)', fontSize: '11px', color: COLORS.sub }}>{f.from}→{f.to} · {f.duration ? `${Math.floor(f.duration / 60)}h ${f.duration % 60}m` : 'Duration TBC'} · {f.stops} stop{f.stops !== 1 ? 's' : ''}</div>
                       {f.isVirtualInterline && <span style={{ fontSize: '10px', background: '#ECFDF5', color: '#065F46', padding: '1px 6px', borderRadius: '4px' }}>Kiwi Guarantee</span>}
                     </div>
                     <div style={{ textAlign: 'right', flexShrink: 0 }}>
-                      <div style={{ fontFamily: "'JetBrains Mono'", fontSize: '15px', fontWeight: 700, color: COLORS.text }}>${f.price.toLocaleString()}</div>
+                      <div style={{ fontFamily: 'var(--font-mono)', fontSize: '15px', fontWeight: 700, color: COLORS.text }}>{money(f.price)}</div>
                       <BookCta label="Book on Kiwi" />
                     </div>
                   </a>
@@ -895,8 +1039,8 @@ function SearchResults() {
             {/* Duffel bookable flights */}
             {(flightFilter === 'all' || flightFilter === 'cash') && duffelResults.length > 0 && (
               <div style={{ marginBottom: '20px' }}>
-                <h3 style={{ fontFamily: "'Space Grotesk'", fontSize: '15px', fontWeight: 600, color: COLORS.text, marginBottom: '4px' }}>Live Airline Fares <span style={{ fontSize: '11px', fontWeight: 400, color: COLORS.sub }}>via Duffel</span></h3>
-                <p style={{ fontFamily: "'DM Sans'", fontSize: '11px', color: COLORS.sub, marginBottom: '10px' }}>Real-time airline prices — tap a fare to book it with the airline.</p>
+                <h3 style={{ fontFamily: 'var(--font-display)', fontSize: '15px', fontWeight: 600, color: COLORS.text, marginBottom: '4px' }}>Live Airline Fares <span style={{ fontSize: '11px', fontWeight: 400, color: COLORS.sub }}>via Duffel</span></h3>
+                <p style={{ fontFamily: 'var(--font-sans)', fontSize: '11px', color: COLORS.sub, marginBottom: '10px' }}>Real-time airline prices — tap a fare to book it with the airline.</p>
                 {duffelResults.slice(0, 8).map((f, i) => {
                   const dfDate = (f.departure || '').split('T')[0] || departDate || new Date(Date.now() + 7 * 86400000).toISOString().split('T')[0];
                   return (
@@ -907,13 +1051,13 @@ function SearchResults() {
                       {f.airlines.slice(0, 2).map((a, j) => <AirlineLogo key={j} airline={a} size={20} />)}
                     </div>
                     <div style={{ flex: 1, minWidth: 0 }}>
-                      <div style={{ fontFamily: "'DM Sans'", fontSize: '13px', fontWeight: 600, color: COLORS.text }}>{f.airlines.join(' + ')}</div>
-                      <div style={{ fontFamily: "'JetBrains Mono'", fontSize: '11px', color: COLORS.sub }}>{f.from}→{f.to} · {fmtDuration(f.duration)} · {f.stops === 0 ? 'Direct' : `${f.stops} stop${f.stops > 1 ? 's' : ''}`}</div>
+                      <div style={{ fontFamily: 'var(--font-sans)', fontSize: '13px', fontWeight: 600, color: COLORS.text }}>{f.airlines.join(' + ')}</div>
+                      <div style={{ fontFamily: 'var(--font-mono)', fontSize: '11px', color: COLORS.sub }}>{f.from}→{f.to} · {fmtDuration(f.duration)} · {f.stops === 0 ? 'Direct' : `${f.stops} stop${f.stops > 1 ? 's' : ''}`}</div>
                       <span style={{ fontSize: '10px', background: 'rgba(99,102,241,0.15)', color: '#A5B4FC', padding: '1px 6px', borderRadius: '4px' }}>Live price</span>
                     </div>
                     <div style={{ textAlign: 'right', flexShrink: 0 }}>
-                      <div style={{ fontFamily: "'JetBrains Mono'", fontSize: '15px', fontWeight: 700, color: COLORS.text }}>{f.currency === 'GBP' ? '£' : '$'}{f.price.toLocaleString()}</div>
-                      {passengers > 1 && <div style={{ fontFamily: "'JetBrains Mono'", fontSize: '10px', color: COLORS.sub }}>{f.currency === 'GBP' ? '£' : '$'}{(f.price * passengers).toLocaleString()} total</div>}
+                      <div style={{ fontFamily: 'var(--font-mono)', fontSize: '15px', fontWeight: 700, color: COLORS.text }}>{moneyFrom(f.price, f.currency || 'USD')}</div>
+                      {passengers > 1 && <div style={{ fontFamily: 'var(--font-mono)', fontSize: '10px', color: COLORS.sub }}>{moneyFrom(f.price * passengers, f.currency || 'USD')} total</div>}
                       <BookCta label="Book" />
                     </div>
                   </a>
@@ -922,16 +1066,20 @@ function SearchResults() {
               </div>
             )}
 
-            {!loading && selectedResults && !hasAnyFlightResult && (
-              <ProviderNotice tone="empty" title="No flight results returned">
-                Try a broader date, allow stops, or switch to another nearby destination. If provider keys are missing, this page will show clean fallback links rather than fake data.
-              </ProviderNotice>
+            {!loading && selectedResults && !selectedResults.loading && !hasAnyFlightResult && (
+              <EmptyFlights
+                onFlex={() => router.push(`/search?q=${encodeURIComponent(searchInput || q)}&flex=3`)}
+                onAnyStops={() => { const base = (searchInput || q).replace(/\b(direct|nonstop|non-stop|no stops?|max \d stops?|one stop|two stops?|\d stops?)\b/gi, '').trim(); router.push(`/search?q=${encodeURIComponent(`${base}, all the options`)}`); }}
+              />
             )}
 
-            {loading && (
-              <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
-                {[1,2,3,4].map(i => <div key={i} style={{ background: COLORS.card, borderRadius: '10px', height: '72px', animation: 'shimmer 1.5s infinite' }} />)}
-              </div>
+            {(loading || selectedResults?.loading) && (
+              <>
+                <FlightProgress origin={origin} dest={isMulti ? (parsed?.regionName as string || '···').slice(0, 12).toUpperCase() : (selectedResults?.code || dest0?.code || '···')} />
+                <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
+                  {[1, 2, 3].map(i => <div key={i} style={{ background: COLORS.card, borderRadius: '10px', height: '72px', animation: 'shimmer 1.5s infinite' }} />)}
+                </div>
+              </>
             )}
           </>
         )}
@@ -952,8 +1100,8 @@ function SearchResults() {
           ];
           return (
           <div>
-            <h3 style={{ fontFamily: "'Space Grotesk'", fontSize: '18px', fontWeight: 600, color: COLORS.text, marginBottom: '4px' }}>Stay in {stayCity}</h3>
-            <p style={{ fontFamily: "'DM Sans'", fontSize: '13px', color: COLORS.sub, marginBottom: '12px' }}>Compare prices across all major platforms</p>
+            <h3 style={{ fontFamily: 'var(--font-display)', fontSize: '18px', fontWeight: 600, color: COLORS.text, marginBottom: '4px' }}>Stay in {stayCity}</h3>
+            <p style={{ fontFamily: 'var(--font-sans)', fontSize: '13px', color: COLORS.sub, marginBottom: '12px' }}>Compare prices across all major platforms</p>
             <div style={{ display: 'flex', gap: '8px', flexWrap: 'wrap', marginBottom: '14px' }}>
               <StatusPill label={providerStatuses.liteapi === 'live-rates' ? 'live hotel rates' : providerStatuses.liteapi === 'hotel-list-only' ? 'hotel list only' : providerStatuses.liteapi === 'missing-key' ? 'hotel API missing key' : 'hotel links'} tone={providerStatuses.liteapi === 'live-rates' ? 'live' : providerStatuses.liteapi === 'missing-key' ? 'warning' : 'fallback'} />
               <StatusPill label={providerStatuses.rooms === 'live' ? 'points rooms live' : providerStatuses.rooms === 'missing-key' ? 'rooms missing key' : 'points rooms'} tone={providerStatuses.rooms === 'live' ? 'live' : providerStatuses.rooms === 'missing-key' ? 'warning' : 'empty'} />
@@ -985,25 +1133,25 @@ function SearchResults() {
                           </>
                         )}
                         <div style={{ padding: '14px 14px 0' }}>
-                          <div style={{ fontFamily: "'DM Sans'", fontSize: '14px', fontWeight: 600, color: COLORS.text, marginBottom: '4px', display: 'flex', justifyContent: 'space-between', gap: '8px' }}>
+                          <div style={{ fontFamily: 'var(--font-sans)', fontSize: '14px', fontWeight: 600, color: COLORS.text, marginBottom: '4px', display: 'flex', justifyContent: 'space-between', gap: '8px' }}>
                             <span>{h.name}</span>
                             <BookCta label="Rates" />
                           </div>
-                          <div style={{ fontFamily: "'DM Sans'", fontSize: '11px', color: COLORS.sub, marginBottom: '2px' }}>{h.address}</div>
-                          <div style={{ fontFamily: "'DM Sans'", fontSize: '11px', color: COLORS.sub, marginBottom: '10px' }}>
+                          <div style={{ fontFamily: 'var(--font-sans)', fontSize: '11px', color: COLORS.sub, marginBottom: '2px' }}>{h.address}</div>
+                          <div style={{ fontFamily: 'var(--font-sans)', fontSize: '11px', color: COLORS.sub, marginBottom: '10px' }}>
                             {h.stars > 0 && <span>{'★'.repeat(h.stars)}{'☆'.repeat(Math.max(0, 5 - h.stars))}</span>}
                             {h.board && <span style={{ marginLeft: '6px' }}> · {h.board}</span>}
                             {h.freeCancellation && <span style={{ color: '#34D399' }}> · Free cancellation</span>}
                           </div>
                           {typeof h.price === 'number' && h.price > 0 ? (
                             <div style={{ marginBottom: '10px' }}>
-                              <div style={{ fontFamily: "'JetBrains Mono'", fontSize: '18px', fontWeight: 700, color: COLORS.text }}>
-                                ${h.price.toLocaleString()} <span style={{ fontSize: '11px', fontWeight: 400, color: COLORS.sub }}>/night</span>
-                                {h.originalPrice > h.price && <span style={{ fontSize: '12px', color: COLORS.sub, textDecoration: 'line-through', marginLeft: '6px' }}>${h.originalPrice}</span>}
+                              <div style={{ fontFamily: 'var(--font-mono)', fontSize: '18px', fontWeight: 700, color: COLORS.text }}>
+                                {moneyFrom(h.price, h.currency || 'USD')} <span style={{ fontSize: '11px', fontWeight: 400, color: COLORS.sub }}>/night</span>
+                                {h.originalPrice > h.price && <span style={{ fontSize: '12px', color: COLORS.sub, textDecoration: 'line-through', marginLeft: '6px' }}>{moneyFrom(h.originalPrice, h.currency || 'USD')}</span>}
                               </div>
                               {typeof h.totalPrice === 'number' && h.totalPrice > 0 && (
-                                <div style={{ fontFamily: "'JetBrains Mono'", fontSize: '11px', color: COLORS.sub, marginTop: '2px' }}>
-                                  ${h.totalPrice.toLocaleString()} total{h.nights ? ` · ${h.nights} night${h.nights > 1 ? 's' : ''}` : ''}{h.roomType && h.roomType !== 'Check rates' ? ` · ${h.roomType.toLowerCase()}` : ''}
+                                <div style={{ fontFamily: 'var(--font-mono)', fontSize: '11px', color: COLORS.sub, marginTop: '2px' }}>
+                                  {moneyFrom(h.totalPrice, h.currency || 'USD')} total{h.nights ? ` · ${h.nights} night${h.nights > 1 ? 's' : ''}` : ''}{h.roomType && h.roomType !== 'Check rates' ? ` · ${h.roomType.toLowerCase()}` : ''}
                                 </div>
                               )}
                             </div>
@@ -1022,7 +1170,7 @@ function SearchResults() {
                             } catch { /* sessionStorage unavailable */ }
                             router.push('/book');
                           }}
-                            style={{ fontSize: '12px', fontWeight: 700, color: '#fff', background: COLORS.accent, border: 'none', padding: '7px 16px', borderRadius: '6px', cursor: 'pointer', fontFamily: "'DM Sans', sans-serif" }}>
+                            style={{ fontSize: '12px', fontWeight: 700, color: '#fff', background: COLORS.accent, border: 'none', padding: '7px 16px', borderRadius: '6px', cursor: 'pointer', fontFamily: 'var(--font-sans)' }}>
                             Book now
                           </button>
                         )}
@@ -1053,8 +1201,8 @@ function SearchResults() {
                     <div style={{ width: 40, height: 40, borderRadius: '10px', background: link.color + '15', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
                       <Hotel size={20} color={link.color} />
                     </div>
-                    <div style={{ fontFamily: "'DM Sans'", fontSize: '13px', fontWeight: 600, color: COLORS.text }}>{link.name}</div>
-                    <div style={{ fontFamily: "'DM Sans'", fontSize: '11px', color: COLORS.accent, display: 'flex', alignItems: 'center', gap: '4px' }}>Search <ExternalLink size={10} /></div>
+                    <div style={{ fontFamily: 'var(--font-sans)', fontSize: '13px', fontWeight: 600, color: COLORS.text }}>{link.name}</div>
+                    <div style={{ fontFamily: 'var(--font-sans)', fontSize: '11px', color: COLORS.accent, display: 'flex', alignItems: 'center', gap: '4px' }}>Search <ExternalLink size={10} /></div>
                   </a>
                 ))}
                 </div>
@@ -1064,8 +1212,8 @@ function SearchResults() {
             {/* Hotel points via rooms.aero */}
             {roomResults.length > 0 && (
               <div style={{ marginTop: '20px' }}>
-                <h3 style={{ fontFamily: "'Space Grotesk'", fontSize: '16px', fontWeight: 600, color: COLORS.text, marginBottom: '4px' }}>Book with Points <span style={{ fontSize: '11px', fontWeight: 400, color: COLORS.sub }}>via rooms.aero</span></h3>
-                <p style={{ fontFamily: "'DM Sans'", fontSize: '12px', color: COLORS.sub, marginBottom: '12px' }}>Use hotel loyalty points — sorted by best value (cents per point).</p>
+                <h3 style={{ fontFamily: 'var(--font-display)', fontSize: '16px', fontWeight: 600, color: COLORS.text, marginBottom: '4px' }}>Book with Points <span style={{ fontSize: '11px', fontWeight: 400, color: COLORS.sub }}>via rooms.aero</span></h3>
+                <p style={{ fontFamily: 'var(--font-sans)', fontSize: '12px', color: COLORS.sub, marginBottom: '12px' }}>Use hotel loyalty points — sorted by best value (cents per point).</p>
                 {roomResults.slice(0, 8).map((r, i) => (
                   <a key={i} className="result-card" href={googleHotelUrl(r.hotel, r.location || stayCity, stayDate, stayCheckoutDate)} target="_blank" rel="noopener noreferrer"
                     aria-label={`View ${r.hotel} — compare points vs cash rates`}
@@ -1074,13 +1222,13 @@ function SearchResults() {
                       <Hotel size={18} color={COLORS.accent} />
                     </div>
                     <div style={{ flex: 1, minWidth: 0 }}>
-                      <div style={{ fontFamily: "'DM Sans'", fontSize: '13px', fontWeight: 600, color: COLORS.text, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{r.hotel}</div>
-                      <div style={{ fontFamily: "'JetBrains Mono'", fontSize: '11px', color: COLORS.sub }}>{r.chain} · {r.roomType}</div>
+                      <div style={{ fontFamily: 'var(--font-sans)', fontSize: '13px', fontWeight: 600, color: COLORS.text, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{r.hotel}</div>
+                      <div style={{ fontFamily: 'var(--font-mono)', fontSize: '11px', color: COLORS.sub }}>{r.chain} · {r.roomType}</div>
                     </div>
                     <div style={{ textAlign: 'right', flexShrink: 0 }}>
-                      <div style={{ fontFamily: "'JetBrains Mono'", fontSize: '14px', fontWeight: 700, color: COLORS.accent }}>{(r.pointsPerNight / 1000).toFixed(0)}K pts</div>
-                      <div style={{ fontFamily: "'JetBrains Mono'", fontSize: '10px', color: COLORS.sub }}>vs ${r.cashRate}/night</div>
-                      {r.centsPerPoint > 0 && <div style={{ fontFamily: "'JetBrains Mono'", fontSize: '10px', color: r.centsPerPoint >= 1 ? '#34D399' : '#FBBF24' }}>{r.centsPerPoint.toFixed(1)}¢/pt</div>}
+                      <div style={{ fontFamily: 'var(--font-mono)', fontSize: '14px', fontWeight: 700, color: COLORS.accent }}>{(r.pointsPerNight / 1000).toFixed(0)}K pts</div>
+                      <div style={{ fontFamily: 'var(--font-mono)', fontSize: '10px', color: COLORS.sub }}>vs {money(r.cashRate)}/night</div>
+                      {r.centsPerPoint > 0 && <div style={{ fontFamily: 'var(--font-mono)', fontSize: '10px', color: r.centsPerPoint >= 1 ? '#34D399' : '#FBBF24' }}>{r.centsPerPoint.toFixed(1)}¢/pt</div>}
                     </div>
                   </a>
                 ))}
@@ -1091,10 +1239,10 @@ function SearchResults() {
               <div style={{ background: 'rgba(255,255,255,0.04)', border: `1px solid ${COLORS.border}`, borderRadius: '12px', padding: '16px', marginTop: '16px' }}>
                 <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '4px' }}>
                   <DollarSign size={16} color={COLORS.accent} />
-                  <span style={{ fontFamily: "'DM Sans'", fontSize: '13px', fontWeight: 600, color: COLORS.text }}>Currency</span>
+                  <span style={{ fontFamily: 'var(--font-sans)', fontSize: '13px', fontWeight: 600, color: COLORS.text }}>Currency</span>
                 </div>
-                <div style={{ fontFamily: "'JetBrains Mono'", fontSize: '14px', color: COLORS.text }}>{currency.display}</div>
-                <div style={{ fontFamily: "'DM Sans'", fontSize: '11px', color: COLORS.sub, marginTop: '2px' }}>{currency.name}</div>
+                <div style={{ fontFamily: 'var(--font-mono)', fontSize: '14px', color: COLORS.text }}>{currency.display}</div>
+                <div style={{ fontFamily: 'var(--font-sans)', fontSize: '11px', color: COLORS.sub, marginTop: '2px' }}>{currency.name}</div>
               </div>
             )}
           </div>
@@ -1108,19 +1256,19 @@ function SearchResults() {
               <div style={{ background: 'rgba(255,255,255,0.04)', border: `1px solid ${COLORS.border}`, borderRadius: '12px', padding: '16px', marginBottom: '12px' }}>
                 <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '8px' }}>
                   <Shield size={16} color={COLORS.accent} />
-                  <span style={{ fontFamily: "'DM Sans'", fontSize: '14px', fontWeight: 600, color: COLORS.text }}>Visa Requirements</span>
+                  <span style={{ fontFamily: 'var(--font-sans)', fontSize: '14px', fontWeight: 600, color: COLORS.text }}>Visa Requirements</span>
                 </div>
                 <div style={{
                   display: 'inline-flex', alignItems: 'center', gap: '6px', padding: '6px 12px', borderRadius: '8px',
                   background: visa.status === 'visa-free' ? '#ECFDF5' : visa.status === 'e-visa' || visa.status === 'visa-on-arrival' ? '#FFF7ED' : '#FEF2F2',
                   color: visa.status === 'visa-free' ? '#065F46' : visa.status === 'visa-required' ? '#991B1B' : '#92400E',
-                  fontFamily: "'DM Sans'", fontSize: '13px', fontWeight: 600,
+                  fontFamily: 'var(--font-sans)', fontSize: '13px', fontWeight: 600,
                 }}>
                   {visa.status === 'visa-free' ? '✓ Visa Free' : visa.status === 'visa-on-arrival' ? '⚡ Visa on Arrival' : visa.status === 'e-visa' ? '⚡ e-Visa Required' : '✕ Visa Required'}
                   {visa.days && <span style={{ fontWeight: 400 }}>({visa.days} days)</span>}
                 </div>
-                {visa.note && <div style={{ fontFamily: "'DM Sans'", fontSize: '12px', color: COLORS.sub, marginTop: '6px' }}>{visa.note}</div>}
-                <div style={{ fontFamily: "'DM Sans'", fontSize: '11px', color: COLORS.sub, marginTop: '4px' }}>Passport: {visa.passport} → {visa.destination}</div>
+                {visa.note && <div style={{ fontFamily: 'var(--font-sans)', fontSize: '12px', color: COLORS.sub, marginTop: '6px' }}>{visa.note}</div>}
+                <div style={{ fontFamily: 'var(--font-sans)', fontSize: '11px', color: COLORS.sub, marginTop: '4px' }}>Passport: {visa.passport} → {visa.destination}</div>
               </div>
             )}
 
@@ -1129,10 +1277,10 @@ function SearchResults() {
               <div style={{ background: 'rgba(255,255,255,0.04)', border: `1px solid ${COLORS.border}`, borderRadius: '12px', padding: '16px', marginBottom: '12px' }}>
                 <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '8px' }}>
                   <DollarSign size={16} color={COLORS.accent} />
-                  <span style={{ fontFamily: "'DM Sans'", fontSize: '14px', fontWeight: 600, color: COLORS.text }}>Currency</span>
+                  <span style={{ fontFamily: 'var(--font-sans)', fontSize: '14px', fontWeight: 600, color: COLORS.text }}>Currency</span>
                 </div>
-                <div style={{ fontFamily: "'JetBrains Mono'", fontSize: '18px', fontWeight: 700, color: COLORS.text }}>{currency.display}</div>
-                <div style={{ fontFamily: "'DM Sans'", fontSize: '12px', color: COLORS.sub, marginTop: '4px' }}>{currency.name} · Live rate</div>
+                <div style={{ fontFamily: 'var(--font-mono)', fontSize: '18px', fontWeight: 700, color: COLORS.text }}>{currency.display}</div>
+                <div style={{ fontFamily: 'var(--font-sans)', fontSize: '12px', color: COLORS.sub, marginTop: '4px' }}>{currency.name} · Live rate</div>
               </div>
             )}
 
@@ -1141,8 +1289,8 @@ function SearchResults() {
               <div style={{ background: 'rgba(255,255,255,0.04)', border: `1px solid ${COLORS.border}`, borderRadius: '12px', padding: '16px', marginBottom: '12px' }}>
                 <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '12px' }}>
                   <Sparkles size={16} color={COLORS.accent} />
-                  <span style={{ fontFamily: "'DM Sans'", fontSize: '14px', fontWeight: 600, color: COLORS.text }}>Hidden Gems</span>
-                  <span style={{ fontFamily: "'DM Sans'", fontSize: '11px', color: COLORS.sub }}>via Atlas Obscura</span>
+                  <span style={{ fontFamily: 'var(--font-sans)', fontSize: '14px', fontWeight: 600, color: COLORS.text }}>Hidden Gems</span>
+                  <span style={{ fontFamily: 'var(--font-sans)', fontSize: '11px', color: COLORS.sub }}>via Atlas Obscura</span>
                 </div>
                 {gems.map((g, i) => (
                   <div key={i} style={{ padding: '10px 0', borderTop: i > 0 ? `1px solid ${COLORS.card}` : 'none', display: 'flex', gap: '10px', alignItems: 'flex-start' }}>
@@ -1150,32 +1298,78 @@ function SearchResults() {
                       {g.type === 'food' ? '🍜' : g.type === 'nature' ? '🌿' : g.type === 'museum' ? '🎨' : g.type === 'history' ? '🏛' : g.type === 'adventure' ? '⛰' : '🏗'}
                     </div>
                     <div>
-                      <div style={{ fontFamily: "'DM Sans'", fontSize: '13px', fontWeight: 600, color: COLORS.text }}>{g.name}</div>
-                      <div style={{ fontFamily: "'DM Sans'", fontSize: '12px', color: COLORS.sub, lineHeight: 1.4 }}>{g.desc}</div>
+                      <div style={{ fontFamily: 'var(--font-sans)', fontSize: '13px', fontWeight: 600, color: COLORS.text }}>{g.name}</div>
+                      <div style={{ fontFamily: 'var(--font-sans)', fontSize: '12px', color: COLORS.sub, lineHeight: 1.4 }}>{g.desc}</div>
                     </div>
                   </div>
                 ))}
               </div>
             )}
 
+            {/* Eat & do — restaurants and activities for the destination */}
+            {(!isMulti || selectedDest) && (() => {
+              const exploreCity = (selectedResults && destinations.find(x => x.code === selectedResults.code)?.city) || (destCity !== 'Multiple Cities' ? destCity : '');
+              if (!exploreCity) return null;
+              const eatDo = [
+                { name: 'OpenTable', desc: 'Book a restaurant', emoji: '🍽️', url: `https://www.opentable.com/s?term=${encodeURIComponent(exploreCity)}${departDate ? `&dateTime=${departDate}T19%3A00` : ''}&covers=${Math.max(2, passengers)}` },
+                { name: 'GetYourGuide', desc: 'Tours & experiences', emoji: '🎟️', url: monetise(`https://www.getyourguide.com/s/?q=${encodeURIComponent(exploreCity)}`) },
+                { name: 'Viator', desc: 'Activities & day trips', emoji: '🚤', url: monetise(`https://www.viator.com/searchResults/all?text=${encodeURIComponent(exploreCity)}`) },
+                { name: 'TripAdvisor', desc: 'Top sights & reviews', emoji: '⭐', url: `https://www.tripadvisor.com/Search?q=${encodeURIComponent(exploreCity)}` },
+                { name: 'Google', desc: 'Things to do', emoji: '🧭', url: `https://www.google.com/search?q=${encodeURIComponent(`things to do in ${exploreCity}`)}` },
+                { name: 'Resy', desc: 'Fine dining tables', emoji: '🥂', url: `https://resy.com/cities?query=${encodeURIComponent(exploreCity)}` },
+              ];
+              return (
+                <div style={{ background: 'rgba(255,255,255,0.04)', border: `1px solid ${COLORS.border}`, borderRadius: '12px', padding: '16px', marginBottom: '12px' }}>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '12px' }}>
+                    <Compass size={16} color={COLORS.accent} />
+                    <span style={{ fontFamily: 'var(--font-sans)', fontSize: '14px', fontWeight: 600, color: COLORS.text }}>Eat &amp; Do in {exploreCity}</span>
+                  </div>
+                  <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(150px, 1fr))', gap: '8px' }}>
+                    {eatDo.map(x => (
+                      <a key={x.name} className="result-card" href={x.url} target="_blank" rel="noopener noreferrer"
+                        style={{ background: 'rgba(255,255,255,0.03)', border: `1px solid ${COLORS.border}`, borderRadius: '10px', padding: '12px', flexDirection: 'column', alignItems: 'flex-start', gap: '4px' }}>
+                        <span style={{ fontSize: '18px' }}>{x.emoji}</span>
+                        <span style={{ fontFamily: 'var(--font-sans)', fontSize: '13px', fontWeight: 600, color: COLORS.text }}>{x.name}</span>
+                        <span style={{ fontFamily: 'var(--font-sans)', fontSize: '11px', color: COLORS.sub }}>{x.desc}</span>
+                      </a>
+                    ))}
+                  </div>
+                </div>
+              );
+            })()}
+
             {/* Settings hint */}
             <div style={{ background: COLORS.card, borderRadius: '12px', padding: '16px', display: 'flex', alignItems: 'center', gap: '12px' }}>
               <Settings size={16} color={COLORS.sub} />
               <div>
-                <div style={{ fontFamily: "'DM Sans'", fontSize: '13px', fontWeight: 600, color: COLORS.text }}>Your passport: {passport}</div>
-                <button onClick={() => router.push('/settings')} style={{ fontFamily: "'DM Sans'", fontSize: '12px', color: COLORS.accent, background: 'none', border: 'none', cursor: 'pointer', padding: 0 }}>Change passport & preferences →</button>
+                <div style={{ fontFamily: 'var(--font-sans)', fontSize: '13px', fontWeight: 600, color: COLORS.text }}>Your passport: {passport}</div>
+                <button onClick={() => router.push('/settings')} style={{ fontFamily: 'var(--font-sans)', fontSize: '12px', color: COLORS.accent, background: 'none', border: 'none', cursor: 'pointer', padding: 0 }}>Change passport & preferences →</button>
               </div>
             </div>
 
             {!visa && !currency && gems.length === 0 && (
               <div style={{ background: COLORS.card, borderRadius: '12px', padding: '40px', textAlign: 'center', marginTop: '12px' }}>
                 <Compass size={32} color={COLORS.sub} style={{ marginBottom: '12px' }} />
-                <p style={{ fontFamily: "'DM Sans'", fontSize: '14px', color: COLORS.sub }}>Search for a specific destination to see visa, currency, and hidden gems</p>
+                <p style={{ fontFamily: 'var(--font-sans)', fontSize: '14px', color: COLORS.sub }}>Search for a specific destination to see visa, currency, and hidden gems</p>
               </div>
             )}
           </div>
         )}
       </div>
+
+      {calendarOpen && (
+        <PriceCalendar
+          origin={origin}
+          dest={selectedResults?.code || dest0?.code || 'LHR'}
+          cabin={(parsed?.cabin as string) || 'business'}
+          baseDate={departDate || new Date(Date.now() + 7 * 86400000).toISOString().split('T')[0]}
+          knownPrices={knownPrices}
+          symbol={CUR_SYMBOLS[dispCurrency] ?? `${dispCurrency} `}
+          rate={fx[dispCurrency] || 1}
+          onPick={pickDate}
+          onClose={() => setCalendarOpen(false)}
+        />
+      )}
 
       <style jsx global>{`
         @keyframes fadeIn { from { opacity: 0; transform: translateY(8px); } to { opacity: 1; transform: translateY(0); } }
@@ -1188,11 +1382,17 @@ function SearchResults() {
         a.result-card:focus-visible { outline: 2px solid #8B5CF6; outline-offset: 2px; }
         a.compare-chip { display: inline-flex; align-items: center; gap: 5px; text-decoration: none; white-space: nowrap; transition: border-color 0.15s ease, color 0.15s ease, background 0.15s ease; }
         a.compare-chip:hover { border-color: rgba(139,92,246,0.5) !important; color: #fff !important; background: rgba(139,92,246,0.12) !important; }
+        @keyframes flyAcross {
+          0% { left: 0; transform: translateY(-50%); }
+          50% { transform: translateY(-72%); }
+          100% { left: calc(100% - 18px); transform: translateY(-50%); }
+        }
+        .fly-plane { position: absolute; top: 50%; left: 0; color: #A78BFA; animation: flyAcross 2.1s ease-in-out infinite; filter: drop-shadow(0 0 6px rgba(139,92,246,0.45)); }
       `}</style>
     </div>
   );
 }
 
 export default function SearchPage() {
-  return <Suspense fallback={<div style={{ minHeight: '100vh', background: '#06060a', display: 'flex', alignItems: 'center', justifyContent: 'center' }}><div style={{ fontFamily: "'DM Sans'", color: 'rgba(255,255,255,0.4)' }}>Loading...</div></div>}><SearchResults /></Suspense>;
+  return <Suspense fallback={<div style={{ minHeight: '100vh', background: '#06060a', display: 'flex', alignItems: 'center', justifyContent: 'center' }}><div style={{ fontFamily: 'var(--font-sans)', color: 'rgba(255,255,255,0.4)' }}>Loading...</div></div>}><SearchResults /></Suspense>;
 }

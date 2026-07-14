@@ -113,7 +113,7 @@ export default function HistoryPage() {
   };
 
   return (
-    <div style={{ minHeight: '100vh', background: C.bg, color: C.text, fontFamily: "'Outfit', 'DM Sans', system-ui, sans-serif" }}>
+    <div style={{ minHeight: '100vh', background: C.bg, color: C.text, fontFamily: 'var(--font-body)' }}>
       <style>{`@import url('https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;500;600;700&display=swap');`}</style>
 
       {/* Header */}
@@ -201,13 +201,13 @@ export default function HistoryPage() {
                       <div style={{ fontSize: '10px', color: C.sub, textTransform: 'uppercase', letterSpacing: '0.08em', marginBottom: '4px' }}>
                         Best cash (when searched)
                       </div>
-                      <div style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: '16px', fontWeight: 700, color: C.text }}>
+                      <div style={{ fontFamily: 'var(--font-mono)', fontSize: '16px', fontWeight: 700, color: C.text }}>
                         {entry.bestCash ? `$${entry.bestCash.toLocaleString()}` : '—'}
                       </div>
                       {live?.checked && (
                         <div style={{ fontSize: '11px', marginTop: '4px' }}>
                           <span style={{ color: C.sub }}>Now: </span>
-                          <span style={{ fontFamily: "'JetBrains Mono', monospace", fontWeight: 700, color: C.text }}>
+                          <span style={{ fontFamily: 'var(--font-mono)', fontWeight: 700, color: C.text }}>
                             {live.cash ? `$${live.cash.toLocaleString()}` : '—'}
                           </span>
                           {cashDelta && (
@@ -222,13 +222,13 @@ export default function HistoryPage() {
                       <div style={{ fontSize: '10px', color: C.sub, textTransform: 'uppercase', letterSpacing: '0.08em', marginBottom: '4px' }}>
                         Best award (when searched)
                       </div>
-                      <div style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: '16px', fontWeight: 700, color: C.accent }}>
+                      <div style={{ fontFamily: 'var(--font-mono)', fontSize: '16px', fontWeight: 700, color: C.accent }}>
                         {entry.bestAward ? `${(entry.bestAward / 1000).toFixed(0)}K mi` : '—'}
                       </div>
                       {live?.checked && (
                         <div style={{ fontSize: '11px', marginTop: '4px' }}>
                           <span style={{ color: C.sub }}>Now: </span>
-                          <span style={{ fontFamily: "'JetBrains Mono', monospace", fontWeight: 700, color: C.accent }}>
+                          <span style={{ fontFamily: 'var(--font-mono)', fontWeight: 700, color: C.accent }}>
                             {live.award ? `${(live.award / 1000).toFixed(0)}K mi` : '—'}
                           </span>
                           {awardDelta && (

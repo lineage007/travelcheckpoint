@@ -1,3 +1,31 @@
+# What's New — 2026-07-14: world-class pass
+
+## Awards fixed for real (the big one)
+Points results were unreliable since day one: the seats.aero `/availability` endpoint ignores route filters and returns a paginated firehose — we only ever saw page 1, so most routes showed zero awards. Switched to the `/partnerapi/search` endpoint: server-side route filtering, all 12+ programs in **one call** (12× less quota), and DXB→CDG now returns 100 award seats with programs, taxes, and seat counts.
+
+## Typography actually loads now
+The app referenced Space Grotesk / DM Sans / JetBrains Mono without ever loading them — everything silently rendered in system fonts. All four families now self-host via `next/font` (zero FOUT) and every component uses the CSS variables.
+
+## Currency toggle — default AUD
+Header selector (AUD/USD/EUR/GBP/AED/TRY), persisted, converts every price on the page via cached live FX rates (`/api/rates`, 6h TTL): fare cards, tiles, date strip, city cards, hotels, award taxes.
+
+## Price calendar (Google Flights style)
+Tap the date in the refinement bar → month grid with the best cash fare under each day. Prices come from current results + a 24h per-route price memory + live background probing of missing days (cash-only `priceOnly=1` searches — no award quota). Cheapest day outlined green; tap a day to re-search it.
+
+## Airline-themed search progress + designed empty state
+A plane flies a dashed route line between the origin/destination codes with rotating provider names ("Searching Emirates Skywards…") while results load. Zero results now shows a designed panel with one-tap "±3 days" and "Allow any stops" recovery actions.
+
+## Eat & Do in {city}
+Explore tab: OpenTable (pre-filled with trip date, 7pm), GetYourGuide, Viator, TripAdvisor, Resy, Google Things-to-do. GYG/Viator run through the affiliate layer (`NEXT_PUBLIC_GYG_PARTNER_ID`, `NEXT_PUBLIC_VIATOR_PID`).
+
+## Extras
+- Award cards show **value badges** (¢/mile vs the best live cash fare — "Great value · 3.8¢/mi")
+- Airline logos upgraded: white-circle treatment with per-airline colored monogram fallback
+- `/` focuses the search box from anywhere
+- flydubai/ITA and other missing airline names mapped
+
+---
+
 # What's New — 2026-07-13 (4): book hotels on-site (LiteAPI hosted checkout)
 
 Hotels are now bookable **inside TravelCheckpoint**, with commission on every booking:

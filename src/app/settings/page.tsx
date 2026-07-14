@@ -112,45 +112,45 @@ export default function SettingsPage() {
     window.localStorage.removeItem('tc_saved_searches');
   };
 
-  const selectStyle = { fontFamily: "'DM Sans', sans-serif", fontSize: '14px', padding: '10px 14px', borderRadius: '10px', border: `1px solid ${COLORS.border}`, background: 'rgba(255,255,255,0.04)', color: COLORS.text, width: '100%', outline: 'none' };
+  const selectStyle = { fontFamily: 'var(--font-sans)', fontSize: '14px', padding: '10px 14px', borderRadius: '10px', border: `1px solid ${COLORS.border}`, background: 'rgba(255,255,255,0.04)', color: COLORS.text, width: '100%', outline: 'none' };
 
   return (
     <div style={{ minHeight: '100vh', background: COLORS.bg }}>
       <div style={{ background: 'rgba(255,255,255,0.04)', borderBottom: `1px solid ${COLORS.border}`, padding: '14px 16px' }}>
         <div style={{ maxWidth: '600px', margin: '0 auto', display: 'flex', alignItems: 'center', gap: '12px' }}>
           <button onClick={() => router.back()} style={{ background: 'none', border: 'none', cursor: 'pointer', color: COLORS.sub }}><ArrowLeft size={20} /></button>
-          <span style={{ fontFamily: "'Space Grotesk', sans-serif", fontSize: '18px', fontWeight: 600, color: COLORS.text }}>Settings</span>
+          <span style={{ fontFamily: 'var(--font-display)', fontSize: '18px', fontWeight: 600, color: COLORS.text }}>Settings</span>
         </div>
       </div>
 
       <div style={{ maxWidth: '600px', margin: '0 auto', padding: '20px 16px' }}>
         {/* Passport */}
         <div style={{ background: 'rgba(255,255,255,0.04)', border: `1px solid ${COLORS.border}`, borderRadius: '12px', padding: '16px', marginBottom: '12px' }}>
-          <label style={{ fontFamily: "'DM Sans'", fontSize: '12px', fontWeight: 600, color: COLORS.sub, textTransform: 'uppercase', letterSpacing: '0.05em', display: 'block', marginBottom: '8px' }}>Passport Country</label>
+          <label style={{ fontFamily: 'var(--font-sans)', fontSize: '12px', fontWeight: 600, color: COLORS.sub, textTransform: 'uppercase', letterSpacing: '0.05em', display: 'block', marginBottom: '8px' }}>Passport Country</label>
           <select value={passport} onChange={e => setPassport(e.target.value)} style={selectStyle}>
             {PASSPORTS.map(p => <option key={p.code} value={p.code}>{p.name} ({p.code})</option>)}
           </select>
-          <p style={{ fontFamily: "'DM Sans'", fontSize: '11px', color: COLORS.sub, marginTop: '6px' }}>Used for visa requirement checks on every search</p>
+          <p style={{ fontFamily: 'var(--font-sans)', fontSize: '11px', color: COLORS.sub, marginTop: '6px' }}>Used for visa requirement checks on every search</p>
         </div>
 
         {/* Home Airport */}
         <div style={{ background: 'rgba(255,255,255,0.04)', border: `1px solid ${COLORS.border}`, borderRadius: '12px', padding: '16px', marginBottom: '12px' }}>
-          <label style={{ fontFamily: "'DM Sans'", fontSize: '12px', fontWeight: 600, color: COLORS.sub, textTransform: 'uppercase', letterSpacing: '0.05em', display: 'block', marginBottom: '8px' }}>Home Airport</label>
+          <label style={{ fontFamily: 'var(--font-sans)', fontSize: '12px', fontWeight: 600, color: COLORS.sub, textTransform: 'uppercase', letterSpacing: '0.05em', display: 'block', marginBottom: '8px' }}>Home Airport</label>
           <select value={homeAirport} onChange={e => setHomeAirport(e.target.value)} style={selectStyle}>
             {HOME_AIRPORTS.map(a => <option key={a.code} value={a.code}>{a.name} ({a.code})</option>)}
           </select>
-          <p style={{ fontFamily: "'DM Sans'", fontSize: '11px', color: COLORS.sub, marginTop: '6px' }}>Default origin when you don&apos;t specify one</p>
+          <p style={{ fontFamily: 'var(--font-sans)', fontSize: '11px', color: COLORS.sub, marginTop: '6px' }}>Default origin when you don&apos;t specify one</p>
         </div>
 
         {/* Cabin Class */}
         <div style={{ background: 'rgba(255,255,255,0.04)', border: `1px solid ${COLORS.border}`, borderRadius: '12px', padding: '16px', marginBottom: '12px' }}>
-          <label style={{ fontFamily: "'DM Sans'", fontSize: '12px', fontWeight: 600, color: COLORS.sub, textTransform: 'uppercase', letterSpacing: '0.05em', display: 'block', marginBottom: '8px' }}>Preferred Cabin</label>
+          <label style={{ fontFamily: 'var(--font-sans)', fontSize: '12px', fontWeight: 600, color: COLORS.sub, textTransform: 'uppercase', letterSpacing: '0.05em', display: 'block', marginBottom: '8px' }}>Preferred Cabin</label>
           <div style={{ display: 'flex', gap: '8px' }}>
             {['economy', 'business', 'first'].map(c => (
               <button key={c} onClick={() => setCabin(c)} style={{
                 flex: 1, padding: '10px', borderRadius: '10px', border: `1px solid ${cabin === c ? COLORS.accent : COLORS.border}`,
                 background: cabin === c ? COLORS.accent + '10' : 'rgba(255,255,255,0.04)', color: cabin === c ? COLORS.accent : COLORS.text,
-                fontFamily: "'DM Sans'", fontSize: '13px', fontWeight: 600, cursor: 'pointer', textTransform: 'capitalize',
+                fontFamily: 'var(--font-sans)', fontSize: '13px', fontWeight: 600, cursor: 'pointer', textTransform: 'capitalize',
               }}>{c}</button>
             ))}
           </div>
@@ -158,7 +158,7 @@ export default function SettingsPage() {
 
         {/* Loyalty Programs */}
         <div style={{ background: 'rgba(255,255,255,0.04)', border: `1px solid ${COLORS.border}`, borderRadius: '12px', padding: '16px', marginBottom: '20px' }}>
-          <label style={{ fontFamily: "'DM Sans'", fontSize: '12px', fontWeight: 600, color: COLORS.sub, textTransform: 'uppercase', letterSpacing: '0.05em', display: 'block', marginBottom: '12px' }}>Loyalty Programs</label>
+          <label style={{ fontFamily: 'var(--font-sans)', fontSize: '12px', fontWeight: 600, color: COLORS.sub, textTransform: 'uppercase', letterSpacing: '0.05em', display: 'block', marginBottom: '12px' }}>Loyalty Programs</label>
           <div style={{ display: 'flex', flexDirection: 'column', gap: '2px' }}>
             {LOYALTY_PROGRAMS.map(p => {
               const active = loyaltyPrograms.includes(p.id);
@@ -170,8 +170,8 @@ export default function SettingsPage() {
                   <div style={{ width: 20, height: 20, borderRadius: '4px', border: `2px solid ${active ? COLORS.accent : COLORS.border}`, background: active ? COLORS.accent : 'rgba(255,255,255,0.04)', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
                     {active && <Check size={12} color="#fff" />}
                   </div>
-                  <span style={{ fontFamily: "'DM Sans'", fontSize: '13px', color: COLORS.text, fontWeight: active ? 600 : 400 }}>{p.name}</span>
-                  <span style={{ fontFamily: "'DM Sans'", fontSize: '10px', color: COLORS.sub, marginLeft: 'auto', textTransform: 'uppercase' }}>{p.type}</span>
+                  <span style={{ fontFamily: 'var(--font-sans)', fontSize: '13px', color: COLORS.text, fontWeight: active ? 600 : 400 }}>{p.name}</span>
+                  <span style={{ fontFamily: 'var(--font-sans)', fontSize: '10px', color: COLORS.sub, marginLeft: 'auto', textTransform: 'uppercase' }}>{p.type}</span>
                 </button>
               );
             })}
@@ -180,34 +180,34 @@ export default function SettingsPage() {
 
         {/* Provider Status */}
         <div style={{ background: 'rgba(255,255,255,0.04)', border: `1px solid ${COLORS.border}`, borderRadius: '12px', padding: '16px', marginBottom: '12px' }}>
-          <label style={{ fontFamily: "'DM Sans'", fontSize: '12px', fontWeight: 600, color: COLORS.sub, textTransform: 'uppercase', letterSpacing: '0.05em', display: 'block', marginBottom: '12px' }}>Live Data Providers</label>
+          <label style={{ fontFamily: 'var(--font-sans)', fontSize: '12px', fontWeight: 600, color: COLORS.sub, textTransform: 'uppercase', letterSpacing: '0.05em', display: 'block', marginBottom: '12px' }}>Live Data Providers</label>
           <div style={{ display: 'grid', gap: '8px' }}>
             {providers.map((p) => (
               <div key={p.id} style={{ display: 'flex', gap: '10px', alignItems: 'flex-start', justifyContent: 'space-between', padding: '10px 0', borderTop: `1px solid ${COLORS.border}` }}>
                 <div>
-                  <div style={{ fontFamily: "'DM Sans'", fontSize: '13px', fontWeight: 700, color: COLORS.text }}>{p.label}</div>
-                  <div style={{ fontFamily: "'DM Sans'", fontSize: '11px', color: COLORS.sub, marginTop: '2px' }}>{p.feature}</div>
+                  <div style={{ fontFamily: 'var(--font-sans)', fontSize: '13px', fontWeight: 700, color: COLORS.text }}>{p.label}</div>
+                  <div style={{ fontFamily: 'var(--font-sans)', fontSize: '11px', color: COLORS.sub, marginTop: '2px' }}>{p.feature}</div>
                 </div>
-                <span style={{ fontFamily: "'JetBrains Mono'", fontSize: '10px', fontWeight: 800, color: p.configured ? '#22C55E' : '#F59E0B', background: p.configured ? 'rgba(34,197,94,0.12)' : 'rgba(245,158,11,0.12)', border: `1px solid ${p.configured ? 'rgba(34,197,94,0.28)' : 'rgba(245,158,11,0.28)'}`, padding: '4px 7px', borderRadius: '999px', whiteSpace: 'nowrap' }}>{p.configured ? 'LIVE' : 'MISSING'}</span>
+                <span style={{ fontFamily: 'var(--font-mono)', fontSize: '10px', fontWeight: 800, color: p.configured ? '#22C55E' : '#F59E0B', background: p.configured ? 'rgba(34,197,94,0.12)' : 'rgba(245,158,11,0.12)', border: `1px solid ${p.configured ? 'rgba(34,197,94,0.28)' : 'rgba(245,158,11,0.28)'}`, padding: '4px 7px', borderRadius: '999px', whiteSpace: 'nowrap' }}>{p.configured ? 'LIVE' : 'MISSING'}</span>
               </div>
             ))}
-            {providers.length === 0 && <div style={{ fontFamily: "'DM Sans'", fontSize: '12px', color: COLORS.sub }}>Provider status unavailable.</div>}
+            {providers.length === 0 && <div style={{ fontFamily: 'var(--font-sans)', fontSize: '12px', color: COLORS.sub }}>Provider status unavailable.</div>}
           </div>
         </div>
 
         {/* Saved Searches */}
         <div style={{ background: 'rgba(255,255,255,0.04)', border: `1px solid ${COLORS.border}`, borderRadius: '12px', padding: '16px', marginBottom: '20px' }}>
           <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '12px' }}>
-            <label style={{ fontFamily: "'DM Sans'", fontSize: '12px', fontWeight: 600, color: COLORS.sub, textTransform: 'uppercase', letterSpacing: '0.05em' }}>Saved Searches</label>
+            <label style={{ fontFamily: 'var(--font-sans)', fontSize: '12px', fontWeight: 600, color: COLORS.sub, textTransform: 'uppercase', letterSpacing: '0.05em' }}>Saved Searches</label>
             {savedSearches.length > 0 && <button onClick={clearSavedSearches} style={{ background: 'none', border: 'none', color: COLORS.sub, fontSize: '11px', cursor: 'pointer' }}>Clear all</button>}
           </div>
           {savedSearches.length === 0 ? (
-            <p style={{ fontFamily: "'DM Sans'", fontSize: '12px', color: COLORS.sub, margin: 0 }}>Save a search from the results page and it will appear here.</p>
+            <p style={{ fontFamily: 'var(--font-sans)', fontSize: '12px', color: COLORS.sub, margin: 0 }}>Save a search from the results page and it will appear here.</p>
           ) : (
             <div style={{ display: 'grid', gap: '8px' }}>
               {savedSearches.map((s) => (
                 <div key={s.q} style={{ display: 'flex', gap: '8px', alignItems: 'center', background: 'rgba(0,0,0,0.15)', borderRadius: '10px', padding: '10px' }}>
-                  <button onClick={() => router.push(`/search?q=${encodeURIComponent(s.q)}`)} style={{ flex: 1, background: 'none', border: 'none', color: COLORS.text, textAlign: 'left', fontFamily: "'DM Sans'", fontSize: '13px', cursor: 'pointer', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{s.q}</button>
+                  <button onClick={() => router.push(`/search?q=${encodeURIComponent(s.q)}`)} style={{ flex: 1, background: 'none', border: 'none', color: COLORS.text, textAlign: 'left', fontFamily: 'var(--font-sans)', fontSize: '13px', cursor: 'pointer', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{s.q}</button>
                   <button onClick={() => removeSavedSearch(s.q)} style={{ background: 'none', border: 'none', color: COLORS.sub, cursor: 'pointer', fontSize: '16px' }}>×</button>
                 </div>
               ))}
@@ -219,7 +219,7 @@ export default function SettingsPage() {
         <button onClick={save} style={{
           width: '100%', padding: '14px', borderRadius: '12px', border: 'none',
           background: COLORS.accent, color: '#fff',
-          fontFamily: "'DM Sans'", fontSize: '15px', fontWeight: 600, cursor: 'pointer',
+          fontFamily: 'var(--font-sans)', fontSize: '15px', fontWeight: 600, cursor: 'pointer',
           transition: 'all 0.15s',
         }}>
           {saved ? '✓ Saved!' : 'Save Preferences'}

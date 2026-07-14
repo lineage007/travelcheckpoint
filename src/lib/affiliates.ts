@@ -23,6 +23,10 @@ export const AFFILIATE_IDS = {
   kiwiAffilid: env(process.env.NEXT_PUBLIC_KIWI_AFFILID),
   // Skyscanner Partner Network — "associateid"
   skyscannerAssociateId: env(process.env.NEXT_PUBLIC_SKYSCANNER_ASSOCIATEID),
+  // GetYourGuide Partner Program — "partner_id"
+  gygPartnerId: env(process.env.NEXT_PUBLIC_GYG_PARTNER_ID),
+  // Viator Partner Program — "pid"
+  viatorPid: env(process.env.NEXT_PUBLIC_VIATOR_PID),
 };
 
 const setParam = (url: URL, key: string, value: string) => {
@@ -44,6 +48,8 @@ export function monetise(rawUrl: string): string {
     if (host.endsWith('agoda.com')) return setParam(url, 'cid', AFFILIATE_IDS.agodaCid);
     if (host.endsWith('kiwi.com')) return setParam(url, 'affilid', AFFILIATE_IDS.kiwiAffilid);
     if (host.includes('skyscanner')) return setParam(url, 'associateid', AFFILIATE_IDS.skyscannerAssociateId);
+    if (host.endsWith('getyourguide.com')) return setParam(url, 'partner_id', AFFILIATE_IDS.gygPartnerId);
+    if (host.endsWith('viator.com')) return setParam(url, 'pid', AFFILIATE_IDS.viatorPid);
 
     // Expedia/Hotels.com run on Partnerize: the tracked link wraps the destination.
     if (host.endsWith('expedia.com') && AFFILIATE_IDS.expediaCamref) {
