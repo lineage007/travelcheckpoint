@@ -14,6 +14,8 @@ Every outbound booking link on the site passes through `monetise()` in [src/lib/
 | Hotels.com (same Partnerize account) | affiliates.expediagroup.com | separate `camref` | `NEXT_PUBLIC_HOTELSCOM_CAMREF` |
 | Kiwi.com Tequila affiliate | tequila.kiwi.com | `affilid` | `NEXT_PUBLIC_KIWI_AFFILID` |
 | Skyscanner Partner Network | partners.skyscanner.net | `associateid` | `NEXT_PUBLIC_SKYSCANNER_ASSOCIATEID` |
+| GetYourGuide Partner (activities) | partner.getyourguide.com | `partner_id` | `NEXT_PUBLIC_GYG_PARTNER_ID` |
+| Viator Partner (activities) | partnerresources.viator.com | `pid` | `NEXT_PUBLIC_VIATOR_PID` |
 
 Typical commissions: Booking.com 25–40% of *their* commission (~4% of booking value), Agoda 4–7%, Expedia ~2–6%, Kiwi ~3%, Skyscanner CPC/rev-share.
 
