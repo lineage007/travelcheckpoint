@@ -174,7 +174,9 @@ function findAirport(text: string): { code: string; city: string } | null {
     const code = iataMatch[1].toUpperCase();
     const entry = Object.values(AIRPORTS).find(a => a.code === code);
     if (entry) return entry;
-    return { code, city: code };
+    if (!['ONE', 'TWO', 'WAY', 'FOR', 'THE', 'AND', 'ANY', 'ALL', 'MAX', 'PAX'].includes(code)) {
+      return { code, city: code };
+    }
   }
   const sorted = Object.entries(AIRPORTS).sort((a, b) => b[0].length - a[0].length);
   for (const [name, data] of sorted) {

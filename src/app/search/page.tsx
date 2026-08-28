@@ -533,9 +533,11 @@ function SearchResults() {
   const selectedAwards = selectedResults?.awardResults || [];
   const liveCashCount = selectedCash.filter(f => typeof f.price === 'number' && f.price > 0 && f.isLivePrice !== false).length;
   const fallbackCashCount = selectedCash.filter(f => f.status === 'fallback' || f.isLivePrice === false).length;
+  const liveAirlineCount = liveCashCount + duffelResults.length;
   const hasAnyFlightResult = liveCashCount > 0 || fallbackCashCount > 0 || selectedAwards.length > 0 || hiddenCity.length > 0 || kiwiResults.length > 0 || duffelResults.length > 0;
   const departDate = (parsed?.departDates as string[])?.[0] || (parsed?.departDate as string) || '';
   const bestCash = selectedCash.filter(f => typeof f.price === 'number' && f.price > 0 && f.isLivePrice !== false).sort((a, b) => (a.price || Infinity) - (b.price || Infinity))[0] || null;
+  const bestDuffel = duffelResults.filter(f => typeof f.price === 'number' && f.price > 0).sort((a, b) => a.price - b.price)[0] || null;
   const bestAward = selectedAwards.filter(a => a.miles > 0).sort((a, b) => a.miles - b.miles)[0] || null;
   const bestHotel = liteHotels.filter(h => typeof h.price === 'number' && h.price > 0).sort((a, b) => (a.price || Infinity) - (b.price || Infinity))[0] || null;
 
@@ -749,7 +751,7 @@ function SearchResults() {
               </div>
             </div>
             <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(150px, 1fr))', gap: '8px', marginTop: '12px' }}>
-              <div style={{ background: 'rgba(0,0,0,0.18)', borderRadius: '10px', padding: '10px' }}><div style={{ color: COLORS.sub, fontSize: 10, textTransform: 'uppercase', letterSpacing: '0.08em' }}>Best cash</div><div style={{ color: COLORS.text, fontFamily: 'var(--font-mono)', fontWeight: 800, marginTop: 3 }}>{bestCash ? money(bestCash.price) : fallbackCashCount ? 'Check live' : '—'}</div></div>
+              <div style={{ background: 'rgba(0,0,0,0.18)', borderRadius: '10px', padding: '10px' }}><div style={{ color: COLORS.sub, fontSize: 10, textTransform: 'uppercase', letterSpacing: '0.08em' }}>Best cash</div><div style={{ color: COLORS.text, fontFamily: 'var(--font-mono)', fontWeight: 800, marginTop: 3 }}>{bestCash ? money(bestCash.price) : bestDuffel ? moneyFrom(bestDuffel.price, bestDuffel.currency || 'USD') : fallbackCashCount ? 'Check live' : '—'}</div></div>
               <div style={{ background: 'rgba(0,0,0,0.18)', borderRadius: '10px', padding: '10px' }}><div style={{ color: COLORS.sub, fontSize: 10, textTransform: 'uppercase', letterSpacing: '0.08em' }}>Best award</div><div style={{ color: COLORS.text, fontFamily: 'var(--font-mono)', fontWeight: 800, marginTop: 3 }}>{bestAward ? `${(bestAward.miles / 1000).toFixed(0)}K mi` : '—'}</div></div>
               <div style={{ background: 'rgba(0,0,0,0.18)', borderRadius: '10px', padding: '10px' }}><div style={{ color: COLORS.sub, fontSize: 10, textTransform: 'uppercase', letterSpacing: '0.08em' }}>Hotel</div><div style={{ color: COLORS.text, fontFamily: 'var(--font-mono)', fontWeight: 800, marginTop: 3 }}>{bestHotel ? moneyFrom(bestHotel.price, bestHotel.currency || 'USD') : providerStatuses.liteapi === 'hotel-list-only' ? 'List only' : '—'}</div></div>
               <div style={{ background: 'rgba(0,0,0,0.18)', borderRadius: '10px', padding: '10px' }}><div style={{ color: COLORS.sub, fontSize: 10, textTransform: 'uppercase', letterSpacing: '0.08em' }}>Visa</div><div style={{ color: COLORS.text, fontFamily: 'var(--font-mono)', fontWeight: 800, marginTop: 3 }}>{visa ? visa.status.replace('-', ' ') : '—'}</div></div>
@@ -770,7 +772,7 @@ function SearchResults() {
 
             {selectedResults && !loading && (
               <div style={{ display: 'flex', gap: '8px', flexWrap: 'wrap', marginBottom: '14px' }}>
-                <StatusPill label={liveCashCount > 0 ? `${liveCashCount} live cash` : providerStatuses.cash === 'fallback-links-only' ? 'cash fallback' : 'cash pending'} tone={liveCashCount > 0 ? 'live' : providerStatuses.cash === 'fallback-links-only' ? 'fallback' : 'empty'} />
+                <StatusPill label={liveAirlineCount > 0 ? `${liveAirlineCount} live fares` : providerStatuses.cash === 'fallback-links-only' ? 'cash fallback' : 'cash pending'} tone={liveAirlineCount > 0 ? 'live' : providerStatuses.cash === 'fallback-links-only' ? 'fallback' : 'empty'} />
                 <StatusPill
                   label={selectedAwards.length > 0 ? `${selectedAwards.length} award seats` : providerStatuses.awards === 'rate-limited' ? 'awards rate-limited — retry later' : providerStatuses.awards === 'missing-key' ? 'awards missing key' : 'no awards'}
                   tone={selectedAwards.length > 0 ? 'live' : providerStatuses.awards === 'rate-limited' || providerStatuses.awards === 'missing-key' ? 'warning' : 'empty'} />
@@ -912,8 +914,10 @@ function SearchResults() {
                   )}
                 </div>
                 {selectedResults.cashResults.every(f => f.status === 'fallback') && (
-                  <ProviderNotice tone="fallback" title="Live cash fares are not connected yet">
-                    These are direct search links to Google Flights and Skyscanner. They are not ranked prices, so TravelCheckpoint is being honest instead of pretending a $0 fare exists.
+                  <ProviderNotice tone={duffelResults.length > 0 ? 'live' : 'fallback'} title={duffelResults.length > 0 ? 'Google/Skyscanner returned fallback links' : 'Live comparison fares returned no prices'}>
+                    {duffelResults.length > 0
+                      ? 'Duffel is connected and live airline fares are shown below. Google Flights and Skyscanner are direct comparison links for this route, not ranked API prices.'
+                      : 'These are direct search links to Google Flights and Skyscanner. They are not ranked prices, so TravelCheckpoint is being honest instead of pretending a fare exists.'}
                   </ProviderNotice>
                 )}
                 {displayCash.map((f, i) => {
@@ -1045,7 +1049,7 @@ function SearchResults() {
                   const dfDate = (f.departure || '').split('T')[0] || departDate || new Date(Date.now() + 7 * 86400000).toISOString().split('T')[0];
                   return (
                   <a key={f.id || i} className="result-card" href={gfUrl(f.from || origin, f.to || selectedResults?.code || '', dfDate, (parsed?.cabin as string) || 'business', f.airlines[0])} target="_blank" rel="noopener noreferrer"
-                    aria-label={`Book ${f.airlines.join(' + ')} ${f.from} to ${f.to} — opens Google Flights`}
+                    aria-label={`Check ${f.airlines.join(' + ')} ${f.from} to ${f.to} — opens Google Flights`}
                     style={{ background: 'rgba(255,255,255,0.04)', border: `1px solid ${COLORS.border}`, borderRadius: '10px', padding: '14px', marginBottom: '8px', borderLeft: `3px solid #6366F1`, animation: `fadeIn 0.3s ease ${i * 0.05}s both` }}>
                     <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '2px' }}>
                       {f.airlines.slice(0, 2).map((a, j) => <AirlineLogo key={j} airline={a} size={20} />)}
@@ -1058,7 +1062,7 @@ function SearchResults() {
                     <div style={{ textAlign: 'right', flexShrink: 0 }}>
                       <div style={{ fontFamily: 'var(--font-mono)', fontSize: '15px', fontWeight: 700, color: COLORS.text }}>{moneyFrom(f.price, f.currency || 'USD')}</div>
                       {passengers > 1 && <div style={{ fontFamily: 'var(--font-mono)', fontSize: '10px', color: COLORS.sub }}>{moneyFrom(f.price * passengers, f.currency || 'USD')} total</div>}
-                      <BookCta label="Book" />
+                      <BookCta label="Check airline" />
                     </div>
                   </a>
                   );
