@@ -34,6 +34,7 @@ const AIRPORTS: Record<string, { code: string; city: string }> = {
   'cape town': { code: 'CPT', city: 'Cape Town' }, 'nairobi': { code: 'NBO', city: 'Nairobi' },
   'muscat': { code: 'MCT', city: 'Muscat' }, 'bahrain': { code: 'BAH', city: 'Bahrain' },
   'kuwait': { code: 'KWI', city: 'Kuwait' }, 'trabzon': { code: 'TZX', city: 'Trabzon' },
+  'izmir': { code: 'ADB', city: 'Izmir' }, 'adb': { code: 'ADB', city: 'Izmir' },
   'bodrum': { code: 'BJV', city: 'Bodrum' }, 'antalya': { code: 'AYT', city: 'Antalya' },
   'mauritius': { code: 'MRU', city: 'Mauritius' }, 'seychelles': { code: 'SEZ', city: 'Seychelles' },
   'chicago': { code: 'ORD', city: 'Chicago' }, 'washington': { code: 'IAD', city: 'Washington' },
@@ -157,11 +158,20 @@ const REGION_SINGLE: Record<string, { code: string; city: string }> = {
   'south america': { code: 'GRU', city: 'São Paulo' }, 'states': { code: 'JFK', city: 'New York' },
 };
 
+function normalizeSearchText(text: string): string {
+  return text
+    .normalize('NFD')
+    .replace(/[\u0300-\u036f]/g, '')
+    .replace(/ı/g, 'i')
+    .toLowerCase()
+    .trim();
+}
+
 function findAirport(text: string): { code: string; city: string } | null {
-  const lower = text.toLowerCase().trim();
-  const iataMatch = text.match(/\b([A-Z]{3})\b/);
+  const lower = normalizeSearchText(text);
+  const iataMatch = text.match(/\b([A-Za-z]{3})\b/);
   if (iataMatch) {
-    const code = iataMatch[1];
+    const code = iataMatch[1].toUpperCase();
     const entry = Object.values(AIRPORTS).find(a => a.code === code);
     if (entry) return entry;
     return { code, city: code };
@@ -175,7 +185,7 @@ function findAirport(text: string): { code: string; city: string } | null {
 }
 
 function findRegion(text: string): { code: string; city: string }[] | null {
-  const lower = text.toLowerCase().trim();
+  const lower = normalizeSearchText(text);
   // Check multi-airport regions first
   const regionsSorted = Object.entries(REGION_AIRPORTS).sort((a, b) => b[0].length - a[0].length);
   for (const [name, airports] of regionsSorted) {
@@ -286,20 +296,23 @@ export async function POST(request: NextRequest) {
     return { code: 'DXB', city: 'Dubai' };
   })();
 
-  const lower = query.toLowerCase();
+  const lower = normalizeSearchText(query);
 
   // Detect special keywords that imply region searches
   const isAnywhereSearch = /\b(anywhere|everywhere|cheapest\s*(?:getaway|flight|fare)?|best\s*deal)\b/.test(lower);
   const isNearbySearch = /\b(nearby|near|close|short[\s-]*haul|getaway|weekend\s*getaway|quick\s*escape)\b/.test(lower) && !isAnywhereSearch;
 
-  const parts = lower.split(/\s+to\s+|\s*[→\-–>]+\s*/);
+  const hasExplicitRoute = /\s+to\s+|\s+(?:from\s+)?[a-z]{3}\s*[→>]\s*|\s+[→>]\s+/.test(lower) || /[→>]/.test(query);
+  const parts = hasExplicitRoute
+    ? lower.split(/\s+to\s+|\s*[→>]+\s*/)
+    : [lower];
 
   // Parse origin — use user's home airport as fallback instead of hardcoded DXB.
-  let origin = findAirport(parts[0] || '') || findRegion(parts[0] || '')?.[0] || null;
+  let origin = hasExplicitRoute ? (findAirport(parts[0] || '') || findRegion(parts[0] || '')?.[0] || null) : null;
   if (!origin) origin = defaultOrigin;
   
   // Parse destination — handle special keywords first
-  let destText = parts.length > 1 ? parts.slice(1).join(' ') : '';
+  let destText = hasExplicitRoute && parts.length > 1 ? parts.slice(1).join(' ') : lower;
   let destCity: { code: string; city: string } | null = null;
   let destRegion: { code: string; city: string }[] | null = null;
   
