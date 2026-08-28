@@ -302,17 +302,27 @@ export async function POST(request: NextRequest) {
   const isAnywhereSearch = /\b(anywhere|everywhere|cheapest\s*(?:getaway|flight|fare)?|best\s*deal)\b/.test(lower);
   const isNearbySearch = /\b(nearby|near|close|short[\s-]*haul|getaway|weekend\s*getaway|quick\s*escape)\b/.test(lower) && !isAnywhereSearch;
 
-  const hasExplicitRoute = /\s+to\s+|\s+(?:from\s+)?[a-z]{3}\s*[→>]\s*|\s+[→>]\s+/.test(lower) || /[→>]/.test(query);
+  const reverseRouteMatch = lower.match(/\bto\s+(.+?)\s+from\s+(.+?)(?:,|$)/);
+  const hasReverseRoute = Boolean(reverseRouteMatch);
+  const hasExplicitRoute = hasReverseRoute || /\s+to\s+|\s+(?:from\s+)?[a-z]{3}\s*[→>]\s*|\s+[→>]\s+/.test(lower) || /[→>]/.test(query);
   const parts = hasExplicitRoute
     ? lower.split(/\s+to\s+|\s*[→>]+\s*/)
     : [lower];
 
   // Parse origin — use user's home airport as fallback instead of hardcoded DXB.
-  let origin = hasExplicitRoute ? (findAirport(parts[0] || '') || findRegion(parts[0] || '')?.[0] || null) : null;
+  let origin = hasReverseRoute
+    ? (findAirport(reverseRouteMatch?.[2] || '') || findRegion(reverseRouteMatch?.[2] || '')?.[0] || null)
+    : hasExplicitRoute
+      ? (findAirport(parts[0] || '') || findRegion(parts[0] || '')?.[0] || null)
+      : null;
   if (!origin) origin = defaultOrigin;
   
   // Parse destination — handle special keywords first
-  let destText = hasExplicitRoute && parts.length > 1 ? parts.slice(1).join(' ') : lower;
+  let destText = hasReverseRoute
+    ? ((reverseRouteMatch?.[1] || lower).split(/\s+to\s+/).pop() || reverseRouteMatch?.[1] || lower)
+    : hasExplicitRoute && parts.length > 1
+      ? parts.slice(1).join(' ')
+      : lower;
   let destCity: { code: string; city: string } | null = null;
   let destRegion: { code: string; city: string }[] | null = null;
   
