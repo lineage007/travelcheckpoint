@@ -1,37 +1,35 @@
-@import url('https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;500;600;700&family=DM+Sans:ital,wght@0,300;0,400;0,500;0,600;0,700&family=JetBrains+Mono:wght@400;500;600;700&display=swap');
-
 :root {
-  --bg-page: #06060a;
-  --bg-surface: rgba(255,255,255,0.04);
-  --bg-surface-hover: rgba(255,255,255,0.08);
+  --bg-page: #071015;
+  --bg-surface: rgba(247,251,248,0.06);
+  --bg-surface-hover: rgba(247,251,248,0.1);
   --bg-overlay: rgba(0,0,0,0.4);
-  --border-default: rgba(255,255,255,0.06);
-  --border-strong: rgba(255,255,255,0.12);
-  --text-primary: #ffffff;
-  --text-secondary: rgba(255,255,255,0.55);
-  --text-tertiary: rgba(255,255,255,0.3);
-  --accent: #8B5CF6;
-  --accent-hover: #7C3AED;
-  --accent-light: rgba(139,92,246,0.15);
+  --border-default: rgba(222,232,225,0.12);
+  --border-strong: rgba(222,232,225,0.24);
+  --text-primary: #f7fbf8;
+  --text-secondary: rgba(247,251,248,0.64);
+  --text-tertiary: rgba(247,251,248,0.4);
+  --accent: #35c6ad;
+  --accent-hover: #43d7c0;
+  --accent-light: rgba(53,198,173,0.16);
   --status-success: #22C55E;
   --status-success-bg: rgba(34,197,94,0.1);
   --status-warning: #F59E0B;
   --status-warning-bg: rgba(245,158,11,0.1);
   --status-danger: #EF4444;
   --status-danger-bg: rgba(239,68,68,0.1);
-  --font-display: var(--font-grotesk), 'Space Grotesk', 'Outfit', sans-serif;
-  --font-body: var(--font-outfit), 'Outfit', system-ui, sans-serif;
-  --font-sans: var(--font-dmsans), 'DM Sans', system-ui, sans-serif;
-  --font-mono: var(--font-jbmono), 'JetBrains Mono', ui-monospace, monospace;
+  --font-display: "Avenir Next", "Trebuchet MS", system-ui, sans-serif;
+  --font-body: "Avenir Next", "Helvetica Neue", Arial, system-ui, sans-serif;
+  --font-sans: "Avenir Next", "Helvetica Neue", Arial, system-ui, sans-serif;
+  --font-mono: "SF Mono", "Menlo", "Monaco", "Cascadia Code", ui-monospace, monospace;
   --radius-sm: 8px;
   --radius-md: 12px;
   --radius-lg: 16px;
   --radius-full: 100px;
-  --shadow-sm: 0 1px 3px rgba(0,0,0,0.2);
-  --shadow-md: 0 4px 12px rgba(0,0,0,0.3);
-  --shadow-lg: 0 8px 24px rgba(0,0,0,0.4);
-  --glass: rgba(255,255,255,0.03);
-  --glass-border: rgba(255,255,255,0.08);
+  --shadow-sm: 0 1px 3px rgba(2,10,12,0.22);
+  --shadow-md: 0 4px 12px rgba(2,10,12,0.32);
+  --shadow-lg: 0 8px 24px rgba(2,10,12,0.42);
+  --glass: rgba(247,251,248,0.045);
+  --glass-border: rgba(222,232,225,0.12);
 }
 
 * { margin: 0; padding: 0; box-sizing: border-box; }

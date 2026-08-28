@@ -7,7 +7,7 @@ import { ChevronLeft, ChevronRight, X } from 'lucide-react';
 // 1. the current search results (passed in as knownPrices),
 // 2. a 24h localStorage memory of every price this browser has seen for the route,
 // 3. live background probes of missing days (cash-only, priceOnly=1 — no award quota).
-const C = { card: '#101018', border: 'rgba(255,255,255,0.08)', accent: '#8B5CF6', text: '#ffffff', sub: 'rgba(255,255,255,0.4)', green: '#22C55E' };
+const C = { card: '#101018', border: 'rgba(255,255,255,0.08)', accent: '#35c6ad', text: '#ffffff', sub: 'rgba(255,255,255,0.4)', green: '#22C55E' };
 
 const MAX_PROBES_PER_MONTH = 10;
 const MEMORY_TTL_MS = 24 * 60 * 60 * 1000;
@@ -146,7 +146,7 @@ export default function PriceCalendar({ origin, dest, cabin, baseDate, knownPric
             return (
               <button key={d} disabled={past} onClick={() => onPick(d)}
                 style={{
-                  background: selected ? 'rgba(139,92,246,0.25)' : 'rgba(255,255,255,0.03)',
+                  background: selected ? 'rgba(53,198,173,0.25)' : 'rgba(255,255,255,0.03)',
                   border: selected ? `1px solid ${C.accent}` : isCheapest ? '1px solid rgba(34,197,94,0.5)' : '1px solid transparent',
                   borderRadius: '9px', padding: '6px 0 5px', cursor: past ? 'default' : 'pointer', opacity: past ? 0.25 : 1,
                   display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '2px', minHeight: '44px',

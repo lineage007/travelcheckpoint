@@ -5,7 +5,7 @@ import { useRouter } from 'next/navigation';
 import Script from 'next/script';
 import { ArrowLeft, Lock, Hotel } from 'lucide-react';
 
-const C = { bg: '#06060a', card: 'rgba(255,255,255,0.04)', border: 'rgba(255,255,255,0.06)', accent: '#8B5CF6', text: '#ffffff', sub: 'rgba(255,255,255,0.4)' };
+const C = { bg: '#06060a', card: 'rgba(255,255,255,0.04)', border: 'rgba(255,255,255,0.06)', accent: '#35c6ad', text: '#ffffff', sub: 'rgba(255,255,255,0.4)' };
 
 // Set by the hotel card "Book now" button before navigating here.
 interface PendingBooking {
@@ -142,7 +142,7 @@ export default function BookPage() {
         {!error && pending && (
           <>
             {/* Stay summary */}
-            <div style={{ background: 'linear-gradient(135deg, rgba(139,92,246,0.14), rgba(6,182,212,0.08))', border: `1px solid ${C.border}`, borderRadius: '14px', padding: '16px', marginTop: '16px', marginBottom: '16px' }}>
+            <div style={{ background: 'linear-gradient(135deg, rgba(53,198,173,0.14), rgba(6,182,212,0.08))', border: `1px solid ${C.border}`, borderRadius: '14px', padding: '16px', marginTop: '16px', marginBottom: '16px' }}>
               <div style={{ fontFamily: 'var(--font-display)', fontSize: '16px', fontWeight: 700, color: C.text }}>{prebook?.hotelName || pending.hotel}</div>
               <div style={{ fontSize: '12px', color: C.sub, marginTop: '4px' }}>
                 {fmt(prebook?.checkin || pending.checkin)} → {fmt(prebook?.checkout || pending.checkout)} · {pending.adults} adult{pending.adults > 1 ? 's' : ''}

@@ -1,359 +1,493 @@
 'use client';
 
-import { useState, useEffect, useRef } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import { useRouter } from 'next/navigation';
+import {
+  ArrowRight,
+  Bell,
+  CalendarDays,
+  Clock3,
+  Compass,
+  History,
+  Hotel,
+  MapPin,
+  Plane,
+  Search,
+  Settings,
+  Sparkles,
+  Ticket,
+  Users,
+} from 'lucide-react';
 
-/* ─── Design Tokens ─── */
 const T = {
-  bg: '#06060a',
-  surface: 'rgba(255,255,255,0.04)',
-  surfaceHover: 'rgba(255,255,255,0.08)',
-  border: 'rgba(255,255,255,0.06)',
-  borderHover: 'rgba(255,255,255,0.15)',
-  text: '#ffffff',
-  textSub: 'rgba(255,255,255,0.55)',
-  textMuted: 'rgba(255,255,255,0.3)',
-  accent: '#8B5CF6',
-  accentSoft: 'rgba(139,92,246,0.15)',
-  glass: 'rgba(255,255,255,0.03)',
-  glassBorder: 'rgba(255,255,255,0.08)',
+  bg: '#071015',
+  ink: '#0b171d',
+  panel: 'rgba(247, 251, 248, 0.06)',
+  panelStrong: 'rgba(247, 251, 248, 0.1)',
+  border: 'rgba(222, 232, 225, 0.12)',
+  borderStrong: 'rgba(222, 232, 225, 0.24)',
+  text: '#f7fbf8',
+  sub: 'rgba(247, 251, 248, 0.64)',
+  muted: 'rgba(247, 251, 248, 0.4)',
+  accent: '#35c6ad',
+  accentDark: '#123c36',
+  amber: '#d7b46a',
+  runway: '#e9efe8',
 };
 
-/* ─── Destination cards ─── */
-// M1: Removed hardcoded 'price' fields — they were stale strings that drifted from real fares.
-// Clicking a card already triggers a live search; no price preview needed here.
+const HOME_AIRPORTS = [
+  { code: 'DXB', name: 'Dubai' },
+  { code: 'AUH', name: 'Abu Dhabi' },
+  { code: 'IST', name: 'Istanbul' },
+  { code: 'ADB', name: 'Izmir' },
+  { code: 'MEL', name: 'Melbourne' },
+  { code: 'SYD', name: 'Sydney' },
+  { code: 'LHR', name: 'London' },
+  { code: 'SIN', name: 'Singapore' },
+  { code: 'KUL', name: 'Kuala Lumpur' },
+  { code: 'JFK', name: 'New York' },
+];
+
 const destinations = [
-  { name: 'London', code: 'LHR', region: 'United Kingdom', img: 'https://images.unsplash.com/photo-1513635269975-59663e0ac1ad?w=400&h=500&fit=crop' },
-  { name: 'Istanbul', code: 'IST', region: 'Türkiye', img: 'https://images.unsplash.com/photo-1524231757912-21f4fe3a7200?w=400&h=500&fit=crop' },
-  { name: 'Bangkok', code: 'BKK', region: 'Thailand', img: 'https://images.unsplash.com/photo-1508009603885-50cf7c579365?w=400&h=500&fit=crop' },
-  { name: 'Bali', code: 'DPS', region: 'Indonesia', img: 'https://images.unsplash.com/photo-1537996194471-e657df975ab4?w=400&h=500&fit=crop' },
-  { name: 'Tokyo', code: 'NRT', region: 'Japan', img: 'https://images.unsplash.com/photo-1540959733332-eab4deabeeaf?w=400&h=500&fit=crop' },
-  { name: 'Maldives', code: 'MLE', region: 'Indian Ocean', img: 'https://images.unsplash.com/photo-1514282401047-d79a71a590e8?w=400&h=500&fit=crop' },
-  { name: 'Singapore', code: 'SIN', region: 'Southeast Asia', img: 'https://images.unsplash.com/photo-1525625293386-3f8f99389edd?w=400&h=500&fit=crop' },
-  { name: 'Kuala Lumpur', code: 'KUL', region: 'Malaysia', img: 'https://images.unsplash.com/photo-1596422846543-75c6fc197f07?w=400&h=500&fit=crop' },
+  { name: 'Istanbul', code: 'IST', region: 'Turkiye', img: 'https://images.unsplash.com/photo-1524231757912-21f4fe3a7200?w=760&h=920&fit=crop' },
+  { name: 'Izmir', code: 'ADB', region: 'Turkiye', img: 'https://images.unsplash.com/photo-1586016413664-864c0dd76f53?w=760&h=920&fit=crop' },
+  { name: 'London', code: 'LHR', region: 'United Kingdom', img: 'https://images.unsplash.com/photo-1513635269975-59663e0ac1ad?w=760&h=920&fit=crop' },
+  { name: 'Bali', code: 'DPS', region: 'Indonesia', img: 'https://images.unsplash.com/photo-1537996194471-e657df975ab4?w=760&h=920&fit=crop' },
+  { name: 'Tokyo', code: 'NRT', region: 'Japan', img: 'https://images.unsplash.com/photo-1540959733332-eab4deabeeaf?w=760&h=920&fit=crop' },
+  { name: 'Singapore', code: 'SIN', region: 'Southeast Asia', img: 'https://images.unsplash.com/photo-1525625293386-3f8f99389edd?w=760&h=920&fit=crop' },
 ];
 
-const quickSearches = [
-  { icon: '⚡', title: 'Cheapest This Week', desc: 'Best cash fares departing Dubai', color: '#F59E0B', query: 'Dubai to anywhere, cheapest, this week' },
-  { icon: '🏆', title: 'Award Seats', desc: 'Business class on points — all programs', color: '#8B5CF6', query: 'Dubai to Europe on points, business class' },
-  { icon: '🌏', title: 'Asia Explorer', desc: 'Every major route compared instantly', color: '#06B6D4', query: 'Dubai to Asia, business, next week, all the options' },
-  { icon: '🧭', title: 'Weekend Getaways', desc: 'Short-haul escapes from the UAE', color: '#10B981', query: 'Dubai to nearby, economy, this weekend' },
+const regions = ['Europe', 'SE Asia', 'United Kingdom', 'Turkiye', 'Australia', 'Japan', 'Maldives', 'Americas'];
+
+type QuickSearch = {
+  title: string;
+  desc: string;
+  tone: string;
+  icon: typeof Sparkles;
+  query: (origin: string) => string;
+};
+
+const quickSearches: QuickSearch[] = [
+  {
+    title: 'Cheapest window',
+    desc: 'Scan flexible dates for the cleanest cash fare.',
+    tone: '#35c6ad',
+    icon: CalendarDays,
+    query: origin => `${origin} to Europe, cheapest, next week, economy`,
+  },
+  {
+    title: 'Points seats',
+    desc: 'Business class award space across the major programs.',
+    tone: '#d7b46a',
+    icon: Ticket,
+    query: origin => `${origin} to Europe on points, business class`,
+  },
+  {
+    title: 'Family trip',
+    desc: 'Six passenger searches with hotels and visa context.',
+    tone: '#8dd3ff',
+    icon: Users,
+    query: origin => `${origin} to Istanbul, family of 6, economy, next week`,
+  },
+  {
+    title: 'Weekend escape',
+    desc: 'Short-haul routes that make sense from your airport.',
+    tone: '#f59e7d',
+    icon: Compass,
+    query: origin => `${origin} to nearby, economy, this weekend`,
+  },
 ];
 
-const regions = [
-  { name: 'Europe', color: '#8B5CF6' },
-  { name: 'SE Asia', color: '#06B6D4' },
-  { name: 'United Kingdom', color: '#EF4444' },
-  { name: 'Türkiye', color: '#F59E0B' },
-  { name: 'Australia', color: '#3B82F6' },
-  { name: 'Africa', color: '#10B981' },
-  { name: 'Japan', color: '#EC4899' },
-  { name: 'Maldives', color: '#06B6D4' },
-  { name: 'Americas', color: '#F97316' },
-];
-
-const suggestions = [
-  'Dubai → London, business, tomorrow',
-  'UAE → Europe, cheapest, next week',
-  'DXB → Bali, 2 pax, economy',
-  'Dubai → anywhere Asia, flexible',
-  'UAE → Istanbul, family of 6, economy',
-  'DXB → Maldives, 4 people, next month',
+const suggestionTemplates = [
+  '{origin} to Izmir from Istanbul next week',
+  '{origin} to London, business, tomorrow',
+  '{origin} to Bali, 2 pax, economy',
+  '{origin} to anywhere Asia, flexible',
+  'to Izmir from Istanbul next week',
+  '{origin} to Maldives, 4 people, next month',
 ];
 
 export default function Home() {
   const router = useRouter();
+  const inputRef = useRef<HTMLInputElement>(null);
   const [query, setQuery] = useState('');
   const [loading, setLoading] = useState(false);
   const [loaded, setLoaded] = useState(false);
-  const [typedText, setTypedText] = useState('');
-  const [showCursor, setShowCursor] = useState(true);
   const [focused, setFocused] = useState(false);
-  const [recentSearches, setRecentSearches] = useState<string[]>([]);
-  const [savedSearches, setSavedSearches] = useState<{ q: string; savedAt: string }[]>([]);
   const [pax, setPax] = useState(1);
-  const inputRef = useRef<HTMLInputElement>(null);
-  const scrollRef = useRef<HTMLDivElement>(null);
+  const [homeAirport, setHomeAirport] = useState(() => {
+    if (typeof window === 'undefined') return 'DXB';
+    return window.localStorage.getItem('tc_home_airport') || 'DXB';
+  });
+  const [recentSearches, setRecentSearches] = useState<string[]>(() => {
+    if (typeof window === 'undefined') return [];
+    try {
+      const storedRecent = JSON.parse(window.localStorage.getItem('tc_recent_searches') || '[]');
+      return Array.isArray(storedRecent) ? storedRecent.filter((s): s is string => typeof s === 'string').slice(0, 5) : [];
+    } catch {
+      return [];
+    }
+  });
+  const [savedSearches] = useState<{ q: string; savedAt: string }[]>(() => {
+    if (typeof window === 'undefined') return [];
+    try {
+      const storedSaved = JSON.parse(window.localStorage.getItem('tc_saved_searches') || '[]');
+      return Array.isArray(storedSaved) ? storedSaved.filter((s): s is { q: string; savedAt: string } => s && typeof s.q === 'string').slice(0, 4) : [];
+    } catch {
+      return [];
+    }
+  });
 
-  useEffect(() => { setTimeout(() => setLoaded(true), 80); }, []);
   useEffect(() => {
-    try {
-      const stored = JSON.parse(window.localStorage.getItem('tc_recent_searches') || '[]');
-      if (Array.isArray(stored)) setRecentSearches(stored.filter((s): s is string => typeof s === 'string').slice(0, 6));
-    } catch { /* ignore corrupt local storage */ }
-    try {
-      const stored = JSON.parse(window.localStorage.getItem('tc_saved_searches') || '[]');
-      if (Array.isArray(stored)) setSavedSearches(stored.filter((s): s is { q: string; savedAt: string } => s && typeof s.q === 'string').slice(0, 6));
-    } catch { /* ignore corrupt local storage */ }
+    const frame = window.requestAnimationFrame(() => setLoaded(true));
+    return () => window.cancelAnimationFrame(frame);
   }, []);
 
-  // Typing animation
-  useEffect(() => {
-    const phrases = ['Dubai to London, business class...', 'Cheapest flight to Bali next week...', 'Award seats to Tokyo on points...', 'Family of 4 to Europe, May...'];
-    let pi = 0, ci = 0, del = false, t: ReturnType<typeof setTimeout>;
-    const run = () => {
-      const p = phrases[pi];
-      if (!del) {
-        setTypedText(p.slice(0, ci + 1)); ci++;
-        if (ci === p.length) { del = true; t = setTimeout(run, 2200); return; }
-        t = setTimeout(run, 55 + Math.random() * 35);
-      } else {
-        setTypedText(p.slice(0, ci)); ci--;
-        if (ci === 0) { del = false; pi = (pi + 1) % phrases.length; t = setTimeout(run, 400); return; }
-        t = setTimeout(run, 25);
-      }
-    };
-    t = setTimeout(run, 1200);
-    return () => clearTimeout(t);
-  }, []);
+  const suggestions = useMemo(
+    () => suggestionTemplates.map(s => s.replace('{origin}', homeAirport)),
+    [homeAirport],
+  );
 
-  useEffect(() => { const i = setInterval(() => setShowCursor(c => !c), 530); return () => clearInterval(i); }, []);
+  const originName = HOME_AIRPORTS.find(a => a.code === homeAirport)?.name || homeAirport;
+
+  const setOrigin = (code: string) => {
+    setHomeAirport(code);
+    try {
+      window.localStorage.setItem('tc_home_airport', code);
+    } catch {
+      // Ignore private-mode storage failures.
+    }
+  };
 
   const handleSearch = (searchQuery?: string) => {
     let q = (searchQuery || query).trim();
     if (!q) return;
-    // Inject pax count when not already mentioned in query
     if (pax > 1 && !/\d+\s*(people|person|pax|passengers?|adults?|family of \d)/i.test(q)) {
       q = `${q}, ${pax} people`;
     }
     try {
+      window.localStorage.setItem('tc_home_airport', homeAirport);
       const next = [q, ...recentSearches.filter(s => s.toLowerCase() !== q.toLowerCase())].slice(0, 6);
       window.localStorage.setItem('tc_recent_searches', JSON.stringify(next));
       setRecentSearches(next);
-    } catch { /* localStorage may be unavailable */ }
+    } catch {
+      // Search should still work if storage is unavailable.
+    }
     setLoading(true);
     router.push(`/search?q=${encodeURIComponent(q)}`);
   };
 
   const clearRecent = () => {
-    window.localStorage.removeItem('tc_recent_searches');
+    try {
+      window.localStorage.removeItem('tc_recent_searches');
+    } catch {
+      // Ignore.
+    }
     setRecentSearches([]);
   };
 
-  const sectionTitle = (text: string, delay: number) => (
-    <div style={{ fontSize: 11, fontWeight: 600, color: T.textMuted, textTransform: 'uppercase', letterSpacing: '0.12em', marginBottom: 14, opacity: loaded ? 1 : 0, transform: loaded ? 'none' : 'translateY(12px)', transition: `all 0.5s ease ${delay}ms` }}>
-      {text}
-    </div>
-  );
-
   return (
-    <div style={{ minHeight: '100vh', background: T.bg, color: T.text, fontFamily: 'var(--font-body)', position: 'relative', overflow: 'hidden' }}>
+    <main className="tc-home" style={{ minHeight: '100vh', background: T.bg, color: T.text, fontFamily: 'var(--font-body)', position: 'relative', overflow: 'hidden' }}>
       <style>{`
-        @keyframes meshMove { 0% { transform: translate(0,0) scale(1); } 33% { transform: translate(30px,-50px) scale(1.1); } 66% { transform: translate(-20px,20px) scale(0.95); } 100% { transform: translate(0,0) scale(1); } }
-        @keyframes fadeSlideUp { from { opacity:0; transform:translateY(24px); } to { opacity:1; transform:translateY(0); } }
-        @keyframes shimmer { 0% { background-position:-200% 0; } 100% { background-position:200% 0; } }
-        @keyframes pulse { 0%,100% { transform:scale(1); opacity:1; } 50% { transform:scale(1.5); opacity:0.5; } }
-        .hide-scrollbar::-webkit-scrollbar { display:none; }
-        .hide-scrollbar { -ms-overflow-style:none; scrollbar-width:none; }
-        @media (hover:hover) {
-          .dest-card:hover { transform:translateY(-4px) scale(1.02) !important; }
-          .dest-card:hover .dest-overlay { opacity:0.85 !important; }
-          .quick-card:hover { transform:translateY(-2px) !important; border-color:rgba(255,255,255,0.15) !important; }
-          .region-pill:hover { transform:translateY(-1px) !important; }
+        .tc-home::before {
+          content: "";
+          position: fixed;
+          inset: 0;
+          pointer-events: none;
+          background:
+            linear-gradient(115deg, rgba(7,16,21,0.94) 0%, rgba(7,16,21,0.78) 48%, rgba(7,16,21,0.96) 100%),
+            url("https://images.unsplash.com/photo-1436491865332-7a61a109cc05?w=2200&auto=format&fit=crop") center/cover;
+          filter: saturate(0.86);
+        }
+        .tc-home::after {
+          content: "";
+          position: fixed;
+          inset: 0;
+          pointer-events: none;
+          opacity: 0.11;
+          background-image: radial-gradient(rgba(247,251,248,0.7) 0.65px, transparent 0.65px);
+          background-size: 4px 4px;
+          mix-blend-mode: soft-light;
+        }
+        .tc-shell { position: relative; z-index: 1; width: min(1180px, calc(100vw - 32px)); margin: 0 auto; }
+        .tc-grid > * { min-width: 0; }
+        .tc-nav-button, .tc-icon-button, .tc-chip, .tc-quick, .tc-dest, .tc-history-row, .tc-primary { transition: transform 180ms ease, border-color 180ms ease, background 180ms ease, color 180ms ease, opacity 180ms ease; }
+        .tc-nav-button:hover, .tc-icon-button:hover, .tc-chip:hover, .tc-quick:hover, .tc-history-row:hover { transform: translateY(-1px); border-color: ${T.borderStrong} !important; background: ${T.panelStrong} !important; }
+        .tc-primary:hover:not(:disabled) { transform: translateY(-1px); background: #43d7c0 !important; }
+        .tc-primary:active:not(:disabled), .tc-chip:active, .tc-quick:active, .tc-dest:active { transform: translateY(1px) scale(0.99); }
+        .tc-dest:hover { transform: translateY(-3px); }
+        .tc-dest:hover img { transform: scale(1.04); }
+        .tc-dest img { transition: transform 420ms ease; }
+        .tc-hide-scrollbar::-webkit-scrollbar { display: none; }
+        .tc-hide-scrollbar { -ms-overflow-style: none; scrollbar-width: none; }
+        @media (max-width: 860px) {
+          .tc-grid { grid-template-columns: 1fr !important; }
+          .tc-grid > * { min-width: 0 !important; }
+          .tc-hero { padding-top: 22px !important; }
+          .tc-search-panel { padding: 14px !important; border-radius: 18px !important; }
+          .tc-search-row { grid-template-columns: 1fr !important; }
+          .tc-primary { width: 100%; justify-content: center; }
+          .tc-side-panel { display: none; }
+          .tc-home-copy { max-width: 100% !important; overflow-wrap: anywhere; }
         }
       `}</style>
 
-      {/* Mesh gradient background */}
-      <div style={{ position: 'fixed', inset: 0, zIndex: 0, overflow: 'hidden', pointerEvents: 'none' }}>
-        <div style={{ position: 'absolute', width: '60vw', height: '60vw', borderRadius: '50%', background: 'radial-gradient(circle, rgba(139,92,246,0.15) 0%, transparent 70%)', top: '-20%', left: '-10%', animation: 'meshMove 20s ease-in-out infinite', filter: 'blur(80px)' }} />
-        <div style={{ position: 'absolute', width: '50vw', height: '50vw', borderRadius: '50%', background: 'radial-gradient(circle, rgba(6,182,212,0.1) 0%, transparent 70%)', bottom: '-15%', right: '-10%', animation: 'meshMove 25s ease-in-out infinite reverse', filter: 'blur(80px)' }} />
-        <div style={{ position: 'absolute', width: '40vw', height: '40vw', borderRadius: '50%', background: 'radial-gradient(circle, rgba(236,72,153,0.08) 0%, transparent 70%)', top: '40%', left: '50%', animation: 'meshMove 22s ease-in-out infinite 5s', filter: 'blur(80px)' }} />
-      </div>
-
-      <div style={{ position: 'relative', zIndex: 1, maxWidth: 640, margin: '0 auto', padding: '0 20px' }}>
-        {/* Header */}
-        <header style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '20px 0', opacity: loaded ? 1 : 0, transition: 'opacity 0.5s' }}>
-          <div style={{ flex: 1, display: 'flex', justifyContent: 'flex-start' }}>
-            <button onClick={() => router.push('/history')} style={{ background: T.surface, border: `1px solid ${T.border}`, borderRadius: 10, padding: '6px 12px', cursor: 'pointer', fontSize: 12, color: T.textSub, fontFamily: 'inherit', fontWeight: 500 }}>History</button>
-          </div>
-          <span style={{ fontWeight: 600, fontSize: 20, letterSpacing: '-0.02em', textAlign: 'center' }}>
-            <span style={{ fontWeight: 300, opacity: 0.7 }}>Travel</span>Checkpoint
-          </span>
-          <div style={{ flex: 1, display: 'flex', justifyContent: 'flex-end' }}>
-            <button onClick={() => router.push('/settings')} style={{ background: T.surface, border: `1px solid ${T.border}`, borderRadius: '50%', width: 36, height: 36, cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', color: T.textSub, fontSize: 14 }}>⚙</button>
-          </div>
+      <div className="tc-shell">
+        <header style={{ height: 72, display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 14 }}>
+          <button
+            onClick={() => router.push('/history')}
+            className="tc-nav-button"
+            style={{ display: 'inline-flex', alignItems: 'center', gap: 8, background: T.panel, border: `1px solid ${T.border}`, color: T.sub, borderRadius: 12, padding: '9px 12px', cursor: 'pointer', font: '600 13px var(--font-sans)' }}
+          >
+            <History size={16} />
+            History
+          </button>
+          <button
+            onClick={() => router.push('/')}
+            style={{ border: 'none', background: 'transparent', color: T.text, cursor: 'pointer', font: '700 22px var(--font-display)', letterSpacing: '-0.02em' }}
+          >
+            <span style={{ fontWeight: 500, color: T.sub }}>Travel</span>Checkpoint
+          </button>
+          <button
+            onClick={() => router.push('/settings')}
+            className="tc-icon-button"
+            aria-label="Settings"
+            style={{ width: 40, height: 40, display: 'inline-flex', alignItems: 'center', justifyContent: 'center', background: T.panel, border: `1px solid ${T.border}`, color: T.sub, borderRadius: 12, cursor: 'pointer' }}
+          >
+            <Settings size={17} />
+          </button>
         </header>
 
-        {/* Hero */}
-        <div style={{ textAlign: 'center', padding: '48px 0 36px', opacity: loaded ? 1 : 0, transform: loaded ? 'none' : 'translateY(20px)', transition: 'all 0.6s ease 100ms' }}>
-          <div style={{ display: 'inline-flex', alignItems: 'center', gap: 6, background: T.accentSoft, borderRadius: 100, padding: '5px 14px', marginBottom: 20, fontSize: 12, color: T.accent, fontWeight: 500 }}>
-            <span style={{ width: 6, height: 6, borderRadius: '50%', background: '#22C55E', animation: 'pulse 2s infinite' }} />
-            Searching 12+ loyalty programs & all airlines
-          </div>
-          <h1 style={{ fontSize: 38, fontWeight: 700, letterSpacing: '-0.04em', marginBottom: 10, lineHeight: 1.1 }}>
-            Where to next?
-          </h1>
-          <p style={{ fontSize: 16, color: T.textSub, lineHeight: 1.6, maxWidth: 420, margin: '0 auto' }}>
-            Type naturally. We compare cash fares, award flights, and creative routes — all at once.
-          </p>
-        </div>
-
-        {/* Search bar */}
-        <div style={{ opacity: loaded ? 1 : 0, transform: loaded ? 'none' : 'translateY(16px)', transition: 'all 0.5s ease 200ms' }}>
-          <div style={{ position: 'relative', borderRadius: 18, padding: 2, background: focused ? 'linear-gradient(135deg, #f97316, #ec4899, #8B5CF6)' : 'linear-gradient(135deg, rgba(249,115,22,0.5), rgba(236,72,153,0.5), rgba(139,92,246,0.5))', transition: 'all 0.3s' }}>
-          <div
-            onClick={() => inputRef.current?.focus()}
-            style={{
-              background: focused ? 'rgba(15,15,20,0.95)' : 'rgba(15,15,20,0.9)',
-              borderRadius: 16, padding: '4px 4px 4px 18px',
-              display: 'flex', alignItems: 'center',
-              boxShadow: focused ? '0 0 40px rgba(249,115,22,0.15), 0 0 80px rgba(236,72,153,0.1)' : '0 4px 24px rgba(0,0,0,0.2)',
-              transition: 'all 0.3s',
-              cursor: 'text',
-            }}
-          >
-            <svg width={18} height={18} viewBox="0 0 24 24" fill="none" stroke={focused ? T.accent : T.textMuted} strokeWidth={2}><circle cx="11" cy="11" r="8" /><line x1="21" y1="21" x2="16.65" y2="16.65" /></svg>
-            <div style={{ flex: 1, position: 'relative' }}>
-              <input
-                ref={inputRef}
-                value={query}
-                onChange={e => setQuery(e.target.value)}
-                onFocus={() => setFocused(true)}
-                onBlur={() => setFocused(false)}
-                onKeyDown={e => { if (e.key === 'Enter') handleSearch(); }}
-                style={{ width: '100%', border: 'none', outline: 'none', background: 'transparent', fontSize: 15, color: T.text, padding: '14px 12px', fontFamily: 'inherit' }}
-              />
-              {!query && !focused && (
-                <div style={{ position: 'absolute', top: '50%', left: 12, transform: 'translateY(-50%)', fontSize: 15, color: T.textMuted, pointerEvents: 'none', whiteSpace: 'nowrap' }}>
-                  {typedText}<span style={{ opacity: showCursor ? 1 : 0, transition: 'opacity 0.1s' }}>|</span>
+        <section className="tc-hero" style={{ padding: '44px 0 56px' }}>
+          <div className="tc-grid" style={{ display: 'grid', gridTemplateColumns: 'minmax(0, 1.08fr) minmax(320px, 0.82fr)', gap: 24, alignItems: 'stretch' }}>
+            <div>
+              <div style={{ opacity: loaded ? 1 : 0, transform: loaded ? 'none' : 'translateY(12px)', transition: 'all 520ms ease' }}>
+                <div style={{ display: 'inline-flex', alignItems: 'center', gap: 8, color: T.amber, background: 'rgba(215,180,106,0.12)', border: '1px solid rgba(215,180,106,0.2)', borderRadius: 999, padding: '7px 12px', font: '700 12px var(--font-sans)' }}>
+                  <Bell size={14} />
+                  Live fares, points, hotels and trip checks
                 </div>
-              )}
-            </div>
-            <button
-              onClick={() => handleSearch()}
-              disabled={loading || !query.trim()}
-              style={{
-                background: query.trim() ? T.accent : 'rgba(255,255,255,0.08)',
-                color: '#fff', border: 'none', borderRadius: 12,
-                padding: '12px 22px', cursor: query.trim() ? 'pointer' : 'default',
-                display: 'flex', alignItems: 'center', gap: 6,
-                fontSize: 14, fontWeight: 600, flexShrink: 0,
-                opacity: !query.trim() ? 0.4 : 1,
-                transition: 'all 0.2s',
-              }}
-            >
-              {loading ? 'Searching...' : 'Search'}
-              {!loading && <svg width={16} height={16} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2}><line x1="5" y1="12" x2="19" y2="12" /><polyline points="12 5 19 12 12 19" /></svg>}
-            </button>
-          </div>
-          </div>
+                <h1 style={{ font: '700 clamp(44px, 8vw, 82px)/0.96 var(--font-display)', letterSpacing: '-0.035em', margin: '22px 0 16px', textWrap: 'balance' }}>
+                  Search travel like you speak.
+                </h1>
+                <p className="tc-home-copy" style={{ maxWidth: 610, color: T.sub, font: '400 18px/1.55 var(--font-sans)' }}>
+                  Set your airport once, type the trip naturally, then compare cash fares, award seats, hotels and destination checks in one flow.
+                </p>
+              </div>
 
-          {/* Passengers + Suggestions */}
-          <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginTop: 14, flexWrap: 'wrap', justifyContent: 'center' }}>
-            <div style={{ display: 'flex', alignItems: 'center', gap: 6, background: T.surface, border: `1px solid ${T.border}`, borderRadius: 100, padding: '5px 10px' }}>
-              <span style={{ fontSize: 12, color: T.textSub, fontFamily: 'inherit' }}>Pax</span>
-              <button onClick={() => setPax(p => Math.max(1, p - 1))} style={{ background: 'none', border: 'none', cursor: 'pointer', color: T.textSub, fontSize: 16, lineHeight: 1, padding: '0 2px', minWidth: 24, minHeight: 24, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>−</button>
-              <span style={{ fontSize: 14, fontWeight: 700, color: T.text, minWidth: 16, textAlign: 'center', fontFamily: 'inherit' }}>{pax}</span>
-              <button onClick={() => setPax(p => Math.min(9, p + 1))} style={{ background: 'none', border: 'none', cursor: 'pointer', color: T.textSub, fontSize: 16, lineHeight: 1, padding: '0 2px', minWidth: 24, minHeight: 24, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>+</button>
-            </div>
-          </div>
-          <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap', marginTop: 10, justifyContent: 'center' }}>
-            {suggestions.map((s, i) => (
-              <button key={i} onClick={() => { setQuery(s.replace(/→/g, 'to')); handleSearch(s.replace(/→/g, 'to')); }}
-                style={{ background: T.surface, border: `1px solid ${T.border}`, borderRadius: 100, padding: '6px 14px', cursor: 'pointer', fontSize: 12, color: T.textSub, fontFamily: 'inherit', transition: 'all 0.15s' }}
-                onMouseEnter={e => { e.currentTarget.style.borderColor = 'rgba(139,92,246,0.4)'; e.currentTarget.style.color = '#fff'; }}
-                onMouseLeave={e => { e.currentTarget.style.borderColor = T.border; e.currentTarget.style.color = T.textSub; }}
-              >{s}</button>
-            ))}
-          </div>
-        </div>
+              <div
+                className="tc-search-panel"
+                style={{
+                  marginTop: 28,
+                  padding: 18,
+                  borderRadius: 22,
+                  background: 'linear-gradient(180deg, rgba(247,251,248,0.11), rgba(247,251,248,0.055))',
+                  border: `1px solid ${focused ? 'rgba(53,198,173,0.48)' : T.border}`,
+                  boxShadow: focused ? '0 24px 80px rgba(53,198,173,0.16)' : '0 24px 80px rgba(0,0,0,0.28)',
+                  backdropFilter: 'blur(22px)',
+                  opacity: loaded ? 1 : 0,
+                  transform: loaded ? 'none' : 'translateY(18px)',
+                  transition: 'all 520ms ease 90ms',
+                }}
+              >
+                <div className="tc-search-row" style={{ display: 'grid', gridTemplateColumns: '160px minmax(0, 1fr) auto', gap: 10, alignItems: 'stretch' }}>
+                  <label style={{ display: 'grid', gap: 7 }}>
+                    <span style={{ color: T.muted, font: '700 11px var(--font-sans)', textTransform: 'uppercase', letterSpacing: '0.08em' }}>From</span>
+                    <span style={{ position: 'relative', display: 'block' }}>
+                      <MapPin size={15} style={{ position: 'absolute', left: 12, top: '50%', transform: 'translateY(-50%)', color: T.accent, pointerEvents: 'none' }} />
+                      <select
+                        value={homeAirport}
+                        onChange={e => setOrigin(e.target.value)}
+                        aria-label="Home airport"
+                        style={{ width: '100%', height: 48, appearance: 'none', border: `1px solid ${T.border}`, borderRadius: 12, background: 'rgba(7,16,21,0.72)', color: T.text, padding: '0 32px 0 35px', outline: 'none', font: '800 13px var(--font-mono)', cursor: 'pointer' }}
+                      >
+                        {HOME_AIRPORTS.map(a => <option key={a.code} value={a.code} style={{ background: '#102027' }}>{a.code} - {a.name}</option>)}
+                      </select>
+                    </span>
+                  </label>
 
-        {recentSearches.length > 0 && (
-          <div style={{ marginTop: 28, opacity: loaded ? 1 : 0, transform: loaded ? 'none' : 'translateY(16px)', transition: 'all 0.5s ease 320ms' }}>
-            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 12 }}>
-              <div style={{ fontSize: 11, fontWeight: 600, color: T.textMuted, textTransform: 'uppercase', letterSpacing: '0.12em' }}>Recent searches</div>
-              <button onClick={clearRecent} style={{ background: 'none', border: 'none', color: T.textMuted, fontSize: 11, cursor: 'pointer' }}>Clear</button>
+                  <label style={{ display: 'grid', gap: 7, minWidth: 0 }}>
+                    <span style={{ color: T.muted, font: '700 11px var(--font-sans)', textTransform: 'uppercase', letterSpacing: '0.08em' }}>Trip prompt</span>
+                    <span style={{ position: 'relative', display: 'block' }}>
+                      <Search size={16} style={{ position: 'absolute', left: 14, top: '50%', transform: 'translateY(-50%)', color: focused ? T.accent : T.muted, pointerEvents: 'none' }} />
+                      <input
+                        ref={inputRef}
+                        value={query}
+                        onChange={e => setQuery(e.target.value)}
+                        onFocus={() => setFocused(true)}
+                        onBlur={() => setFocused(false)}
+                        onKeyDown={e => { if (e.key === 'Enter') handleSearch(); }}
+                        placeholder={`Example: ${homeAirport} to Izmir next week`}
+                        style={{ width: '100%', height: 48, border: `1px solid ${T.border}`, borderRadius: 12, background: 'rgba(7,16,21,0.72)', color: T.text, padding: '0 14px 0 42px', outline: 'none', font: '500 15px var(--font-sans)' }}
+                      />
+                    </span>
+                  </label>
+
+                  <button
+                    onClick={() => handleSearch()}
+                    disabled={loading || !query.trim()}
+                    className="tc-primary"
+                    style={{ alignSelf: 'end', height: 48, display: 'inline-flex', alignItems: 'center', gap: 8, border: 'none', borderRadius: 12, padding: '0 18px', background: query.trim() ? T.accent : 'rgba(247,251,248,0.12)', color: query.trim() ? '#04130f' : T.muted, cursor: query.trim() ? 'pointer' : 'default', font: '800 14px var(--font-sans)' }}
+                  >
+                    {loading ? 'Searching' : 'Search'}
+                    <ArrowRight size={17} />
+                  </button>
+                </div>
+
+                <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 12, marginTop: 14, flexWrap: 'wrap' }}>
+                  <div style={{ display: 'inline-flex', alignItems: 'center', gap: 6, background: 'rgba(7,16,21,0.55)', border: `1px solid ${T.border}`, borderRadius: 999, padding: '5px 7px 5px 10px' }}>
+                    <Users size={14} color={T.sub} />
+                    <span style={{ font: '700 12px var(--font-sans)', color: T.sub }}>Pax</span>
+                    <button onClick={() => setPax(p => Math.max(1, p - 1))} aria-label="Decrease passengers" style={{ width: 25, height: 25, border: 'none', borderRadius: 999, background: T.panel, color: T.text, cursor: 'pointer' }}>-</button>
+                    <span style={{ minWidth: 16, textAlign: 'center', color: T.text, font: '800 13px var(--font-mono)' }}>{pax}</span>
+                    <button onClick={() => setPax(p => Math.min(9, p + 1))} aria-label="Increase passengers" style={{ width: 25, height: 25, border: 'none', borderRadius: 999, background: T.panel, color: T.text, cursor: 'pointer' }}>+</button>
+                  </div>
+                  <span style={{ color: T.muted, font: '500 12px var(--font-sans)' }}>Default origin: {originName}. Change it here or in Settings.</span>
+                </div>
+
+                <div className="tc-hide-scrollbar" style={{ display: 'flex', gap: 8, marginTop: 14, overflowX: 'auto', paddingBottom: 2 }}>
+                  {suggestions.map(s => (
+                    <button
+                      key={s}
+                      onClick={() => { setQuery(s); handleSearch(s); }}
+                      className="tc-chip"
+                      style={{ flex: '0 0 auto', border: `1px solid ${T.border}`, borderRadius: 999, background: 'rgba(7,16,21,0.55)', color: T.sub, padding: '8px 12px', cursor: 'pointer', font: '600 12px var(--font-sans)' }}
+                    >
+                      {s}
+                    </button>
+                  ))}
+                </div>
+              </div>
             </div>
-            <div style={{ display: 'grid', gap: 8 }}>
-              {recentSearches.map((s) => (
-                <button key={s} onClick={() => handleSearch(s)} style={{ background: T.surface, border: `1px solid ${T.border}`, borderRadius: 12, padding: '11px 13px', color: T.textSub, textAlign: 'left', cursor: 'pointer', fontFamily: 'inherit', fontSize: 13, display: 'flex', justifyContent: 'space-between', gap: 10 }}>
-                  <span style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{s}</span>
-                  <span style={{ color: T.accent }}>↗</span>
-                </button>
-              ))}
-            </div>
+
+            <aside className="tc-side-panel" style={{ minHeight: 620, borderRadius: 24, overflow: 'hidden', border: `1px solid ${T.border}`, background: T.ink, position: 'relative', boxShadow: '0 30px 90px rgba(0,0,0,0.34)', opacity: loaded ? 1 : 0, transform: loaded ? 'none' : 'translateY(18px)', transition: 'all 520ms ease 160ms' }}>
+              {/* eslint-disable-next-line @next/next/no-img-element */}
+              <img src="https://images.unsplash.com/photo-1500530855697-b586d89ba3ee?w=1100&auto=format&fit=crop" alt="Coastal destination from above" style={{ position: 'absolute', inset: 0, width: '100%', height: '100%', objectFit: 'cover' }} />
+              <div style={{ position: 'absolute', inset: 0, background: 'linear-gradient(180deg, rgba(7,16,21,0.12), rgba(7,16,21,0.92))' }} />
+              <div style={{ position: 'absolute', left: 18, right: 18, bottom: 18 }}>
+                <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 8, marginBottom: 10 }}>
+                  {[
+                    ['Cash', 'Live'],
+                    ['Points', 'Awards'],
+                    ['Stay', 'Hotels'],
+                  ].map(([top, bottom]) => (
+                    <div key={top} style={{ background: 'rgba(7,16,21,0.62)', border: `1px solid ${T.border}`, borderRadius: 14, padding: 12, backdropFilter: 'blur(12px)' }}>
+                      <div style={{ color: T.text, font: '800 18px var(--font-display)' }}>{top}</div>
+                      <div style={{ color: T.sub, font: '600 11px var(--font-sans)' }}>{bottom}</div>
+                    </div>
+                  ))}
+                </div>
+                <div style={{ background: 'rgba(7,16,21,0.72)', border: `1px solid ${T.border}`, borderRadius: 16, padding: 16, backdropFilter: 'blur(12px)' }}>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: 9, marginBottom: 8 }}>
+                    <Plane size={17} color={T.accent} />
+                    <span style={{ color: T.text, font: '800 14px var(--font-sans)' }}>Built for natural routing</span>
+                  </div>
+                  <p style={{ margin: 0, color: T.sub, font: '400 13px/1.45 var(--font-sans)' }}>
+                    Destination-only prompts use your home airport. Explicit wording like &quot;to Izmir from Istanbul&quot; now respects the origin.
+                  </p>
+                </div>
+              </div>
+            </aside>
           </div>
+        </section>
+
+        {(recentSearches.length > 0 || savedSearches.length > 0) && (
+          <section style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(260px, 1fr))', gap: 14, marginBottom: 30 }}>
+            {recentSearches.length > 0 && (
+              <div style={{ background: T.panel, border: `1px solid ${T.border}`, borderRadius: 18, padding: 14, backdropFilter: 'blur(16px)' }}>
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 10 }}>
+                  <span style={{ color: T.text, font: '800 13px var(--font-sans)' }}>Recent searches</span>
+                  <button onClick={clearRecent} style={{ border: 'none', background: 'transparent', color: T.muted, cursor: 'pointer', font: '700 12px var(--font-sans)' }}>Clear</button>
+                </div>
+                <div style={{ display: 'grid', gap: 8 }}>
+                  {recentSearches.map(s => (
+                    <button key={s} onClick={() => handleSearch(s)} className="tc-history-row" style={{ display: 'flex', justifyContent: 'space-between', gap: 12, alignItems: 'center', textAlign: 'left', border: `1px solid ${T.border}`, borderRadius: 12, background: 'rgba(7,16,21,0.38)', color: T.sub, padding: '10px 11px', cursor: 'pointer', font: '600 13px var(--font-sans)' }}>
+                      <span style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{s}</span>
+                      <Clock3 size={14} color={T.accent} />
+                    </button>
+                  ))}
+                </div>
+              </div>
+            )}
+
+            {savedSearches.length > 0 && (
+              <div style={{ background: 'rgba(215,180,106,0.08)', border: '1px solid rgba(215,180,106,0.18)', borderRadius: 18, padding: 14, backdropFilter: 'blur(16px)' }}>
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 10 }}>
+                  <span style={{ color: T.text, font: '800 13px var(--font-sans)' }}>Saved searches</span>
+                  <button onClick={() => router.push('/settings')} style={{ border: 'none', background: 'transparent', color: T.amber, cursor: 'pointer', font: '700 12px var(--font-sans)' }}>Manage</button>
+                </div>
+                <div style={{ display: 'grid', gap: 8 }}>
+                  {savedSearches.map(s => (
+                    <button key={s.q} onClick={() => handleSearch(s.q)} className="tc-history-row" style={{ display: 'flex', justifyContent: 'space-between', gap: 12, alignItems: 'center', textAlign: 'left', border: '1px solid rgba(215,180,106,0.18)', borderRadius: 12, background: 'rgba(7,16,21,0.35)', color: T.text, padding: '10px 11px', cursor: 'pointer', font: '600 13px var(--font-sans)' }}>
+                      <span style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{s.q}</span>
+                      <Bell size={14} color={T.amber} />
+                    </button>
+                  ))}
+                </div>
+              </div>
+            )}
+          </section>
         )}
 
-        {savedSearches.length > 0 && (
-          <div style={{ marginTop: 20, opacity: loaded ? 1 : 0, transform: loaded ? 'none' : 'translateY(16px)', transition: 'all 0.5s ease 360ms' }}>
-            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 12 }}>
-              <div style={{ fontSize: 11, fontWeight: 600, color: T.textMuted, textTransform: 'uppercase', letterSpacing: '0.12em' }}>Saved searches</div>
-              <button onClick={() => router.push('/settings')} style={{ background: 'none', border: 'none', color: T.textMuted, fontSize: 11, cursor: 'pointer' }}>Manage →</button>
+        <section style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(210px, 1fr))', gap: 12, marginBottom: 34 }}>
+          {quickSearches.map(item => {
+            const Icon = item.icon;
+            const q = item.query(homeAirport);
+            return (
+              <button key={item.title} onClick={() => { setQuery(q); handleSearch(q); }} className="tc-quick" style={{ minHeight: 132, textAlign: 'left', border: `1px solid ${T.border}`, borderRadius: 18, background: T.panel, color: T.text, padding: 16, cursor: 'pointer', backdropFilter: 'blur(16px)' }}>
+                <span style={{ width: 38, height: 38, display: 'inline-flex', alignItems: 'center', justifyContent: 'center', borderRadius: 12, background: `${item.tone}1f`, color: item.tone, marginBottom: 14 }}>
+                  <Icon size={19} />
+                </span>
+                <span style={{ display: 'block', font: '800 15px var(--font-sans)', marginBottom: 5 }}>{item.title}</span>
+                <span style={{ display: 'block', color: T.sub, font: '400 12px/1.45 var(--font-sans)' }}>{item.desc}</span>
+              </button>
+            );
+          })}
+        </section>
+
+        <section style={{ marginBottom: 34 }}>
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'end', gap: 18, marginBottom: 12 }}>
+            <div>
+              <h2 style={{ margin: 0, color: T.text, font: '800 22px/1.1 var(--font-display)', letterSpacing: '-0.02em' }}>Popular routes from {homeAirport}</h2>
+              <p style={{ margin: '5px 0 0', color: T.muted, font: '500 13px var(--font-sans)' }}>Tap a destination to run a live business-class search.</p>
             </div>
-            <div style={{ display: 'grid', gap: 8 }}>
-              {savedSearches.map((s) => (
-                <button key={s.q} onClick={() => handleSearch(s.q)} style={{ background: `${T.accentSoft}`, border: `1px solid rgba(139,92,246,0.2)`, borderRadius: 12, padding: '11px 13px', color: T.text, textAlign: 'left', cursor: 'pointer', fontFamily: 'inherit', fontSize: 13, display: 'flex', justifyContent: 'space-between', gap: 10 }}>
-                  <span style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{s.q}</span>
-                  <span style={{ color: T.accent, flexShrink: 0 }}>★</span>
+          </div>
+          <div className="tc-hide-scrollbar" style={{ display: 'flex', gap: 12, overflowX: 'auto', scrollSnapType: 'x mandatory', paddingBottom: 8 }}>
+            {destinations.map(d => {
+              const q = `${homeAirport} to ${d.name}, business, next week`;
+              return (
+                <button key={d.code} onClick={() => { setQuery(q); handleSearch(q); }} className="tc-dest" style={{ flex: '0 0 186px', height: 232, border: `1px solid ${T.border}`, borderRadius: 18, overflow: 'hidden', position: 'relative', textAlign: 'left', background: T.ink, cursor: 'pointer', scrollSnapAlign: 'start' }}>
+                  {/* eslint-disable-next-line @next/next/no-img-element */}
+                  <img src={d.img} alt={d.name} loading="lazy" style={{ position: 'absolute', inset: 0, width: '100%', height: '100%', objectFit: 'cover' }} />
+                  <span style={{ position: 'absolute', inset: 0, background: 'linear-gradient(180deg, rgba(7,16,21,0.05), rgba(7,16,21,0.88))' }} />
+                  <span style={{ position: 'absolute', left: 14, right: 14, bottom: 14 }}>
+                    <span style={{ display: 'block', color: T.text, font: '800 18px var(--font-display)' }}>{d.name}</span>
+                    <span style={{ display: 'flex', alignItems: 'center', gap: 6, color: T.sub, font: '600 12px var(--font-sans)', marginTop: 3 }}>
+                      <span>{d.code}</span>
+                      <span style={{ opacity: 0.5 }}>-</span>
+                      <span>{d.region}</span>
+                    </span>
+                  </span>
                 </button>
-              ))}
-            </div>
+              );
+            })}
           </div>
-        )}
+        </section>
 
-        {/* Destination cards — horizontal scroll */}
-        <div style={{ marginTop: 48, opacity: loaded ? 1 : 0, transform: loaded ? 'none' : 'translateY(16px)', transition: 'all 0.5s ease 400ms' }}>
-          {sectionTitle('Popular from Dubai', 400)}
-          <div ref={scrollRef} className="hide-scrollbar" style={{ display: 'flex', gap: 12, overflowX: 'auto', paddingBottom: 8, scrollSnapType: 'x mandatory' }}>
-            {destinations.map((d, i) => (
-              <button key={i} className="dest-card" onClick={() => { setQuery(`Dubai to ${d.name}, business, next week`); handleSearch(`Dubai to ${d.name}, business, next week`); }}
-                style={{ flex: '0 0 160px', height: 200, borderRadius: 16, position: 'relative', overflow: 'hidden', cursor: 'pointer', border: 'none', background: '#1a1a2e', scrollSnapAlign: 'start', transition: 'all 0.3s', textAlign: 'left' }}>
-                {/* eslint-disable-next-line @next/next/no-img-element */}
-                <img src={d.img} alt={d.name} style={{ position: 'absolute', inset: 0, width: '100%', height: '100%', objectFit: 'cover' }} loading="lazy" />
-                <div className="dest-overlay" style={{ position: 'absolute', inset: 0, background: 'linear-gradient(to top, rgba(0,0,0,0.85) 0%, rgba(0,0,0,0.4) 40%, transparent 65%)', transition: 'opacity 0.3s' }} />
-                <div style={{ position: 'absolute', bottom: 0, left: 0, right: 0, padding: 16, zIndex: 1, textShadow: '0 1px 4px rgba(0,0,0,0.6)' }}>
-                  <div style={{ fontSize: 16, fontWeight: 700, marginBottom: 2, color: '#fff' }}>{d.name}</div>
-                  <div style={{ fontSize: 11, color: 'rgba(255,255,255,0.75)' }}>{d.region}</div>
-                  {/* M1: Stale hardcoded prices removed — click to search for live fares */}
-                </div>
-                <div className="dest-arrow" style={{ position: 'absolute', top: 12, right: 12, width: 28, height: 28, borderRadius: '50%', background: 'rgba(255,255,255,0.2)', display: 'flex', alignItems: 'center', justifyContent: 'center', opacity: 0, transform: 'translateX(-4px)', transition: 'all 0.3s', backdropFilter: 'blur(8px)' }}>
-                  <svg width={14} height={14} viewBox="0 0 24 24" fill="none" stroke="#fff" strokeWidth={2}><line x1="5" y1="12" x2="19" y2="12" /><polyline points="12 5 19 12 12 19" /></svg>
-                </div>
+        <section style={{ display: 'flex', gap: 8, flexWrap: 'wrap', paddingBottom: 40 }}>
+          {regions.map(r => {
+            const q = `${homeAirport} to ${r}, business, next week`;
+            return (
+              <button key={r} onClick={() => { setQuery(q); handleSearch(q); }} className="tc-chip" style={{ border: `1px solid ${T.border}`, borderRadius: 999, background: 'rgba(247,251,248,0.055)', color: T.sub, padding: '8px 13px', cursor: 'pointer', font: '700 12px var(--font-sans)' }}>
+                {r}
               </button>
-            ))}
-          </div>
-        </div>
-
-        {/* Quick searches */}
-        <div style={{ marginTop: 36, opacity: loaded ? 1 : 0, transform: loaded ? 'none' : 'translateY(16px)', transition: 'all 0.5s ease 500ms' }}>
-          {sectionTitle('Quick searches', 500)}
-          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(2, 1fr)', gap: 10 }}>
-            {quickSearches.map((qs, i) => (
-              <button key={i} className="quick-card" onClick={() => { setQuery(qs.query); handleSearch(qs.query); }}
-                style={{ background: T.surface, border: `1px solid ${T.border}`, borderRadius: 14, padding: 16, cursor: 'pointer', textAlign: 'left', transition: 'all 0.2s', display: 'flex', flexDirection: 'column', gap: 8 }}>
-                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                  <span style={{ fontSize: 20 }}>{qs.icon}</span>
-                  <svg width={14} height={14} viewBox="0 0 24 24" fill="none" stroke={T.textMuted} strokeWidth={2}><line x1="5" y1="12" x2="19" y2="12" /><polyline points="12 5 19 12 12 19" /></svg>
-                </div>
-                <div>
-                  <div style={{ fontSize: 13, fontWeight: 600, color: T.text, marginBottom: 2 }}>{qs.title}</div>
-                  <div style={{ fontSize: 11, color: T.textSub, lineHeight: 1.4 }}>{qs.desc}</div>
-                </div>
-              </button>
-            ))}
-          </div>
-        </div>
-
-        {/* Regions */}
-        <div style={{ marginTop: 36, opacity: loaded ? 1 : 0, transform: loaded ? 'none' : 'translateY(16px)', transition: 'all 0.5s ease 600ms' }}>
-          {sectionTitle('Search by region', 600)}
-          <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8 }}>
-            {regions.map((r, i) => (
-              <button key={i} className="region-pill" onClick={() => { const q = `Dubai to ${r.name}, business, next week`; setQuery(q); handleSearch(q); }}
-                style={{ background: `${r.color}15`, border: `1px solid ${r.color}30`, borderRadius: 100, padding: '7px 16px', cursor: 'pointer', fontSize: 12, fontWeight: 500, color: r.color, fontFamily: 'inherit', transition: 'all 0.2s' }}
-                onMouseEnter={e => { e.currentTarget.style.background = `${r.color}25`; e.currentTarget.style.transform = 'translateY(-1px)'; }}
-                onMouseLeave={e => { e.currentTarget.style.background = `${r.color}15`; e.currentTarget.style.transform = 'none'; }}
-              >{r.name}</button>
-            ))}
-          </div>
-        </div>
-
-        {/* Footer */}
-        <footer style={{ textAlign: 'center', padding: '48px 0 24px', fontSize: 12, color: T.textMuted }}>
-          TravelCheckpoint — personal flight intelligence
-        </footer>
+            );
+          })}
+          <a href="/stays" style={{ display: 'inline-flex', alignItems: 'center', gap: 7, border: `1px solid ${T.border}`, borderRadius: 999, background: 'rgba(247,251,248,0.055)', color: T.sub, padding: '8px 13px', textDecoration: 'none', font: '700 12px var(--font-sans)' }}>
+            <Hotel size={14} />
+            Stays
+          </a>
+        </section>
       </div>
-    </div>
+    </main>
   );
 }

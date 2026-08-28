@@ -44,7 +44,7 @@ const LOYALTY_PROGRAMS = [
   { id: 'citi', name: 'Citi ThankYou', type: 'card' },
 ];
 
-const COLORS = { bg: '#06060a', card: 'rgba(255,255,255,0.04)', border: 'rgba(255,255,255,0.06)', accent: '#8B5CF6', text: '#ffffff', sub: 'rgba(255,255,255,0.4)' };
+const COLORS = { bg: '#06060a', card: 'rgba(255,255,255,0.04)', border: 'rgba(255,255,255,0.06)', accent: '#35c6ad', text: '#ffffff', sub: 'rgba(255,255,255,0.4)' };
 
 interface ProviderStatus { id: string; label: string; env: string; feature: string; configured: boolean; status: string }
 interface SavedSearch { q: string; savedAt: string }

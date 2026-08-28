@@ -65,7 +65,7 @@ interface DestResult { code: string; city: string; cheapestCash: number | null; 
 type MainTab = 'flights' | 'stay' | 'explore';
 type FlightFilter = 'all' | 'cash' | 'points' | 'hidden' | 'creative';
 
-const COLORS = { bg: '#06060a', card: 'rgba(255,255,255,0.04)', border: 'rgba(255,255,255,0.06)', accent: '#8B5CF6', text: '#ffffff', sub: 'rgba(255,255,255,0.4)', warm: 'rgba(255,255,255,0.03)' };
+const COLORS = { bg: '#06060a', card: 'rgba(255,255,255,0.04)', border: 'rgba(255,255,255,0.06)', accent: '#35c6ad', text: '#ffffff', sub: 'rgba(255,255,255,0.4)', warm: 'rgba(255,255,255,0.03)' };
 
 const CURRENCIES = ['AUD', 'USD', 'EUR', 'GBP', 'AED', 'TRY'] as const;
 const CUR_SYMBOLS: Record<string, string> = { USD: '$', AUD: 'A$', EUR: '€', GBP: '£', AED: 'AED ', TRY: '₺' };
@@ -122,7 +122,7 @@ function ProviderNotice({ tone, title, children }: { tone: ProviderTone; title: 
     live: { bg: 'rgba(34,197,94,0.08)', border: 'rgba(34,197,94,0.18)', fg: '#86EFAC', icon: '✓' },
     fallback: { bg: 'rgba(245,158,11,0.08)', border: 'rgba(245,158,11,0.2)', fg: '#FBBF24', icon: '↗' },
     warning: { bg: 'rgba(239,68,68,0.08)', border: 'rgba(239,68,68,0.18)', fg: '#FCA5A5', icon: '!' },
-    empty: { bg: 'rgba(139,92,246,0.08)', border: 'rgba(139,92,246,0.18)', fg: COLORS.accent, icon: 'i' },
+    empty: { bg: 'rgba(53,198,173,0.08)', border: 'rgba(53,198,173,0.18)', fg: COLORS.accent, icon: 'i' },
   }[tone];
 
   return (
@@ -160,7 +160,7 @@ function FlightProgress({ origin, dest }: { origin: string; dest: string }) {
       <div style={{ display: 'flex', alignItems: 'center', gap: '14px', maxWidth: '440px', margin: '0 auto 14px' }}>
         <span style={{ fontFamily: 'var(--font-mono)', fontSize: '15px', fontWeight: 800, color: COLORS.text }}>{origin || '···'}</span>
         <div style={{ flex: 1, position: 'relative', height: '26px' }}>
-          <div style={{ position: 'absolute', top: '50%', left: 0, right: 0, borderTop: '2px dashed rgba(139,92,246,0.35)' }} />
+          <div style={{ position: 'absolute', top: '50%', left: 0, right: 0, borderTop: '2px dashed rgba(53,198,173,0.35)' }} />
           <div className="fly-plane" aria-hidden="true">
             <Plane size={17} style={{ transform: 'rotate(45deg)', display: 'block' }} />
           </div>
@@ -168,7 +168,7 @@ function FlightProgress({ origin, dest }: { origin: string; dest: string }) {
         <span style={{ fontFamily: 'var(--font-mono)', fontSize: '15px', fontWeight: 800, color: COLORS.text }}>{dest || '···'}</span>
       </div>
       <div style={{ fontFamily: 'var(--font-sans)', fontSize: '12px', color: COLORS.sub }} aria-live="polite">
-        Searching <span style={{ color: '#A78BFA', fontWeight: 600 }}>{SEARCH_PROVIDERS[tick % SEARCH_PROVIDERS.length]}</span>…
+        Searching <span style={{ color: '#76e4d0', fontWeight: 600 }}>{SEARCH_PROVIDERS[tick % SEARCH_PROVIDERS.length]}</span>…
       </div>
     </div>
   );
@@ -177,8 +177,8 @@ function FlightProgress({ origin, dest }: { origin: string; dest: string }) {
 function EmptyFlights({ onFlex, onAnyStops }: { onFlex: () => void; onAnyStops: () => void }) {
   return (
     <div style={{ background: COLORS.card, border: `1px solid ${COLORS.border}`, borderRadius: '14px', padding: '36px 24px', textAlign: 'center' }}>
-      <div style={{ width: 56, height: 56, borderRadius: '50%', border: '2px dashed rgba(139,92,246,0.4)', display: 'inline-flex', alignItems: 'center', justifyContent: 'center', marginBottom: '12px' }}>
-        <Plane size={22} color="#A78BFA" style={{ transform: 'rotate(45deg)' }} />
+      <div style={{ width: 56, height: 56, borderRadius: '50%', border: '2px dashed rgba(53,198,173,0.4)', display: 'inline-flex', alignItems: 'center', justifyContent: 'center', marginBottom: '12px' }}>
+        <Plane size={22} color="#76e4d0" style={{ transform: 'rotate(45deg)' }} />
       </div>
       <div style={{ fontFamily: 'var(--font-display)', fontSize: '16px', fontWeight: 700, color: COLORS.text, marginBottom: '6px' }}>No flights on these exact dates</div>
       <div style={{ fontFamily: 'var(--font-sans)', fontSize: '13px', color: COLORS.sub, marginBottom: '18px', maxWidth: '380px', marginLeft: 'auto', marginRight: 'auto' }}>
@@ -625,7 +625,7 @@ function SearchResults() {
   const tabStyle = (active: boolean) => ({
     fontFamily: 'var(--font-body)', fontSize: '13px', fontWeight: 600,
     padding: '10px 20px', border: 'none', cursor: 'pointer', borderRadius: '10px 10px 0 0',
-    background: active ? 'rgba(139,92,246,0.1)' : 'transparent', color: active ? COLORS.accent : COLORS.sub,
+    background: active ? 'rgba(53,198,173,0.1)' : 'transparent', color: active ? COLORS.accent : COLORS.sub,
     borderBottom: active ? `2px solid ${COLORS.accent}` : '2px solid transparent',
     transition: 'all 0.15s',
   });
@@ -662,7 +662,7 @@ function SearchResults() {
                   style={{ width: isMulti ? '90px' : '60px', fontFamily: 'var(--font-mono)', fontSize: '12px', fontWeight: 700, background: COLORS.card, border: `1px solid ${COLORS.border}`, borderRadius: '6px', padding: '9px 8px', color: COLORS.text, textAlign: 'center', textTransform: 'uppercase', outline: 'none', minHeight: '38px' }} />
                 <button onClick={() => setCalendarOpen(true)} title="See prices per day"
                   style={{ fontFamily: 'var(--font-mono)', fontSize: '11px', background: COLORS.card, border: `1px solid ${COLORS.border}`, borderRadius: '6px', padding: '9px 10px', color: COLORS.text, cursor: 'pointer', minHeight: '38px', display: 'flex', alignItems: 'center', gap: '6px', whiteSpace: 'nowrap' }}>
-                  <CalendarDays size={13} color="#A78BFA" />
+                  <CalendarDays size={13} color="#76e4d0" />
                   {departDate ? fmtDay(departDate) : 'Pick date'}{searchedDates.length > 1 ? ` +${searchedDates.length - 1}` : ''}
                 </button>
                 <select defaultValue={passengers} onChange={e => { const pax = parseInt(e.target.value); const base = searchInput || q; const newQ = base.replace(/\d+\s*(people|person|pax|passengers?|adults?)/i, `${pax} people`); router.push(`/search?q=${encodeURIComponent(newQ === base ? `${base}, ${pax} people` : newQ)}`); }}
@@ -735,7 +735,7 @@ function SearchResults() {
         )}
 
         {selectedResults && !loading && (
-          <div style={{ background: 'linear-gradient(135deg, rgba(139,92,246,0.14), rgba(6,182,212,0.08))', border: `1px solid ${COLORS.border}`, borderRadius: '16px', padding: '14px', marginBottom: '16px' }}>
+          <div style={{ background: 'linear-gradient(135deg, rgba(53,198,173,0.14), rgba(6,182,212,0.08))', border: `1px solid ${COLORS.border}`, borderRadius: '16px', padding: '14px', marginBottom: '16px' }}>
             <div style={{ display: 'flex', justifyContent: 'space-between', gap: '12px', alignItems: 'flex-start', flexWrap: 'wrap' }}>
               <div>
                 <div style={{ fontFamily: 'var(--font-display)', fontSize: 16, fontWeight: 700, color: COLORS.text }}>{origin} → {isMulti ? destCity : selectedResults.code}</div>
@@ -1176,7 +1176,7 @@ function SearchResults() {
                         )}
                         <a href={monetise(`https://www.booking.com/searchresults.html?ss=${hotelSearch}&checkin=${stayDate}&checkout=${stayCheckoutDate}&group_adults=${passengers}`)} target="_blank" rel="noopener noreferrer" style={{ fontSize: '11px', fontWeight: 600, color: '#5392F9', background: 'rgba(83,146,249,0.12)', padding: '6px 11px', borderRadius: '6px', textDecoration: 'none' }}>Booking.com</a>
                         <a href={monetise(`https://www.expedia.com/Hotel-Search?destination=${hotelSearch}&startDate=${stayDate}&endDate=${stayCheckoutDate}&adults=${passengers}`)} target="_blank" rel="noopener noreferrer" style={{ fontSize: '11px', fontWeight: 600, color: '#FBBF24', background: 'rgba(251,191,36,0.12)', padding: '6px 11px', borderRadius: '6px', textDecoration: 'none' }}>Expedia</a>
-                        <a href={`https://www.google.com/travel/search?q=${hotelSearch}&checkin=${stayDate}&checkout=${stayCheckoutDate}`} target="_blank" rel="noopener noreferrer" style={{ fontSize: '11px', fontWeight: 600, color: '#A78BFA', background: 'rgba(139,92,246,0.12)', padding: '6px 11px', borderRadius: '6px', textDecoration: 'none' }}>Google</a>
+                        <a href={`https://www.google.com/travel/search?q=${hotelSearch}&checkin=${stayDate}&checkout=${stayCheckoutDate}`} target="_blank" rel="noopener noreferrer" style={{ fontSize: '11px', fontWeight: 600, color: '#76e4d0', background: 'rgba(53,198,173,0.12)', padding: '6px 11px', borderRadius: '6px', textDecoration: 'none' }}>Google</a>
                       </div>
                     </div>
                     );
@@ -1375,19 +1375,19 @@ function SearchResults() {
         @keyframes fadeIn { from { opacity: 0; transform: translateY(8px); } to { opacity: 1; transform: translateY(0); } }
         @keyframes shimmer { 0% { opacity: 0.5; } 50% { opacity: 0.8; } 100% { opacity: 0.5; } }
         a.result-card { display: flex; align-items: center; gap: 12px; text-decoration: none; cursor: pointer; transition: border-color 0.15s ease, background 0.15s ease, transform 0.15s ease; }
-        a.result-card:hover { background: rgba(255,255,255,0.07) !important; border-color: rgba(139,92,246,0.45) !important; transform: translateY(-1px); }
-        a.result-card:hover .book-cta { color: #A78BFA; }
+        a.result-card:hover { background: rgba(255,255,255,0.07) !important; border-color: rgba(53,198,173,0.45) !important; transform: translateY(-1px); }
+        a.result-card:hover .book-cta { color: #76e4d0; }
         a.result-card:hover .book-cta svg { transform: translateX(2px); }
         a.result-card .book-cta svg { transition: transform 0.15s ease; }
-        a.result-card:focus-visible { outline: 2px solid #8B5CF6; outline-offset: 2px; }
+        a.result-card:focus-visible { outline: 2px solid #35c6ad; outline-offset: 2px; }
         a.compare-chip { display: inline-flex; align-items: center; gap: 5px; text-decoration: none; white-space: nowrap; transition: border-color 0.15s ease, color 0.15s ease, background 0.15s ease; }
-        a.compare-chip:hover { border-color: rgba(139,92,246,0.5) !important; color: #fff !important; background: rgba(139,92,246,0.12) !important; }
+        a.compare-chip:hover { border-color: rgba(53,198,173,0.5) !important; color: #fff !important; background: rgba(53,198,173,0.12) !important; }
         @keyframes flyAcross {
           0% { left: 0; transform: translateY(-50%); }
           50% { transform: translateY(-72%); }
           100% { left: calc(100% - 18px); transform: translateY(-50%); }
         }
-        .fly-plane { position: absolute; top: 50%; left: 0; color: #A78BFA; animation: flyAcross 2.1s ease-in-out infinite; filter: drop-shadow(0 0 6px rgba(139,92,246,0.45)); }
+        .fly-plane { position: absolute; top: 50%; left: 0; color: #76e4d0; animation: flyAcross 2.1s ease-in-out infinite; filter: drop-shadow(0 0 6px rgba(53,198,173,0.45)); }
       `}</style>
     </div>
   );

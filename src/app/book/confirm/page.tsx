@@ -4,7 +4,7 @@ import { Suspense, useEffect, useRef, useState } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
 import { CheckCircle2, XCircle } from 'lucide-react';
 
-const C = { bg: '#06060a', card: 'rgba(255,255,255,0.04)', border: 'rgba(255,255,255,0.06)', accent: '#8B5CF6', text: '#ffffff', sub: 'rgba(255,255,255,0.4)' };
+const C = { bg: '#06060a', card: 'rgba(255,255,255,0.04)', border: 'rgba(255,255,255,0.06)', accent: '#35c6ad', text: '#ffffff', sub: 'rgba(255,255,255,0.4)' };
 
 interface BookingResult {
   bookingId: string; status: string; hotelConfirmationCode: string; hotelName: string;
