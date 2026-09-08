@@ -1,0 +1,470 @@
+// ═══════════════════════════════════════════════════
+// LOCAL NLP PARSER — Zero API cost, instant response
+// Supports region searches (e.g. "UAE to Europe")
+//
+// Pure module: no request-scoped state, no I/O. `/api/parse` is a thin wrapper
+// that reads the JSON body and hands the two strings to `parseQuery`.
+// ═══════════════════════════════════════════════════
+
+export interface Airport { code: string; city: string }
+
+export interface ParsedQuery {
+  origin: string;
+  originCity: string;
+  /** Present only on single-destination searches. */
+  destination?: string;
+  /** Present only on single-destination searches. */
+  destinationCity?: string;
+  isRegionSearch: boolean;
+  /** Present only on region searches. */
+  regionName?: string;
+  /** Present only on region searches. */
+  destinations?: Airport[];
+  departDate: string;
+  departDates: string[];
+  isDateRange: boolean;
+  cabin: string;
+  passengers: number;
+  maxStops: number | null;
+  flexible: boolean;
+  maxBudget: number | null;
+  maxPoints: number | null;
+  currency: string;
+  preferences: string[];
+}
+
+const AIRPORTS: Record<string, { code: string; city: string }> = {
+  'dubai': { code: 'DXB', city: 'Dubai' }, 'abu dhabi': { code: 'AUH', city: 'Abu Dhabi' },
+  'london': { code: 'LHR', city: 'London' }, 'heathrow': { code: 'LHR', city: 'London' },
+  'gatwick': { code: 'LGW', city: 'London' }, 'paris': { code: 'CDG', city: 'Paris' },
+  'istanbul': { code: 'IST', city: 'Istanbul' }, 'new york': { code: 'JFK', city: 'New York' },
+  'nyc': { code: 'JFK', city: 'New York' }, 'newark': { code: 'EWR', city: 'New York' },
+  'la': { code: 'LAX', city: 'Los Angeles' }, 'los angeles': { code: 'LAX', city: 'Los Angeles' },
+  'sydney': { code: 'SYD', city: 'Sydney' }, 'melbourne': { code: 'MEL', city: 'Melbourne' },
+  'tokyo': { code: 'NRT', city: 'Tokyo' }, 'singapore': { code: 'SIN', city: 'Singapore' },
+  'bangkok': { code: 'BKK', city: 'Bangkok' }, 'bali': { code: 'DPS', city: 'Bali' },
+  'maldives': { code: 'MLE', city: 'Maldives' }, 'male': { code: 'MLE', city: 'Maldives' },
+  'hong kong': { code: 'HKG', city: 'Hong Kong' }, 'kuala lumpur': { code: 'KUL', city: 'Kuala Lumpur' },
+  'kl': { code: 'KUL', city: 'Kuala Lumpur' }, 'doha': { code: 'DOH', city: 'Doha' },
+  'riyadh': { code: 'RUH', city: 'Riyadh' }, 'jeddah': { code: 'JED', city: 'Jeddah' },
+  'cairo': { code: 'CAI', city: 'Cairo' }, 'mumbai': { code: 'BOM', city: 'Mumbai' },
+  'delhi': { code: 'DEL', city: 'Delhi' }, 'colombo': { code: 'CMB', city: 'Colombo' },
+  'san francisco': { code: 'SFO', city: 'San Francisco' }, 'sf': { code: 'SFO', city: 'San Francisco' },
+  'miami': { code: 'MIA', city: 'Miami' }, 'rome': { code: 'FCO', city: 'Rome' },
+  'milan': { code: 'MXP', city: 'Milan' }, 'barcelona': { code: 'BCN', city: 'Barcelona' },
+  'madrid': { code: 'MAD', city: 'Madrid' }, 'amsterdam': { code: 'AMS', city: 'Amsterdam' },
+  'frankfurt': { code: 'FRA', city: 'Frankfurt' }, 'zurich': { code: 'ZRH', city: 'Zurich' },
+  'athens': { code: 'ATH', city: 'Athens' }, 'phuket': { code: 'HKT', city: 'Phuket' },
+  'manila': { code: 'MNL', city: 'Manila' }, 'jakarta': { code: 'CGK', city: 'Jakarta' },
+  'seoul': { code: 'ICN', city: 'Seoul' }, 'osaka': { code: 'KIX', city: 'Osaka' },
+  'toronto': { code: 'YYZ', city: 'Toronto' }, 'vancouver': { code: 'YVR', city: 'Vancouver' },
+  'auckland': { code: 'AKL', city: 'Auckland' }, 'johannesburg': { code: 'JNB', city: 'Johannesburg' },
+  'cape town': { code: 'CPT', city: 'Cape Town' }, 'nairobi': { code: 'NBO', city: 'Nairobi' },
+  'muscat': { code: 'MCT', city: 'Muscat' }, 'bahrain': { code: 'BAH', city: 'Bahrain' },
+  'kuwait': { code: 'KWI', city: 'Kuwait' }, 'trabzon': { code: 'TZX', city: 'Trabzon' },
+  'izmir': { code: 'ADB', city: 'Izmir' }, 'adb': { code: 'ADB', city: 'Izmir' },
+  'bodrum': { code: 'BJV', city: 'Bodrum' }, 'antalya': { code: 'AYT', city: 'Antalya' },
+  'mauritius': { code: 'MRU', city: 'Mauritius' }, 'seychelles': { code: 'SEZ', city: 'Seychelles' },
+  'chicago': { code: 'ORD', city: 'Chicago' }, 'washington': { code: 'IAD', city: 'Washington' },
+  'boston': { code: 'BOS', city: 'Boston' }, 'seattle': { code: 'SEA', city: 'Seattle' },
+  'perth': { code: 'PER', city: 'Perth' }, 'brisbane': { code: 'BNE', city: 'Brisbane' },
+  'hanoi': { code: 'HAN', city: 'Hanoi' }, 'ho chi minh': { code: 'SGN', city: 'Ho Chi Minh' },
+  'saigon': { code: 'SGN', city: 'Ho Chi Minh' }, 'taipei': { code: 'TPE', city: 'Taipei' },
+  'beijing': { code: 'PEK', city: 'Beijing' }, 'shanghai': { code: 'PVG', city: 'Shanghai' },
+  'zanzibar': { code: 'ZNZ', city: 'Zanzibar' }, 'marrakech': { code: 'RAK', city: 'Marrakech' },
+  'lisbon': { code: 'LIS', city: 'Lisbon' }, 'dublin': { code: 'DUB', city: 'Dublin' },
+  'edinburgh': { code: 'EDI', city: 'Edinburgh' }, 'manchester': { code: 'MAN', city: 'Manchester' },
+  'sao paulo': { code: 'GRU', city: 'São Paulo' }, 'mexico city': { code: 'MEX', city: 'Mexico City' },
+  'cancun': { code: 'CUN', city: 'Cancún' }, 'hawaii': { code: 'HNL', city: 'Hawaii' },
+  'honolulu': { code: 'HNL', city: 'Hawaii' }, 'fiji': { code: 'NAN', city: 'Fiji' },
+  'bora bora': { code: 'BOB', city: 'Bora Bora' }, 'nice': { code: 'NCE', city: 'Nice' },
+  'vienna': { code: 'VIE', city: 'Vienna' }, 'prague': { code: 'PRG', city: 'Prague' },
+  'budapest': { code: 'BUD', city: 'Budapest' }, 'warsaw': { code: 'WAW', city: 'Warsaw' },
+  'copenhagen': { code: 'CPH', city: 'Copenhagen' }, 'stockholm': { code: 'ARN', city: 'Stockholm' },
+  'oslo': { code: 'OSL', city: 'Oslo' }, 'helsinki': { code: 'HEL', city: 'Helsinki' },
+  'brussels': { code: 'BRU', city: 'Brussels' }, 'munich': { code: 'MUC', city: 'Munich' },
+  'dusseldorf': { code: 'DUS', city: 'Düsseldorf' }, 'geneva': { code: 'GVA', city: 'Geneva' },
+};
+
+// Region → all major airports to search
+const REGION_AIRPORTS: Record<string, { code: string; city: string }[]> = {
+  'europe': [
+    { code: 'LHR', city: 'London' }, { code: 'CDG', city: 'Paris' }, { code: 'IST', city: 'Istanbul' },
+    { code: 'FCO', city: 'Rome' }, { code: 'BCN', city: 'Barcelona' }, { code: 'AMS', city: 'Amsterdam' },
+    { code: 'FRA', city: 'Frankfurt' }, { code: 'MAD', city: 'Madrid' }, { code: 'ATH', city: 'Athens' },
+    { code: 'ZRH', city: 'Zurich' }, { code: 'MXP', city: 'Milan' }, { code: 'LIS', city: 'Lisbon' },
+    { code: 'VIE', city: 'Vienna' }, { code: 'PRG', city: 'Prague' }, { code: 'BUD', city: 'Budapest' },
+    { code: 'DUB', city: 'Dublin' }, { code: 'CPH', city: 'Copenhagen' }, { code: 'MUC', city: 'Munich' },
+  ],
+  'asia': [
+    { code: 'BKK', city: 'Bangkok' }, { code: 'SIN', city: 'Singapore' }, { code: 'NRT', city: 'Tokyo' },
+    { code: 'HKG', city: 'Hong Kong' }, { code: 'KUL', city: 'Kuala Lumpur' }, { code: 'DPS', city: 'Bali' },
+    { code: 'ICN', city: 'Seoul' }, { code: 'DEL', city: 'Delhi' }, { code: 'BOM', city: 'Mumbai' },
+    { code: 'CMB', city: 'Colombo' }, { code: 'HKT', city: 'Phuket' }, { code: 'SGN', city: 'Ho Chi Minh' },
+  ],
+  'southeast asia': [
+    { code: 'BKK', city: 'Bangkok' }, { code: 'SIN', city: 'Singapore' }, { code: 'KUL', city: 'Kuala Lumpur' },
+    { code: 'DPS', city: 'Bali' }, { code: 'HKT', city: 'Phuket' }, { code: 'SGN', city: 'Ho Chi Minh' },
+    { code: 'MNL', city: 'Manila' }, { code: 'CGK', city: 'Jakarta' }, { code: 'HAN', city: 'Hanoi' },
+  ],
+  'usa': [
+    { code: 'JFK', city: 'New York' }, { code: 'LAX', city: 'Los Angeles' }, { code: 'MIA', city: 'Miami' },
+    { code: 'SFO', city: 'San Francisco' }, { code: 'ORD', city: 'Chicago' }, { code: 'IAD', city: 'Washington' },
+    { code: 'BOS', city: 'Boston' }, { code: 'SEA', city: 'Seattle' },
+  ],
+  'america': [
+    { code: 'JFK', city: 'New York' }, { code: 'LAX', city: 'Los Angeles' }, { code: 'MIA', city: 'Miami' },
+    { code: 'SFO', city: 'San Francisco' }, { code: 'ORD', city: 'Chicago' }, { code: 'IAD', city: 'Washington' },
+  ],
+  'united states': [
+    { code: 'JFK', city: 'New York' }, { code: 'LAX', city: 'Los Angeles' }, { code: 'MIA', city: 'Miami' },
+    { code: 'SFO', city: 'San Francisco' }, { code: 'ORD', city: 'Chicago' }, { code: 'IAD', city: 'Washington' },
+  ],
+  'australia': [
+    { code: 'SYD', city: 'Sydney' }, { code: 'MEL', city: 'Melbourne' }, { code: 'BNE', city: 'Brisbane' },
+    { code: 'PER', city: 'Perth' },
+  ],
+  'middle east': [
+    { code: 'DXB', city: 'Dubai' }, { code: 'AUH', city: 'Abu Dhabi' }, { code: 'DOH', city: 'Doha' },
+    { code: 'BAH', city: 'Bahrain' }, { code: 'MCT', city: 'Muscat' }, { code: 'RUH', city: 'Riyadh' },
+    { code: 'KWI', city: 'Kuwait' },
+  ],
+  'africa': [
+    { code: 'JNB', city: 'Johannesburg' }, { code: 'CPT', city: 'Cape Town' }, { code: 'NBO', city: 'Nairobi' },
+    { code: 'CAI', city: 'Cairo' }, { code: 'RAK', city: 'Marrakech' }, { code: 'ZNZ', city: 'Zanzibar' },
+    { code: 'MRU', city: 'Mauritius' }, { code: 'SEZ', city: 'Seychelles' },
+  ],
+  'uk': [
+    { code: 'LHR', city: 'London' }, { code: 'MAN', city: 'Manchester' }, { code: 'EDI', city: 'Edinburgh' },
+    { code: 'LGW', city: 'London Gatwick' },
+  ],
+  'scandinavia': [
+    { code: 'CPH', city: 'Copenhagen' }, { code: 'ARN', city: 'Stockholm' }, { code: 'OSL', city: 'Oslo' },
+    { code: 'HEL', city: 'Helsinki' },
+  ],
+  'caribbean': [
+    { code: 'CUN', city: 'Cancún' }, { code: 'MIA', city: 'Miami' },
+  ],
+  'nearby': [
+    { code: 'MCT', city: 'Muscat' }, { code: 'BAH', city: 'Bahrain' }, { code: 'DOH', city: 'Doha' },
+    { code: 'KWI', city: 'Kuwait' }, { code: 'RUH', city: 'Riyadh' }, { code: 'JED', city: 'Jeddah' },
+    { code: 'CAI', city: 'Cairo' }, { code: 'AMM', city: 'Amman' }, { code: 'TBS', city: 'Tbilisi' },
+    { code: 'AYT', city: 'Antalya' }, { code: 'IST', city: 'Istanbul' }, { code: 'BOM', city: 'Mumbai' },
+  ],
+  'anywhere': [
+    { code: 'LHR', city: 'London' }, { code: 'CDG', city: 'Paris' }, { code: 'IST', city: 'Istanbul' },
+    { code: 'BKK', city: 'Bangkok' }, { code: 'SIN', city: 'Singapore' }, { code: 'NRT', city: 'Tokyo' },
+    { code: 'DPS', city: 'Bali' }, { code: 'MLE', city: 'Maldives' }, { code: 'JFK', city: 'New York' },
+    { code: 'SYD', city: 'Sydney' }, { code: 'FCO', city: 'Rome' }, { code: 'BCN', city: 'Barcelona' },
+    { code: 'MCT', city: 'Muscat' }, { code: 'DOH', city: 'Doha' }, { code: 'KUL', city: 'Kuala Lumpur' },
+  ],
+};
+
+// Single-airport region fallbacks
+const REGION_SINGLE: Record<string, { code: string; city: string }> = {
+  'france': { code: 'CDG', city: 'Paris' }, 'germany': { code: 'FRA', city: 'Frankfurt' },
+  'italy': { code: 'FCO', city: 'Rome' }, 'spain': { code: 'MAD', city: 'Madrid' },
+  'greece': { code: 'ATH', city: 'Athens' }, 'turkey': { code: 'IST', city: 'Istanbul' },
+  'netherlands': { code: 'AMS', city: 'Amsterdam' }, 'holland': { code: 'AMS', city: 'Amsterdam' },
+  'switzerland': { code: 'ZRH', city: 'Zurich' }, 'portugal': { code: 'LIS', city: 'Lisbon' },
+  'ireland': { code: 'DUB', city: 'Dublin' }, 'scotland': { code: 'EDI', city: 'Edinburgh' },
+  'uae': { code: 'DXB', city: 'Dubai' }, 'emirates': { code: 'DXB', city: 'Dubai' },
+  'japan': { code: 'NRT', city: 'Tokyo' }, 'thailand': { code: 'BKK', city: 'Bangkok' },
+  'indonesia': { code: 'DPS', city: 'Bali' }, 'malaysia': { code: 'KUL', city: 'Kuala Lumpur' },
+  'india': { code: 'DEL', city: 'Delhi' }, 'china': { code: 'PEK', city: 'Beijing' },
+  'south korea': { code: 'ICN', city: 'Seoul' }, 'korea': { code: 'ICN', city: 'Seoul' },
+  'vietnam': { code: 'SGN', city: 'Ho Chi Minh' }, 'philippines': { code: 'MNL', city: 'Manila' },
+  'sri lanka': { code: 'CMB', city: 'Colombo' }, 'egypt': { code: 'CAI', city: 'Cairo' },
+  'morocco': { code: 'RAK', city: 'Marrakech' }, 'south africa': { code: 'JNB', city: 'Johannesburg' },
+  'kenya': { code: 'NBO', city: 'Nairobi' }, 'canada': { code: 'YYZ', city: 'Toronto' },
+  'mexico': { code: 'MEX', city: 'Mexico City' }, 'brazil': { code: 'GRU', city: 'São Paulo' },
+  'new zealand': { code: 'AKL', city: 'Auckland' }, 'qatar': { code: 'DOH', city: 'Doha' },
+  'saudi': { code: 'RUH', city: 'Riyadh' }, 'saudi arabia': { code: 'RUH', city: 'Riyadh' },
+  'oman': { code: 'MCT', city: 'Muscat' }, 'bahrain': { code: 'BAH', city: 'Bahrain' },
+  'kuwait': { code: 'KWI', city: 'Kuwait' },
+  'england': { code: 'LHR', city: 'London' }, 'nordic': { code: 'ARN', city: 'Stockholm' },
+  'south america': { code: 'GRU', city: 'São Paulo' }, 'states': { code: 'JFK', city: 'New York' },
+};
+
+export function normalizeSearchText(text: string): string {
+  return text
+    .normalize('NFD')
+    .replace(/[\u0300-\u036f]/g, '')
+    .replace(/ı/g, 'i')
+    .toLowerCase()
+    .trim();
+}
+
+export function findAirport(text: string): { code: string; city: string } | null {
+  const lower = normalizeSearchText(text);
+  const iataMatch = text.match(/\b([A-Za-z]{3})\b/);
+  if (iataMatch) {
+    const code = iataMatch[1].toUpperCase();
+    const entry = Object.values(AIRPORTS).find(a => a.code === code);
+    if (entry) return entry;
+    if (!['ONE', 'TWO', 'WAY', 'FOR', 'THE', 'AND', 'ANY', 'ALL', 'MAX', 'PAX'].includes(code)) {
+      return { code, city: code };
+    }
+  }
+  const sorted = Object.entries(AIRPORTS).sort((a, b) => b[0].length - a[0].length);
+  for (const [name, data] of sorted) {
+    const re = new RegExp(`\\b${name.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}\\b`, 'i');
+    if (re.test(lower)) return data;
+  }
+  return null;
+}
+
+export function findRegion(text: string): { code: string; city: string }[] | null {
+  const lower = normalizeSearchText(text);
+  // Check multi-airport regions first
+  const regionsSorted = Object.entries(REGION_AIRPORTS).sort((a, b) => b[0].length - a[0].length);
+  for (const [name, airports] of regionsSorted) {
+    const re = new RegExp(`\\b${name.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}\\b`, 'i');
+    if (re.test(lower)) return airports;
+  }
+  // Check single-airport regions
+  const singleSorted = Object.entries(REGION_SINGLE).sort((a, b) => b[0].length - a[0].length);
+  for (const [name, data] of singleSorted) {
+    const re = new RegExp(`\\b${name.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}\\b`, 'i');
+    if (re.test(lower)) return [data];
+  }
+  return null;
+}
+
+export function parseDates(text: string): { dates: string[]; isRange: boolean } {
+  const now = new Date();
+  const lower = text.toLowerCase();
+  const fmt = (d: Date) => d.toISOString().split('T')[0];
+  
+  // Word-to-number map
+  const wordNums: Record<string, number> = { one:1, two:2, three:3, four:4, five:5, six:6, seven:7, eight:8, nine:9, ten:10, couple:2, few:3 };
+  const toNum = (s: string): number => wordNums[s] || parseInt(s) || 0;
+
+  // "next X days" / "within X days" / "in the next X days"
+  const nextDays = lower.match(/(?:next|within|in the next|coming)\s+(\w+)\s*days?/);
+  if (nextDays) {
+    const n = toNum(nextDays[1]);
+    const dates = [];
+    for (let i = 0; i < n; i++) dates.push(fmt(new Date(now.getTime() + (i + 1) * 86400000)));
+    return { dates, isRange: true };
+  }
+  
+  // "flexible" / "anytime" → search the whole coming week so the UI can offer options
+  if (/\b(flexible|flexi|anytime|any\s*time|any\s*day|whenever)\b/.test(lower)) {
+    const dates = [];
+    for (let i = 1; i <= 7; i++) dates.push(fmt(new Date(now.getTime() + i * 86400000)));
+    return { dates, isRange: true };
+  }
+
+  // "this week" / "this weekend"
+  if (/\bthis\s*week\b/.test(lower)) {
+    const dates = [];
+    for (let i = 0; i < 7; i++) dates.push(fmt(new Date(now.getTime() + i * 86400000)));
+    return { dates, isRange: true };
+  }
+  if (/\bthis\s*weekend\b/.test(lower)) {
+    const dayOfWeek = now.getDay();
+    const fri = new Date(now.getTime() + ((5 - dayOfWeek + 7) % 7) * 86400000);
+    return { dates: [fmt(fri), fmt(new Date(fri.getTime() + 86400000)), fmt(new Date(fri.getTime() + 2 * 86400000))], isRange: true };
+  }
+  
+  if (lower.includes('today')) return { dates: [fmt(now)], isRange: false };
+  if (lower.includes('tomorrow')) return { dates: [fmt(new Date(now.getTime() + 86400000))], isRange: false };
+  // "next week" / "next month" are windows, not single days — return the whole range
+  // so the search layer can offer the cheapest date within it.
+  if (lower.includes('next week')) {
+    const dates = [];
+    for (let i = 7; i <= 13; i++) dates.push(fmt(new Date(now.getTime() + i * 86400000)));
+    return { dates, isRange: true };
+  }
+  if (lower.includes('next month')) {
+    const dates = [];
+    for (let i = 28; i <= 34; i++) dates.push(fmt(new Date(now.getTime() + i * 86400000)));
+    return { dates, isRange: true };
+  }
+  
+  const inDays = lower.match(/in (\d+)\s*days?/);
+  if (inDays) return { dates: [fmt(new Date(now.getTime() + parseInt(inDays[1]) * 86400000))], isRange: false };
+  const inWeeks = lower.match(/in (\d+)\s*weeks?/);
+  if (inWeeks) return { dates: [fmt(new Date(now.getTime() + parseInt(inWeeks[1]) * 7 * 86400000))], isRange: false };
+  
+  const months = ['january','february','march','april','may','june','july','august','september','october','november','december'];
+  const monthMatch = lower.match(new RegExp(`(\\d{1,2})\\s*(?:st|nd|rd|th)?\\s*(${months.join('|')})|(${months.join('|')})\\s*(\\d{1,2})`));
+  if (monthMatch) {
+    const day = parseInt(monthMatch[1] || monthMatch[4]);
+    const month = months.indexOf((monthMatch[2] || monthMatch[3]).toLowerCase());
+    const d = new Date(now.getFullYear(), month, day);
+    if (d < now) d.setFullYear(now.getFullYear() + 1);
+    return { dates: [fmt(d)], isRange: false };
+  }
+  const isoMatch = text.match(/(\d{4}-\d{2}-\d{2})/);
+  if (isoMatch) return { dates: [isoMatch[1]], isRange: false };
+  const slashMatch = text.match(/(\d{1,2})[\/\-](\d{1,2})(?:[\/\-](\d{2,4}))?/);
+  if (slashMatch) {
+    const a = parseInt(slashMatch[1]), b = parseInt(slashMatch[2]);
+    const year = slashMatch[3] ? (parseInt(slashMatch[3]) < 100 ? 2000 + parseInt(slashMatch[3]) : parseInt(slashMatch[3])) : now.getFullYear();
+    const d = new Date(year, b - 1, a);
+    if (d < now && !slashMatch[3]) d.setFullYear(year + 1);
+    return { dates: [fmt(d)], isRange: false };
+  }
+  return { dates: [fmt(new Date(now.getTime() + 7 * 86400000))], isRange: false };
+}
+
+/**
+ * Turn a natural-language travel query into structured search params.
+ * `homeAirport` is the user's saved IATA code, used as the default origin when
+ * the query does not name one; anything not a 3-letter code falls back to DXB.
+ */
+export function parseQuery(query: string, homeAirport?: unknown): ParsedQuery {
+  // Resolve the default origin from homeAirport hint (IATA code from settings), falling back to DXB.
+  const defaultOrigin: { code: string; city: string } = (() => {
+    if (typeof homeAirport === 'string' && /^[A-Z]{3}$/i.test(homeAirport.trim())) {
+      const code = homeAirport.trim().toUpperCase();
+      // Look up city name in our airports table (reverse lookup by code)
+      const cityEntry = Object.values(AIRPORTS).find(a => a.code === code);
+      return cityEntry || { code, city: code };
+    }
+    return { code: 'DXB', city: 'Dubai' };
+  })();
+
+  const lower = normalizeSearchText(query);
+
+  // Detect special keywords that imply region searches
+  const isAnywhereSearch = /\b(anywhere|everywhere|cheapest\s*(?:getaway|flight|fare)?|best\s*deal)\b/.test(lower);
+  const isNearbySearch = /\b(nearby|near|close|short[\s-]*haul|getaway|weekend\s*getaway|quick\s*escape)\b/.test(lower) && !isAnywhereSearch;
+
+  const reverseRouteMatch = lower.match(/\bto\s+(.+?)\s+from\s+(.+?)(?:,|$)/);
+  const hasReverseRoute = Boolean(reverseRouteMatch);
+  const hasExplicitRoute = hasReverseRoute || /\s+to\s+|\s+(?:from\s+)?[a-z]{3}\s*[→>]\s*|\s+[→>]\s+/.test(lower) || /[→>]/.test(query);
+  const parts = hasExplicitRoute
+    ? lower.split(/\s+to\s+|\s*[→>]+\s*/)
+    : [lower];
+
+  // Parse origin — use user's home airport as fallback instead of hardcoded DXB.
+  let origin = hasReverseRoute
+    ? (findAirport(reverseRouteMatch?.[2] || '') || findRegion(reverseRouteMatch?.[2] || '')?.[0] || null)
+    : hasExplicitRoute
+      ? (findAirport(parts[0] || '') || findRegion(parts[0] || '')?.[0] || null)
+      : null;
+  if (!origin) origin = defaultOrigin;
+  
+  // Parse destination — handle special keywords first
+  let destText = hasReverseRoute
+    ? ((reverseRouteMatch?.[1] || lower).split(/\s+to\s+/).pop() || reverseRouteMatch?.[1] || lower)
+    : hasExplicitRoute && parts.length > 1
+      ? parts.slice(1).join(' ')
+      : lower;
+  let destCity: { code: string; city: string } | null = null;
+  let destRegion: { code: string; city: string }[] | null = null;
+  
+  // An explicit destination always wins — "UAE to Europe, cheapest" must search Europe,
+  // not the worldwide list. The anywhere/nearby keywords only apply when nothing parsed.
+  destCity = findAirport(destText);
+  destRegion = !destCity ? findRegion(destText) : null;
+  if (!destCity && !destRegion) {
+    if (isAnywhereSearch) {
+      destRegion = REGION_AIRPORTS['anywhere'];
+      destText = 'anywhere';
+    } else if (isNearbySearch) {
+      destRegion = REGION_AIRPORTS['nearby'];
+      destText = 'nearby';
+    }
+  }
+  
+  // Parse common fields
+  let cabin = 'business';
+  if (/\b(first\s*class|first)\b/.test(lower)) cabin = 'first';
+  else if (/\b(premium\s*econ|premium)\b/.test(lower)) cabin = 'premium';
+  else if (/\b(economy|econ|cheap|cheapest|budget|getaway)\b/.test(lower)) cabin = 'economy';
+  
+  let passengers = 1;
+  const paxMatch = lower.match(/(\d+)\s*(people|pax|passengers|adults|person)|family\s*of\s*(\d+)/);
+  if (paxMatch) passengers = parseInt(paxMatch[1] || paxMatch[3]);
+  if (/\bcouple\b|two of us/.test(lower)) passengers = 2;
+  
+  let maxBudget: number | null = null;
+  const budgetMatch = lower.match(/(?:under|below|max|budget|less than)\s*\$?\s*([\d,]+)/);
+  if (budgetMatch) maxBudget = parseInt(budgetMatch[1].replace(/,/g, ''));
+  
+  let maxPoints: number | null = null;
+  const pointsMatch = lower.match(/([\d,]+)\s*k?\s*(points|miles|pts)/);
+  if (pointsMatch) { maxPoints = parseInt(pointsMatch[1].replace(/,/g, '')); if (lower.includes('k') && maxPoints < 1000) maxPoints *= 1000; }
+  
+  // Parse dates from FULL query (not just destination part)
+  const { dates: departDates, isRange: isDateRange } = parseDates(query);
+  const departDate = departDates[0];
+  const flexible = /\b(flexible|anytime|any\s*date|whenever|no fixed)\b/.test(lower);
+  
+  // Parse max stops — check "all options" FIRST (overrides individual stop preferences)
+  const wantsAllStops = /\b(all\s*(?:the\s*)?options|any\s*stops?|one\s*stop\s*or\s*two|1\s*stop\s*or\s*2|direct.*one\s*stop|direct.*two\s*stop)\b/.test(lower);
+  let maxStops: number | null = null;
+  if (wantsAllStops) {
+    maxStops = null; // show all — user explicitly wants every option
+  } else if (/\b(direct|nonstop|non-stop|no stops?)\b/.test(lower)) {
+    maxStops = 0;
+  } else if (/\b(one stop|1 stop|max 1 stop)\b/.test(lower)) {
+    maxStops = 1;
+  } else if (/\b(two stops?|2 stops?|max 2 stops?)\b/.test(lower)) {
+    maxStops = 2;
+  }
+
+  const preferences: string[] = [];
+  if (/\b(direct|nonstop|non-stop)\b/.test(lower) && !wantsAllStops) preferences.push('direct');
+  if (/\b(cheap|cheapest|budget|value)\b/.test(lower)) preferences.push('cheapest');
+  if (/\b(points|miles|award)\b/.test(lower)) preferences.push('points');
+  if (wantsAllStops) preferences.push('allStops');
+
+  // If region search → return multiple destinations
+  if (destRegion && destRegion.length > 1) {
+    // Extract just the region name (strip everything except the region/destination keyword)
+    const cleanRegion = destText
+      .replace(/\b(tomorrow|today|next\s+\w+\s*days?|next\s+week|next\s+month|in\s+the\s+next\s+\w+\s*days?|within\s+\w+\s*days?|this\s+week|this\s+weekend)\b/gi, '')
+      .replace(/\b(business|economy|first|premium|class|cheap|cheapest)\b/gi, '')
+      .replace(/\b(\d+\s*(people|pax|passengers|adults|person)|family\s+of\s+\d+)\b/gi, '')
+      .replace(/\b(direct|nonstop|non-stop|one\s+stop|two\s+stops?|all\s+the\s+options|all\s+options|any\s+stops?|\d+\s+stops?)\b/gi, '')
+      .replace(/\b(for|or|and|with|in|on|the)\b/gi, '')
+      .replace(/[,]/g, '')
+      .replace(/\s+/g, ' ')
+      .trim();
+    return {
+      origin: origin.code,
+      originCity: origin.city,
+      isRegionSearch: true,
+      regionName: cleanRegion || destText.trim(),
+      destinations: destRegion.map(d => ({ code: d.code, city: d.city })),
+      departDate,
+      departDates,
+      isDateRange,
+      cabin,
+      passengers,
+      maxStops,
+      flexible,
+      maxBudget,
+      maxPoints,
+      currency: 'USD',
+      preferences,
+    };
+  }
+
+  // Single destination
+  const destination = destCity || destRegion?.[0] || { code: 'LHR', city: 'London' };
+
+  return {
+    origin: origin.code,
+    destination: destination.code,
+    originCity: origin.city,
+    destinationCity: destination.city,
+    isRegionSearch: false,
+    departDate,
+    departDates,
+    isDateRange,
+    cabin,
+    passengers,
+    maxStops,
+    flexible,
+    maxBudget,
+    maxPoints,
+    currency: 'USD',
+    preferences,
+  };
+}
