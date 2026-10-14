@@ -2,8 +2,13 @@ import type { Metadata, Viewport } from "next";
 import "./globals.css";
 
 export const metadata: Metadata = {
-  // metadataBase resolves relative OG/Twitter image paths. Falls back to localhost for local dev.
-  metadataBase: new URL(process.env.NEXT_PUBLIC_BASE_URL || 'http://localhost:3000'),
+  // metadataBase resolves relative OG/Twitter image paths. On a Vercel build without
+  // NEXT_PUBLIC_BASE_URL it uses the live vercel.app address (travelcheckpoint.com has
+  // no DNS yet); localhost is only for local dev.
+  metadataBase: new URL(
+    process.env.NEXT_PUBLIC_BASE_URL ||
+      (process.env.VERCEL ? 'https://travelcheckpoint.vercel.app' : 'http://localhost:3000'),
+  ),
   title: "TravelCheckpoint",
   description: "Flight search — cash fares, award points, hidden city, empty legs",
   manifest: "/manifest.json",
