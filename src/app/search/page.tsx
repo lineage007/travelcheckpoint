@@ -262,6 +262,14 @@ function SearchResults() {
   const [loadingExtra, setLoadingExtra] = useState(false);
   const [toast, setToast] = useState<string | null>(null);
 
+  // Generation token for the in-flight search. Every async continuation below
+  // captures the id it started with and drops its result if a newer search has
+  // begun — otherwise a slow provider from the *previous* query lands after
+  // setDestinations([]) and writes destinations[idx] into an empty array,
+  // leaving holes. Sparse holes then crash any render that reads
+  // destinations[0] or .find(d => d.code === …) — e.g. switching main tabs.
+  const runIdRef = useRef(0);
+
   // Load passport from localStorage during client initialization without a cascading effect render.
   const [passport] = useState(() => {
     if (typeof window === 'undefined') return 'TR';
@@ -302,6 +310,8 @@ function SearchResults() {
   const money = useCallback((amount: number | null | undefined) => moneyFrom(amount, 'USD'), [moneyFrom]);
 
   const doSearch = useCallback(async () => {
+    const runId = ++runIdRef.current;
+    const isStale = () => runIdRef.current !== runId;
     setLoading(true);
     setError(null);
     setDestinations([]);
@@ -318,6 +328,7 @@ function SearchResults() {
     setProviderStatuses({});
     setSearchedDates([]);
     setDateFilter(null);
+    setLoadingExtra(false);
 
     try {
     // 1. Parse the query
@@ -332,10 +343,12 @@ function SearchResults() {
       if (res.ok) {
         const d = await res.json();
         parseData = d.parsed || {};
+        if (isStale()) return;
         setParsed(d.parsed);
         setPassengers((d.parsed?.passengers as number) || 1);
       }
     } catch { /* */ }
+    if (isStale()) return;
 
     const origin = (parseData.origin as string) || 'DXB';
     const cabin = (parseData.cabin as string) || 'business';
@@ -403,6 +416,7 @@ function SearchResults() {
           const data = await res.json();
           const awards: AwardResult[] = data.results?.awards || [];
           const cash: CashResult[] = data.results?.cash || [];
+          if (isStale()) return;
           if (!isRegion && data.meta?.providerStatus) {
             const ps = { ...data.meta.providerStatus };
             if (ps.awards === 'skipped') delete ps.awards;
@@ -429,15 +443,23 @@ function SearchResults() {
         const cheapestCashDate = bestLive?.date || null;
         const cheapestAward = allAwards.filter(a => a.miles > 0)[0]?.miles || null;
 
+        if (isStale()) return;
         setDestinations(prev => {
+          // Never write past the end of the current list: a stale index would
+          // punch a hole into the array and crash later renders.
+          if (!prev[idx]) return prev;
           const updated = [...prev];
           updated[idx] = { ...updated[idx], cashResults: allCash, awardResults: allAwards, cheapestCash, cheapestCashDate, cheapestAward, loading: false };
           return updated;
         });
-      } catch { setDestinations(prev => { const u = [...prev]; u[idx] = { ...u[idx], loading: false }; return u; }); }
+      } catch {
+        if (isStale()) return;
+        setDestinations(prev => { if (!prev[idx]) return prev; const u = [...prev]; u[idx] = { ...u[idx], loading: false }; return u; });
+      }
     });
 
     await Promise.allSettled(promises);
+    if (isStale()) return;
 
     // 3. Load extra data for single-destination searches
     if (!isRegion && destList.length === 1) {
@@ -462,6 +484,7 @@ function SearchResults() {
         safeFetch(`/api/liteapi?destination=${dest}&checkin=${date}&checkout=${checkoutDate}&adults=${Math.max(1, Math.min(pax, 9))}`),
       ]);
 
+      if (isStale()) return;
       if (extras[0].status === 'fulfilled') {
         const value = extras[0].value;
         setHiddenCity((value.results || []).filter((r: HiddenCityResult) => r.price > 0));
@@ -490,6 +513,7 @@ function SearchResults() {
       setLoadingExtra(false);
     }
     } catch (err) {
+      if (isStale()) return;
       console.error('Search error:', err);
       setError('Something went wrong. Please try again.');
       setLoading(false);
@@ -507,7 +531,7 @@ function SearchResults() {
     if (loading) return;
     if (destinations.length === 0) return;
     const first = destinations[0];
-    if (first.loading) return;
+    if (!first || first.loading) return;
     const originCode = (parsed?.origin as string) || 'DXB';
     const destCode = first.code;
     const cabinClass = (parsed?.cabin as string) || 'business';
@@ -526,7 +550,7 @@ function SearchResults() {
 
   const dest0 = destinations[0] || null;
   const isMulti = destinations.length > 1;
-  const selectedResults = selectedDest ? destinations.find(d => d.code === selectedDest) || null : dest0;
+  const selectedResults = selectedDest ? destinations.find(d => d?.code === selectedDest) || null : dest0;
   const origin = (parsed?.origin as string) || 'DXB';
   const destCity = isMulti ? 'Multiple Cities' : (parsed?.destinationCity as string) || dest0?.city || '';
   const selectedCash = selectedResults?.cashResults || [];
@@ -813,7 +837,7 @@ function SearchResults() {
             {/* Multi-destination overview */}
             {isMulti && !selectedDest && (
               <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(200px, 1fr))', gap: '10px', marginBottom: '16px' }}>
-                {[...destinations].sort((a, b) => (a.cheapestCash || 99999) - (b.cheapestCash || 99999)).map((d, di) => (
+                {destinations.filter(Boolean).sort((a, b) => (a.cheapestCash || 99999) - (b.cheapestCash || 99999)).map((d, di) => (
                   <button key={d.code} onClick={() => setSelectedDest(d.code)} style={{
                     background: 'rgba(255,255,255,0.04)', border: `1px solid ${COLORS.border}`, borderRadius: '12px', padding: '16px', cursor: 'pointer', textAlign: 'left',
                     borderLeft: di === 0 ? `3px solid ${COLORS.accent}` : undefined,
@@ -1091,7 +1115,7 @@ function SearchResults() {
         {/* ═══════════════ STAY TAB ═══════════════ */}
         {mainTab === 'stay' && (() => {
           const stayCity = isMulti
-            ? (selectedDest ? (destinations.find(d => d.code === selectedDest)?.city || destCity) : destCity)
+            ? (selectedDest ? (destinations.find(d => d?.code === selectedDest)?.city || destCity) : destCity)
             : (parsed?.destinationCity as string || destCity || 'Dubai');
           const stayDate = (parsed?.departDates as string[])?.[0] || (parsed?.departDate as string) || '';
           const stayCheckoutDate = stayDate ? (() => { const d = new Date(`${stayDate}T00:00:00.000Z`); d.setUTCDate(d.getUTCDate() + 3); return d.toISOString().split('T')[0]; })() : '';
@@ -1312,7 +1336,7 @@ function SearchResults() {
 
             {/* Eat & do — restaurants and activities for the destination */}
             {(!isMulti || selectedDest) && (() => {
-              const exploreCity = (selectedResults && destinations.find(x => x.code === selectedResults.code)?.city) || (destCity !== 'Multiple Cities' ? destCity : '');
+              const exploreCity = (selectedResults && destinations.find(x => x?.code === selectedResults.code)?.city) || (destCity !== 'Multiple Cities' ? destCity : '');
               if (!exploreCity) return null;
               const eatDo = [
                 { name: 'OpenTable', desc: 'Book a restaurant', emoji: '🍽️', url: `https://www.opentable.com/s?term=${encodeURIComponent(exploreCity)}${departDate ? `&dateTime=${departDate}T19%3A00` : ''}&covers=${Math.max(2, passengers)}` },
