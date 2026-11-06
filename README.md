@@ -56,14 +56,11 @@ Names and purpose only, see `.env.example` for the file to copy. Never commit va
 | `CASH_FLIGHTS_API_URL` | Primary cash-fare API endpoint |
 | `LITEAPI_KEY` | LiteAPI hotel search and booking |
 | `GROQ_API_KEY` | Travel assistant chat |
-| `GEMINI_API_KEY` | Chat fallback |
-| `DUFFEL_ACCESS_TOKEN` | Bookable airline offers |
+| `GOOGLE_AI_API_KEY` | Chat fallback |
+| `DUFFEL_API_KEY` | Bookable airline offers |
 
-Two names in `.env.example` have drifted from the code: `/api/chat` reads
-`GOOGLE_AI_API_KEY` (not `GEMINI_API_KEY`) and `/api/duffel` reads `DUFFEL_API_KEY`
-(not `DUFFEL_ACCESS_TOKEN`). Three used names are missing from the file entirely:
-`SKIPLAGGED_PROXY_URL`, `ALERTS_JSON`, and the `NEXT_PUBLIC_*` affiliate IDs in
-`src/lib/affiliates.ts`. Set whichever the code actually reads.
+`.env.example` also lists `SKIPLAGGED_PROXY_URL`, `ALERTS_JSON` and the optional
+`NEXT_PUBLIC_*` affiliate IDs read by `src/lib/affiliates.ts`.
 
 Every provider is optional. A missing key degrades that one panel rather than failing the
 search: most search routes return empty results with `providerStatus: 'missing-key'`

@@ -10,7 +10,7 @@ export const metadata: Metadata = {
       (process.env.VERCEL ? 'https://travelcheckpoint.vercel.app' : 'http://localhost:3000'),
   ),
   title: "TravelCheckpoint",
-  description: "Flight search — cash fares, award points, hidden city, empty legs",
+  description: "Flight search: cash fares, award points, hidden city and empty legs",
   manifest: "/manifest.json",
   appleWebApp: {
     capable: true,
