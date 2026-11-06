@@ -275,6 +275,8 @@ function SearchResults() {
   // (Named dispCurrency: `currency` above is the destination-currency info card.)
   const [dispCurrency, setDispCurrencyState] = useState('AUD');
   const [fx, setFx] = useState<Record<string, number>>({ USD: 1 });
+  // Default search date when none was parsed: one week out. Computed once so render stays pure.
+  const [fallbackDate] = useState(() => new Date(Date.now() + 7 * 86400000).toISOString().split('T')[0]);
   useEffect(() => {
     let cancelled = false;
     (async () => {
@@ -784,7 +786,7 @@ function SearchResults() {
             {/* Compare-everywhere row: one tap to this exact route+date on every major engine.
                 Shown for single-city searches and when a city is drilled into on a region search. */}
             {selectedResults && !loading && (!isMulti || selectedDest) && (() => {
-              const cmpDate = departDate || new Date(Date.now() + 7 * 86400000).toISOString().split('T')[0];
+              const cmpDate = departDate || fallbackDate;
               const cmpCabin = (parsed?.cabin as string) || 'business';
               const cmpDest = selectedResults.code;
               const engines = [
@@ -925,7 +927,7 @@ function SearchResults() {
                   const isFallback = f.status === 'fallback';
                   const href = monetise(isFallback
                     ? f.bookingUrl
-                    : gfUrl(f.origin || origin, f.destination || selectedResults.code, f.date || departDate || new Date(Date.now() + 7 * 86400000).toISOString().split('T')[0], cabinClass, f.airline));
+                    : gfUrl(f.origin || origin, f.destination || selectedResults.code, f.date || departDate || fallbackDate, cabinClass, f.airline));
                   const depTime = formatDep(f.departureTime || '');
                   return (
                   <a key={f.id || i} className="result-card" href={href} target="_blank" rel="noopener noreferrer"
@@ -991,7 +993,7 @@ function SearchResults() {
                 <h3 style={{ fontFamily: 'var(--font-display)', fontSize: '15px', fontWeight: 600, color: COLORS.text, marginBottom: '4px' }}>Hidden City Fares <span style={{ fontSize: '11px', fontWeight: 400, color: COLORS.sub }}>via Skiplagged</span></h3>
                 <p style={{ fontFamily: 'var(--font-sans)', fontSize: '11px', color: COLORS.sub, marginBottom: '10px' }}>Get off at the layover — often 30-60% cheaper. Carry-on only, no checked bags.</p>
                 {hiddenCity.slice(0, 6).map((f, i) => {
-                  const hcDate = (f.departure || '').split('T')[0] || departDate || new Date(Date.now() + 7 * 86400000).toISOString().split('T')[0];
+                  const hcDate = (f.departure || '').split('T')[0] || departDate || fallbackDate;
                   return (
                   <a key={i} className="result-card" href={skiplaggedUrl(f.from || origin, f.to || selectedResults?.code || '', hcDate)} target="_blank" rel="noopener noreferrer"
                     aria-label={`Open ${f.from} to ${f.to} hidden-city fare on Skiplagged`}
@@ -1017,7 +1019,7 @@ function SearchResults() {
                 <h3 style={{ fontFamily: 'var(--font-display)', fontSize: '15px', fontWeight: 600, color: COLORS.text, marginBottom: '4px' }}>Creative Routes <span style={{ fontSize: '11px', fontWeight: 400, color: COLORS.sub }}>via Kiwi.com</span></h3>
                 <p style={{ fontFamily: 'var(--font-sans)', fontSize: '11px', color: COLORS.sub, marginBottom: '10px' }}>Multi-airline combinations with Kiwi Guarantee — if you miss a connection, they rebook you.</p>
                 {kiwiResults.slice(0, 6).map((f, i) => {
-                  const kwDate = (f.departure || '').split('T')[0] || departDate || new Date(Date.now() + 7 * 86400000).toISOString().split('T')[0];
+                  const kwDate = (f.departure || '').split('T')[0] || departDate || fallbackDate;
                   return (
                   <a key={i} className="result-card" href={monetise(f.bookingLink || kiwiUrl(f.from || origin, f.to || selectedResults?.code || '', kwDate))} target="_blank" rel="noopener noreferrer"
                     aria-label={`Book ${f.airlines.join(' + ')} ${f.from} to ${f.to} on Kiwi.com`}
@@ -1046,7 +1048,7 @@ function SearchResults() {
                 <h3 style={{ fontFamily: 'var(--font-display)', fontSize: '15px', fontWeight: 600, color: COLORS.text, marginBottom: '4px' }}>Live Airline Fares <span style={{ fontSize: '11px', fontWeight: 400, color: COLORS.sub }}>via Duffel</span></h3>
                 <p style={{ fontFamily: 'var(--font-sans)', fontSize: '11px', color: COLORS.sub, marginBottom: '10px' }}>Real-time airline prices — tap a fare to book it with the airline.</p>
                 {duffelResults.slice(0, 8).map((f, i) => {
-                  const dfDate = (f.departure || '').split('T')[0] || departDate || new Date(Date.now() + 7 * 86400000).toISOString().split('T')[0];
+                  const dfDate = (f.departure || '').split('T')[0] || departDate || fallbackDate;
                   return (
                   <a key={f.id || i} className="result-card" href={gfUrl(f.from || origin, f.to || selectedResults?.code || '', dfDate, (parsed?.cabin as string) || 'business', f.airlines[0])} target="_blank" rel="noopener noreferrer"
                     aria-label={`Check ${f.airlines.join(' + ')} ${f.from} to ${f.to} — opens Google Flights`}
@@ -1366,7 +1368,7 @@ function SearchResults() {
           origin={origin}
           dest={selectedResults?.code || dest0?.code || 'LHR'}
           cabin={(parsed?.cabin as string) || 'business'}
-          baseDate={departDate || new Date(Date.now() + 7 * 86400000).toISOString().split('T')[0]}
+          baseDate={departDate || fallbackDate}
           knownPrices={knownPrices}
           symbol={CUR_SYMBOLS[dispCurrency] ?? `${dispCurrency} `}
           rate={fx[dispCurrency] || 1}
