@@ -66,8 +66,9 @@ Two names in `.env.example` have drifted from the code: `/api/chat` reads
 `src/lib/affiliates.ts`. Set whichever the code actually reads.
 
 Every provider is optional. A missing key degrades that one panel rather than failing the
-search: most routes return `{ error: 'missing-key' }` (Skiplagged returns
-`{ status: 'not-configured' }`, Duffel returns empty results with an error message).
+search: most search routes return empty results with `providerStatus: 'missing-key'`
+(Skiplagged returns `{ status: 'not-configured' }`, Duffel returns empty results with an
+error message). The booking routes are the exception: they return 503 `{ error: 'missing-key' }`.
 
 ## Local development
 
