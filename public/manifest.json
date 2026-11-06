@@ -1,7 +1,7 @@
 {
   "name": "TravelCheckpoint",
   "short_name": "TravelCP",
-  "description": "Flight search — cash, points, hidden city, empty legs",
+  "description": "Flight search: cash, points, hidden city and empty legs",
   "start_url": "/",
   "display": "standalone",
   "orientation": "portrait",
