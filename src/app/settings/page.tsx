@@ -118,7 +118,7 @@ export default function SettingsPage() {
     <div style={{ minHeight: '100vh', background: COLORS.bg }}>
       <div style={{ background: 'rgba(255,255,255,0.04)', borderBottom: `1px solid ${COLORS.border}`, padding: '14px 16px' }}>
         <div style={{ maxWidth: '600px', margin: '0 auto', display: 'flex', alignItems: 'center', gap: '12px' }}>
-          <button onClick={() => router.back()} style={{ background: 'none', border: 'none', cursor: 'pointer', color: COLORS.sub }}><ArrowLeft size={20} /></button>
+          <button onClick={() => router.back()} aria-label="Back" style={{ background: 'none', border: 'none', cursor: 'pointer', color: COLORS.sub }}><ArrowLeft size={20} /></button>
           <span style={{ fontFamily: 'var(--font-display)', fontSize: '18px', fontWeight: 600, color: COLORS.text }}>Settings</span>
         </div>
       </div>

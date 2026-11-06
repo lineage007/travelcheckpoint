@@ -31,6 +31,7 @@ export async function GET(req: NextRequest) {
   const { searchParams } = new URL(req.url);
   const from = (searchParams.get('from') || 'aed').toLowerCase();
   const dest = (searchParams.get('destination') || '').toUpperCase();
+  if (!/^[a-z]{3}$/.test(from)) return NextResponse.json({ error: 'Invalid currency' }, { status: 400 });
   const c = A2C[dest];
   if (!c) return NextResponse.json({ error: 'Unknown destination' });
 

@@ -50,6 +50,11 @@ let ALERT_STORE: AlertRow[] = (() => {
   }
 })();
 
+// Telegram messages are sent with parse_mode HTML, so user-supplied text must be escaped.
+function escapeHtml(s: string): string {
+  return s.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
+}
+
 async function sendTelegram(text: string): Promise<void> {
   if (!BOT_TOKEN || !CHAT_ID) return;
   await fetch(`https://api.telegram.org/bot${BOT_TOKEN}/sendMessage`, {
@@ -164,7 +169,7 @@ export async function POST(request: NextRequest) {
 
   await sendTelegram(
     `<b>TravelCheckpoint alert set</b>\n` +
-    `Route: ${label}\n` +
+    `Route: ${escapeHtml(label)}\n` +
     (baselineCash ? `Baseline cash: $${baselineCash.toLocaleString()}\n` : '') +
     (baselineAward ? `Baseline award: ${(baselineAward / 1000).toFixed(0)}K miles\n` : '') +
     `You'll be notified when the price drops more than ${DROP_THRESHOLD}%.`
@@ -225,7 +230,7 @@ export async function GET(request: NextRequest) {
       if (lines.length > 0) {
         await sendTelegram(
           `<b>TravelCheckpoint price alert</b>\n` +
-          `Route: ${alert.label}\n` +
+          `Route: ${escapeHtml(alert.label)}\n` +
           lines.join('\n') +
           `\nSearch: /search?q=${encodeURIComponent(alert.label)}`
         );

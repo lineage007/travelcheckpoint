@@ -639,7 +639,7 @@ function SearchResults() {
       {/* Header */}
       <div style={{ background: 'rgba(6,6,10,0.95)', backdropFilter: 'blur(20px)', borderBottom: `1px solid ${COLORS.border}`, padding: '12px 16px' }}>
         <div style={{ maxWidth: '900px', margin: '0 auto', display: 'flex', alignItems: 'center', gap: '12px' }}>
-          <button onClick={() => router.push('/')} style={{ background: 'none', border: 'none', cursor: 'pointer', color: COLORS.sub }}><ArrowLeft size={20} /></button>
+          <button onClick={() => router.push('/')} aria-label="Back to home" style={{ background: 'none', border: 'none', cursor: 'pointer', color: COLORS.sub }}><ArrowLeft size={20} /></button>
           <div style={{ flex: 1, display: 'flex', alignItems: 'center', background: 'rgba(255,255,255,0.05)', border: `1px solid rgba(255,255,255,0.08)`, borderRadius: '10px', padding: '8px 14px', gap: '8px' }}>
             <Search size={16} color={COLORS.sub} />
             <input ref={searchBoxRef} value={searchInput || q} onChange={e => setSearchInput(e.target.value)}
