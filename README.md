@@ -47,7 +47,7 @@ Names and purpose only, see `.env.example` for the file to copy. Never commit va
 | Name | Purpose |
 | --- | --- |
 | `NEXT_PUBLIC_BASE_URL` | Public base URL; the alert runner uses it to call `/api/search`. Falls back to `VERCEL_URL` |
-| `TC_SECRET` | Optional pre-shared secret for `POST /api/alerts` (header `X-TC-Secret`). Unset means no check |
+| `TC_SECRET` | Optional pre-shared secret for `POST /api/alerts` (header `X-TC-Secret`). Unset means no check. The in-app alert form does not send this header yet, so setting it blocks alerts from the UI |
 | `TELEGRAM_BOT_TOKEN` | Bot token for price-drop notifications |
 | `TELEGRAM_CHAT_ID` | Chat that notifications are sent to |
 | `DROP_THRESHOLD_PCT` | Percentage price drop that triggers an alert |
