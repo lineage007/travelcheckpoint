@@ -63,6 +63,8 @@ export default function HistoryPage() {
       const raw = window.localStorage.getItem('tc_search_history');
       if (raw) {
         const parsed: HistoryEntry[] = JSON.parse(raw);
+        // localStorage is client-only, so it has to load after mount to avoid a hydration mismatch.
+        // eslint-disable-next-line react-hooks/set-state-in-effect
         if (Array.isArray(parsed)) setEntries(parsed);
       }
     } catch { /* corrupt storage */ }
