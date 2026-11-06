@@ -121,7 +121,7 @@ export default function HistoryPage() {
       {/* Header */}
       <div style={{ background: 'rgba(6,6,10,0.95)', backdropFilter: 'blur(20px)', borderBottom: `1px solid ${C.border}`, padding: '14px 16px' }}>
         <div style={{ maxWidth: '700px', margin: '0 auto', display: 'flex', alignItems: 'center', gap: '12px' }}>
-          <button onClick={() => router.push('/')} style={{ background: 'none', border: 'none', cursor: 'pointer', color: C.sub, display: 'flex', alignItems: 'center' }}>
+          <button onClick={() => router.push('/')} aria-label="Back to home" style={{ background: 'none', border: 'none', cursor: 'pointer', color: C.sub, display: 'flex', alignItems: 'center' }}>
             <ArrowLeft size={20} />
           </button>
           <span style={{ fontSize: '18px', fontWeight: 600, letterSpacing: '-0.02em' }}>Search History</span>
