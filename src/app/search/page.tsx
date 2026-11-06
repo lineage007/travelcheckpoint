@@ -519,6 +519,7 @@ function SearchResults() {
       console.error('Search error:', err);
       setError('Something went wrong. Please try again.');
       setLoading(false);
+      setLoadingExtra(false);
     }
   }, [q, passport, flexDays]);
 

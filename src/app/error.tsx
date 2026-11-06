@@ -5,7 +5,10 @@ import Link from 'next/link';
 
 // App Router error boundary for every route under /. Catches render and effect
 // errors so a single bad provider payload can never blank the whole app.
-export default function GlobalError({ error, reset }: { error: Error & { digest?: string }; reset: () => void }) {
+export default function AppError({ error, retry }: { error: unknown; retry: () => void }) {
+  // Next 16 passes the thrown value through as-is, so it may not be an Error at all.
+  const digest = typeof error === 'object' && error !== null && 'digest' in error ? String((error as { digest?: unknown }).digest ?? '') : '';
+
   useEffect(() => {
     console.error('TravelCheckpoint error:', error);
   }, [error]);
@@ -19,13 +22,13 @@ export default function GlobalError({ error, reset }: { error: Error & { digest?
         <p style={{ fontFamily: 'var(--font-sans)', fontSize: '13px', lineHeight: 1.5, color: 'rgba(255,255,255,0.4)', marginBottom: '20px' }}>
           This page hit an unexpected error. Trying again usually clears it.
         </p>
-        {error.digest && (
+        {digest && (
           <div style={{ fontFamily: 'var(--font-mono)', fontSize: '11px', color: 'rgba(255,255,255,0.25)', marginBottom: '20px' }}>
-            ref {error.digest}
+            ref {digest}
           </div>
         )}
         <div style={{ display: 'flex', gap: '8px', justifyContent: 'center', flexWrap: 'wrap' }}>
-          <button onClick={() => reset()}
+          <button onClick={() => retry()}
             style={{ background: '#35c6ad', color: '#fff', border: 'none', borderRadius: '10px', padding: '10px 18px', fontFamily: 'var(--font-sans)', fontSize: '13px', fontWeight: 700, cursor: 'pointer' }}>
             Try again
           </button>
