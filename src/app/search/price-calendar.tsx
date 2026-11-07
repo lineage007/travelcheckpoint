@@ -2,6 +2,7 @@
 
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { ChevronLeft, ChevronRight, X } from 'lucide-react';
+import { withTimeout } from '@/lib/request-pool';
 
 // Google Flights-style price calendar. Prices come from three layers:
 // 1. the current search results (passed in as knownPrices),
@@ -56,6 +57,8 @@ export default function PriceCalendar({ origin, dest, cabin, baseDate, knownPric
     if (probedMonths.current.has(month)) return;
     probedMonths.current = new Set(probedMonths.current).add(month);
     let cancelled = false;
+    // Closing the calendar or changing month aborts the probes still in flight.
+    const controller = new AbortController();
 
     (async () => {
       await Promise.resolve();
@@ -77,7 +80,7 @@ export default function PriceCalendar({ origin, dest, cabin, baseDate, knownPric
       for (let i = 0; i < targets.length && !cancelled; i += 3) {
         await Promise.all(targets.slice(i, i + 3).map(async (d) => {
           try {
-            const res = await fetch(`/api/search?origin=${origin}&destination=${dest}&cabin=${encodeURIComponent(cabin)}&date=${d}&passengers=1&skipAwards=1&priceOnly=1`, { signal: AbortSignal.timeout(25000) });
+            const res = await fetch(`/api/search?origin=${origin}&destination=${dest}&cabin=${encodeURIComponent(cabin)}&date=${d}&passengers=1&skipAwards=1&priceOnly=1`, { signal: withTimeout(controller.signal, 25000) });
             const data = await res.json();
             interface ProbeCash { price?: number | null; isLivePrice?: boolean }
             const best = ((data.results?.cash || []) as ProbeCash[])
@@ -98,7 +101,7 @@ export default function PriceCalendar({ origin, dest, cabin, baseDate, knownPric
       if (!cancelled) setProbingMonths(pm => pm.filter(x => x !== month));
     })();
 
-    return () => { cancelled = true; };
+    return () => { cancelled = true; controller.abort(); };
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [month, origin, dest, cabin]);
 
