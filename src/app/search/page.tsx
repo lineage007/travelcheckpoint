@@ -5,6 +5,7 @@ import { useSearchParams, useRouter } from 'next/navigation';
 import { ArrowLeft, Plane, ExternalLink, Search, Hotel, Compass, Shield, DollarSign, Sparkles, Settings, CalendarDays } from 'lucide-react';
 import PriceCalendar from './price-calendar';
 import { monetise } from '@/lib/affiliates';
+import { createRequestPool, withTimeout, type RequestPool } from '@/lib/request-pool';
 
 const AIRLINE_BOOK_URLS: Record<string, string> = {
   'Emirates': 'https://www.emirates.com/ae/english/manage-booking/redeem-miles/',
@@ -269,6 +270,10 @@ function SearchResults() {
   // leaving holes. Sparse holes then crash any render that reads
   // destinations[0] or .find(d => d.code === …) — e.g. switching main tabs.
   const runIdRef = useRef(0);
+  // The request pool of the in-flight search. A newer search, or leaving the
+  // page, cancels it so the superseded query stops calling paid providers.
+  const poolRef = useRef<RequestPool | null>(null);
+  useEffect(() => () => { runIdRef.current++; poolRef.current?.cancel(); }, []);
 
   // Load passport from localStorage during client initialization without a cascading effect render.
   const [passport] = useState(() => {
@@ -314,6 +319,9 @@ function SearchResults() {
   const doSearch = useCallback(async () => {
     const runId = ++runIdRef.current;
     const isStale = () => runIdRef.current !== runId;
+    poolRef.current?.cancel();
+    const pool = createRequestPool(12);
+    poolRef.current = pool;
     setLoading(true);
     setError(null);
     setDestinations([]);
@@ -341,7 +349,7 @@ function SearchResults() {
       const homeAirport = typeof window !== 'undefined'
         ? (window.localStorage.getItem('tc_home_airport') || 'DXB')
         : 'DXB';
-      const res = await fetch('/api/parse', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ query: q, homeAirport }) });
+      const res = await fetch('/api/parse', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ query: q, homeAirport }), signal: pool.signal });
       if (res.ok) {
         const d = await res.json();
         parseData = d.parsed || {};
@@ -392,15 +400,8 @@ function SearchResults() {
         : Array.from({ length: dateCap }, (_, i) => allDates[Math.round(i * (allDates.length - 1) / (dateCap - 1))]);
     setSearchedDates(searchDates);
 
-    // Concurrency limiter: keep at most 12 provider searches in flight.
-    let inFlight = 0;
-    const waiters: (() => void)[] = [];
-    const withSlot = async (fn: () => Promise<void>): Promise<void> => {
-      if (inFlight >= 12) await new Promise<void>(r => waiters.push(r));
-      inFlight++;
-      try { await fn(); } catch { /* one failed date must not sink the city */ }
-      finally { inFlight--; waiters.shift()?.(); }
-    };
+    // At most 12 provider searches in flight (the pool above); one failed date
+    // must not sink the city, and a cancelled search starts no further calls.
 
     const promises = destList.map(async (dest, idx) => {
       try {
@@ -409,12 +410,12 @@ function SearchResults() {
         const allAwards: AwardResult[] = [];
         const seen = new Set<string>();
 
-        const dateSearches = searchDates.map((date, dateIdx) => withSlot(async () => {
+        const dateSearches = searchDates.map((date, dateIdx) => pool.run(async (signal) => {
           const stopsParam = maxStops !== null && maxStops !== undefined ? `&maxStops=${maxStops}` : '';
           // Awards aren't date-specific — only the first date queries seats.aero,
           // the rest skip it to protect the daily quota.
           const awardsParam = dateIdx > 0 ? '&skipAwards=1' : '';
-          const res = await fetch(`/api/search?origin=${origin}&destination=${dest.code}&cabin=${cabin}&date=${date}&passengers=${pax}${stopsParam}${awardsParam}`, { signal: AbortSignal.timeout(20000) });
+          const res = await fetch(`/api/search?origin=${origin}&destination=${dest.code}&cabin=${cabin}&date=${date}&passengers=${pax}${stopsParam}${awardsParam}`, { signal: withTimeout(signal, 20000) });
           const data = await res.json();
           const awards: AwardResult[] = data.results?.awards || [];
           const cash: CashResult[] = data.results?.cash || [];
@@ -473,7 +474,7 @@ function SearchResults() {
       const checkoutDate = checkout.toISOString().split('T')[0];
 
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      const safeFetch = (url: string): Promise<any> => fetch(url).then(r => { if (!r.ok) return {}; return r.json().catch(() => ({})); }).catch(() => ({}));
+      const safeFetch = (url: string): Promise<any> => fetch(url, { signal: pool.signal }).then(r => { if (!r.ok) return {}; return r.json().catch(() => ({})); }).catch(() => ({}));
       const extras = await Promise.allSettled([
         safeFetch(`/api/skiplagged?from=${origin}&to=${dest}&depart=${date}`),
         safeFetch(`/api/kiwi?from=${origin}&to=${dest}&depart=${date}&cabin=${cabin}`),
