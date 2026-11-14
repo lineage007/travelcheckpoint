@@ -13,6 +13,13 @@ describe('debugRoutesEnabled', () => {
     expect(debugRoutesEnabled({ NODE_ENV: 'test' })).toBe(true);
   });
 
+  it('is off for any other value, including unset (allowlist, fails closed)', () => {
+    expect(debugRoutesEnabled({})).toBe(false);
+    expect(debugRoutesEnabled({ NODE_ENV: '' })).toBe(false);
+    expect(debugRoutesEnabled({ NODE_ENV: 'staging' })).toBe(false);
+    expect(debugRoutesEnabled({ NODE_ENV: 'Production' })).toBe(false);
+  });
+
   it('gates /api/mcp-test before any MCP call', () => {
     const src = readFileSync(join(__dirname, '..', 'app', 'api', 'mcp-test', 'route.ts'), 'utf8');
     const gate = src.indexOf('if (!debugRoutesEnabled())');
