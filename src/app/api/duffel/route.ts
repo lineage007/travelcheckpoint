@@ -68,6 +68,7 @@ interface DuffelOffer {
   owner?: { name?: string; iata_code?: string };
   payment_requirements?: { requires_instant_payment?: boolean };
   expires_at?: string;
+  live_mode?: boolean;
 }
 
 export async function GET(req: NextRequest) {
@@ -84,7 +85,13 @@ export async function GET(req: NextRequest) {
 
   try {
     const data = await createOfferRequest(origin, destination, date, cabin, passengers);
-    const offers: DuffelOffer[] = data.data?.offers || [];
+    // Sandbox offers (live_mode false, or the Duffel Airways test carrier ZZ) carry
+    // invented prices. Only real airline inventory reaches the results.
+    const offers: DuffelOffer[] = (data.data?.offers || []).filter((o: DuffelOffer) =>
+      o.live_mode !== false &&
+      o.owner?.iata_code !== 'ZZ' &&
+      !(o.slices || []).some(sl => (sl.segments || []).some(sg => sg.operating_carrier?.iata_code === 'ZZ' || sg.marketing_carrier?.iata_code === 'ZZ'))
+    );
 
     const results = offers.slice(0, 15).map((offer) => {
       const slice = offer.slices?.[0];
