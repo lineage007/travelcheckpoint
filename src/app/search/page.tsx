@@ -674,14 +674,14 @@ function SearchResults() {
       <div style={{ background: 'rgba(6,6,10,0.95)', backdropFilter: 'blur(20px)', borderBottom: `1px solid ${COLORS.border}`, padding: '12px 16px' }}>
         <div style={{ maxWidth: '900px', margin: '0 auto', display: 'flex', alignItems: 'center', gap: '12px' }}>
           <button onClick={() => router.push('/')} aria-label="Back to home" style={{ background: 'none', border: 'none', cursor: 'pointer', color: COLORS.sub }}><ArrowLeft size={20} /></button>
-          <div style={{ flex: 1, display: 'flex', alignItems: 'center', background: 'rgba(255,255,255,0.05)', border: `1px solid rgba(255,255,255,0.08)`, borderRadius: '10px', padding: '8px 14px', gap: '8px' }}>
+          <div style={{ flex: 1, minWidth: 0, display: 'flex', alignItems: 'center', background: 'rgba(255,255,255,0.05)', border: `1px solid rgba(255,255,255,0.08)`, borderRadius: '10px', padding: '8px 14px', gap: '8px' }}>
             <Search size={16} color={COLORS.sub} />
             <input ref={searchBoxRef} value={searchInput || q} onChange={e => setSearchInput(e.target.value)}
               onKeyDown={e => { if (e.key === 'Enter' && searchInput.trim()) router.push(`/search?q=${encodeURIComponent(searchInput)}`); }}
-              placeholder="Search again..." style={{ flex: 1, border: 'none', background: 'none', outline: 'none', fontFamily: 'var(--font-body)', fontSize: '14px', color: COLORS.text }} />
+              placeholder="Search again..." style={{ flex: 1, minWidth: 0, width: '100%', border: 'none', background: 'none', outline: 'none', fontFamily: 'var(--font-body)', fontSize: '14px', color: COLORS.text }} />
           </div>
           <select value={dispCurrency} onChange={e => setDispCurrency(e.target.value)} aria-label="Display currency"
-            style={{ fontFamily: 'var(--font-mono)', fontSize: '12px', fontWeight: 700, background: COLORS.card, border: `1px solid ${COLORS.border}`, borderRadius: '10px', padding: '9px 8px', color: COLORS.text, outline: 'none', cursor: 'pointer', minHeight: '38px' }}>
+            style={{ fontFamily: 'var(--font-mono)', fontSize: '12px', fontWeight: 700, background: COLORS.card, border: `1px solid ${COLORS.border}`, borderRadius: '10px', padding: '9px 8px', color: COLORS.text, outline: 'none', cursor: 'pointer', minHeight: '38px', flexShrink: 0 }}>
             {CURRENCIES.map(c => <option key={c} value={c} style={{ background: '#15151c' }}>{c}</option>)}
           </select>
         </div>
