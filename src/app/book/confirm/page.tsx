@@ -91,7 +91,7 @@ function ConfirmInner() {
               {result.hotelConfirmationCode && <div style={{ display: 'flex', justifyContent: 'space-between' }}><span style={{ color: C.sub }}>Hotel confirmation</span><span style={{ color: C.text, fontFamily: 'var(--font-mono)' }}>{result.hotelConfirmationCode}</span></div>}
               {result.refundableTag && <div style={{ display: 'flex', justifyContent: 'space-between' }}><span style={{ color: C.sub }}>Cancellation</span><span style={{ color: result.refundableTag === 'RFN' ? '#34D399' : '#FBBF24' }}>{result.refundableTag === 'RFN' ? `Refundable${result.lastFreeCancellationDate ? ` until ${fmt(result.lastFreeCancellationDate)}` : ''}` : 'Non-refundable'}</span></div>}
             </div>
-            <button onClick={() => router.push('/')} style={{ width: '100%', marginTop: '20px', background: C.accent, color: '#fff', border: 'none', borderRadius: '10px', padding: '12px', fontWeight: 700, cursor: 'pointer', fontSize: '14px' }}>Done</button>
+            <button onClick={() => router.push('/')} style={{ width: '100%', marginTop: '20px', background: C.accent, color: '#06060a', border: 'none', borderRadius: '10px', padding: '12px', fontWeight: 700, cursor: 'pointer', fontSize: '14px' }}>Done</button>
           </div>
         )}
         {state === 'failed' && (
@@ -99,7 +99,7 @@ function ConfirmInner() {
             <XCircle size={40} color="#EF4444" style={{ marginBottom: '8px' }} />
             <div style={{ fontFamily: 'var(--font-display)', fontSize: '18px', fontWeight: 700, color: C.text, marginBottom: '8px' }}>Booking not completed</div>
             <div style={{ fontSize: '13px', color: C.sub, marginBottom: '18px' }}>{detail}</div>
-            <button onClick={() => router.push('/')} style={{ background: C.accent, color: '#fff', border: 'none', borderRadius: '10px', padding: '11px 18px', fontWeight: 700, cursor: 'pointer', fontSize: '13px' }}>Back to search</button>
+            <button onClick={() => router.push('/')} style={{ background: C.accent, color: '#06060a', border: 'none', borderRadius: '10px', padding: '11px 18px', fontWeight: 700, cursor: 'pointer', fontSize: '13px' }}>Back to search</button>
           </div>
         )}
       </div>

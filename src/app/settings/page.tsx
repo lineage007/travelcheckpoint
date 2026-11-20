@@ -168,7 +168,7 @@ export default function SettingsPage() {
                   border: 'none', background: active ? COLORS.accent + '08' : 'transparent', cursor: 'pointer', textAlign: 'left',
                 }}>
                   <div style={{ width: 20, height: 20, borderRadius: '4px', border: `2px solid ${active ? COLORS.accent : COLORS.border}`, background: active ? COLORS.accent : 'rgba(255,255,255,0.04)', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
-                    {active && <Check size={12} color="#fff" />}
+                    {active && <Check size={12} color="#06060a" />}
                   </div>
                   <span style={{ fontFamily: 'var(--font-sans)', fontSize: '13px', color: COLORS.text, fontWeight: active ? 600 : 400 }}>{p.name}</span>
                   <span style={{ fontFamily: 'var(--font-sans)', fontSize: '10px', color: COLORS.sub, marginLeft: 'auto', textTransform: 'uppercase' }}>{p.type}</span>
@@ -218,7 +218,7 @@ export default function SettingsPage() {
         {/* Save Button */}
         <button onClick={save} style={{
           width: '100%', padding: '14px', borderRadius: '12px', border: 'none',
-          background: COLORS.accent, color: '#fff',
+          background: COLORS.accent, color: '#06060a',
           fontFamily: 'var(--font-sans)', fontSize: '15px', fontWeight: 600, cursor: 'pointer',
           transition: 'all 0.15s',
         }}>

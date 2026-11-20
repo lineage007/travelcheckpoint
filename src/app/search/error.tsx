@@ -30,7 +30,7 @@ export default function SearchError({ error, retry }: { error: unknown; retry: (
         )}
         <div style={{ display: 'flex', gap: '8px', justifyContent: 'center', flexWrap: 'wrap' }}>
           <button onClick={() => retry()}
-            style={{ background: '#35c6ad', color: '#fff', border: 'none', borderRadius: '10px', padding: '10px 18px', fontFamily: 'var(--font-sans)', fontSize: '13px', fontWeight: 700, cursor: 'pointer' }}>
+            style={{ background: '#35c6ad', color: '#06060a', border: 'none', borderRadius: '10px', padding: '10px 18px', fontFamily: 'var(--font-sans)', fontSize: '13px', fontWeight: 700, cursor: 'pointer' }}>
             Try again
           </button>
           <Link href="/"
