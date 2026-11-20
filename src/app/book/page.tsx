@@ -122,14 +122,14 @@ export default function BookPage() {
             <Hotel size={28} color={C.sub} style={{ marginBottom: '10px' }} />
             <p style={{ color: C.text, fontSize: '14px', marginBottom: '6px' }}>No booking in progress</p>
             <p style={{ color: C.sub, fontSize: '13px', marginBottom: '16px' }}>Start from a hotel search and tap “Book now” on a rate.</p>
-            <button onClick={() => router.push('/')} style={{ background: C.accent, color: '#fff', border: 'none', borderRadius: '10px', padding: '10px 18px', fontWeight: 700, cursor: 'pointer' }}>New search</button>
+            <button onClick={() => router.push('/')} style={{ background: C.accent, color: '#06060a', border: 'none', borderRadius: '10px', padding: '10px 18px', fontWeight: 700, cursor: 'pointer' }}>New search</button>
           </div>
         )}
         {error === 'offer-expired' && (
           <div style={{ background: 'rgba(245,158,11,0.08)', border: '1px solid rgba(245,158,11,0.2)', borderRadius: '12px', padding: '16px', marginTop: '24px' }}>
             <div style={{ color: '#FBBF24', fontWeight: 700, fontSize: '13px', marginBottom: '4px' }}>This rate expired</div>
             <div style={{ color: C.sub, fontSize: '12px', marginBottom: '12px' }}>Hotel offers are only held for a short time. Re-run the search to get a fresh price.</div>
-            <button onClick={() => router.back()} style={{ background: C.accent, color: '#fff', border: 'none', borderRadius: '10px', padding: '9px 16px', fontWeight: 700, cursor: 'pointer', fontSize: '13px' }}>Back to results</button>
+            <button onClick={() => router.back()} style={{ background: C.accent, color: '#06060a', border: 'none', borderRadius: '10px', padding: '9px 16px', fontWeight: 700, cursor: 'pointer', fontSize: '13px' }}>Back to results</button>
           </div>
         )}
         {(error === 'prebook-failed' || error === 'payment-sdk-failed') && (
@@ -182,7 +182,7 @@ export default function BookPage() {
               {!prebook && <div style={{ height: '120px', background: 'rgba(255,255,255,0.03)', borderRadius: '10px', animation: 'shimmer 1.5s infinite' }} />}
               {prebook && !paymentMounted && (
                 <button onClick={continueToPayment} disabled={!holderComplete || !sdkReady}
-                  style={{ width: '100%', background: holderComplete && sdkReady ? C.accent : 'rgba(255,255,255,0.08)', color: holderComplete && sdkReady ? '#fff' : C.sub, border: 'none', borderRadius: '10px', padding: '13px', fontWeight: 700, cursor: holderComplete && sdkReady ? 'pointer' : 'default', fontSize: '14px', fontFamily: 'var(--font-sans)' }}>
+                  style={{ width: '100%', background: holderComplete && sdkReady ? C.accent : 'rgba(255,255,255,0.08)', color: holderComplete && sdkReady ? '#06060a' : C.sub, border: 'none', borderRadius: '10px', padding: '13px', fontWeight: 700, cursor: holderComplete && sdkReady ? 'pointer' : 'default', fontSize: '14px', fontFamily: 'var(--font-sans)' }}>
                   {holderComplete ? (sdkReady ? `Continue to payment — ${prebook.currency} ${prebook.price?.toLocaleString()}` : 'Loading payment portal…') : 'Fill in guest details to continue'}
                 </button>
               )}

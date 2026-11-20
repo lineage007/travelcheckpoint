@@ -194,7 +194,7 @@ function EmptyFlights({ onFlex, onAnyStops }: { onFlex: () => void; onAnyStops: 
         Providers returned nothing for this exact search. Widen the dates or allow stops, or use the compare links above to double-check.
       </div>
       <div style={{ display: 'flex', gap: '8px', justifyContent: 'center', flexWrap: 'wrap' }}>
-        <button onClick={onFlex} style={{ background: COLORS.accent, color: '#fff', border: 'none', borderRadius: '10px', padding: '10px 16px', fontWeight: 700, cursor: 'pointer', fontSize: '13px', fontFamily: 'var(--font-sans)' }}>Try ±3 days</button>
+        <button onClick={onFlex} style={{ background: COLORS.accent, color: '#06060a', border: 'none', borderRadius: '10px', padding: '10px 16px', fontWeight: 700, cursor: 'pointer', fontSize: '13px', fontFamily: 'var(--font-sans)' }}>Try ±3 days</button>
         <button onClick={onAnyStops} style={{ background: COLORS.card, color: COLORS.text, border: `1px solid ${COLORS.border}`, borderRadius: '10px', padding: '10px 16px', fontWeight: 700, cursor: 'pointer', fontSize: '13px', fontFamily: 'var(--font-sans)' }}>Allow any stops</button>
       </div>
     </div>
@@ -656,7 +656,7 @@ function SearchResults() {
   const chipStyle = (active: boolean) => ({
     fontFamily: 'var(--font-sans)', fontSize: '12px', fontWeight: active ? 600 : 400,
     padding: '6px 14px', borderRadius: '100px', border: 'none', cursor: 'pointer',
-    background: active ? COLORS.accent : COLORS.card, color: active ? '#fff' : COLORS.sub,
+    background: active ? COLORS.accent : COLORS.card, color: active ? '#06060a' : COLORS.sub,
     transition: 'all 0.15s',
   });
 
@@ -722,7 +722,7 @@ function SearchResults() {
                 {['economy', 'premium-economy', 'business', 'first'].map(c => {
                   const active = (parsed.cabin as string || 'business') === c;
                   return <button key={c} onClick={() => { if (!active) { const base = searchInput || q; const cabins = ['economy','premium-economy','business','first']; const oldCabin = cabins.find(cb => base.toLowerCase().includes(cb)) || ''; const newQ = oldCabin ? base.replace(new RegExp(oldCabin, 'i'), c) : `${base}, ${c}`; router.push(`/search?q=${encodeURIComponent(newQ)}`); } }}
-                    style={{ fontFamily: 'var(--font-sans)', fontSize: '11px', fontWeight: active ? 600 : 400, padding: '8px 12px', borderRadius: '100px', border: 'none', cursor: 'pointer', background: active ? COLORS.accent : COLORS.card, color: active ? '#fff' : COLORS.sub, transition: 'all 0.15s', whiteSpace: 'nowrap', minHeight: '36px' }}>
+                    style={{ fontFamily: 'var(--font-sans)', fontSize: '11px', fontWeight: active ? 600 : 400, padding: '8px 12px', borderRadius: '100px', border: 'none', cursor: 'pointer', background: active ? COLORS.accent : COLORS.card, color: active ? '#06060a' : COLORS.sub, transition: 'all 0.15s', whiteSpace: 'nowrap', minHeight: '36px' }}>
                     {c === 'premium-economy' ? 'Premium' : c.charAt(0).toUpperCase() + c.slice(1)}
                   </button>;
                 })}
@@ -732,7 +732,7 @@ function SearchResults() {
                   const curStops = parsed.maxStops === null || parsed.maxStops === undefined ? 'any' : String(parsed.maxStops);
                   const active = curStops === s.val;
                   return <button key={s.val} onClick={() => { if (!active) { const base = searchInput || q; let newQ = base.replace(/\b(direct|nonstop|non-stop|no stops?|max \d stops?|one stop|two stops?|\d stops?|all the options|any stops?)\b/gi, '').trim(); if (s.val === 'any') newQ += ', all the options'; else if (s.val === '0') newQ += ', direct'; else newQ += `, max ${s.val} stop${s.val === '1' ? '' : 's'}`; router.push(`/search?q=${encodeURIComponent(newQ)}`); } }}
-                    style={{ fontFamily: 'var(--font-sans)', fontSize: '11px', fontWeight: active ? 600 : 400, padding: '8px 12px', borderRadius: '100px', border: 'none', cursor: 'pointer', background: active ? COLORS.accent : COLORS.card, color: active ? '#fff' : COLORS.sub, transition: 'all 0.15s', whiteSpace: 'nowrap', minHeight: '36px' }}>
+                    style={{ fontFamily: 'var(--font-sans)', fontSize: '11px', fontWeight: active ? 600 : 400, padding: '8px 12px', borderRadius: '100px', border: 'none', cursor: 'pointer', background: active ? COLORS.accent : COLORS.card, color: active ? '#06060a' : COLORS.sub, transition: 'all 0.15s', whiteSpace: 'nowrap', minHeight: '36px' }}>
                     {s.label}
                   </button>;
                 })}
@@ -741,7 +741,7 @@ function SearchResults() {
                 {[{ label: 'Exact', val: 0 }, { label: '±1 day', val: 1 }, { label: '±3 days', val: 3 }].map(o => {
                   const active = flexDays === o.val;
                   return <button key={o.val} onClick={() => { if (!active) router.push(`/search?q=${encodeURIComponent(searchInput || q)}${o.val ? `&flex=${o.val}` : ''}`); }}
-                    style={{ fontFamily: 'var(--font-sans)', fontSize: '11px', fontWeight: active ? 600 : 400, padding: '8px 12px', borderRadius: '100px', border: 'none', cursor: 'pointer', background: active ? COLORS.accent : COLORS.card, color: active ? '#fff' : COLORS.sub, transition: 'all 0.15s', whiteSpace: 'nowrap', minHeight: '36px' }}>
+                    style={{ fontFamily: 'var(--font-sans)', fontSize: '11px', fontWeight: active ? 600 : 400, padding: '8px 12px', borderRadius: '100px', border: 'none', cursor: 'pointer', background: active ? COLORS.accent : COLORS.card, color: active ? '#06060a' : COLORS.sub, transition: 'all 0.15s', whiteSpace: 'nowrap', minHeight: '36px' }}>
                     {o.label}
                   </button>;
                 })}
@@ -783,7 +783,7 @@ function SearchResults() {
                 <button onClick={saveSearch} style={{ background: COLORS.card, border: `1px solid ${COLORS.border}`, color: COLORS.text, borderRadius: '10px', padding: '8px 11px', fontSize: 12, fontWeight: 700, cursor: 'pointer' }}>Save</button>
                 <button onClick={() => router.push('/history')} style={{ background: COLORS.card, border: `1px solid ${COLORS.border}`, color: COLORS.sub, borderRadius: '10px', padding: '8px 11px', fontSize: 12, fontWeight: 700, cursor: 'pointer' }} title="View search history">History</button>
                 <button onClick={trackRoute} style={{ background: 'rgba(34,197,94,0.12)', border: '1px solid rgba(34,197,94,0.25)', color: '#22C55E', borderRadius: '10px', padding: '8px 11px', fontSize: 12, fontWeight: 700, cursor: 'pointer' }} title="Track this price and get a Telegram alert when it drops">Track</button>
-                <button onClick={shareTrip} style={{ background: COLORS.accent, border: 'none', color: '#fff', borderRadius: '10px', padding: '8px 11px', fontSize: 12, fontWeight: 700, cursor: 'pointer' }}>Share</button>
+                <button onClick={shareTrip} style={{ background: COLORS.accent, border: 'none', color: '#06060a', borderRadius: '10px', padding: '8px 11px', fontSize: 12, fontWeight: 700, cursor: 'pointer' }}>Share</button>
               </div>
             </div>
             <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(150px, 1fr))', gap: '8px', marginTop: '12px' }}>
@@ -919,7 +919,7 @@ function SearchResults() {
                     <div style={{ display: 'flex', gap: '6px', alignItems: 'center', minWidth: 'max-content', paddingBottom: '2px' }}>
                       <span style={{ fontSize: '10px', color: COLORS.sub, fontWeight: 600, textTransform: 'uppercase', letterSpacing: '0.05em', whiteSpace: 'nowrap', marginRight: '2px' }}>Dates</span>
                       <button onClick={() => setDateFilter(null)}
-                        style={{ fontFamily: 'var(--font-sans)', fontSize: '11px', fontWeight: dateFilter === null ? 600 : 400, padding: '7px 12px', borderRadius: '100px', border: 'none', cursor: 'pointer', background: dateFilter === null ? COLORS.accent : COLORS.card, color: dateFilter === null ? '#fff' : COLORS.sub, whiteSpace: 'nowrap', transition: 'all 0.15s' }}>
+                        style={{ fontFamily: 'var(--font-sans)', fontSize: '11px', fontWeight: dateFilter === null ? 600 : 400, padding: '7px 12px', borderRadius: '100px', border: 'none', cursor: 'pointer', background: dateFilter === null ? COLORS.accent : COLORS.card, color: dateFilter === null ? '#06060a' : COLORS.sub, whiteSpace: 'nowrap', transition: 'all 0.15s' }}>
                         All dates
                       </button>
                       {searchedDates.map(d => {
@@ -927,7 +927,7 @@ function SearchResults() {
                         const active = dateFilter === d;
                         return (
                           <button key={d} onClick={() => setDateFilter(active ? null : d)}
-                            style={{ fontFamily: 'var(--font-sans)', fontSize: '11px', fontWeight: active ? 600 : 400, padding: '7px 12px', borderRadius: '100px', border: d === cheapestDate && !active ? '1px solid rgba(34,197,94,0.4)' : 'none', cursor: 'pointer', background: active ? COLORS.accent : COLORS.card, color: active ? '#fff' : d === cheapestDate ? '#22C55E' : COLORS.sub, whiteSpace: 'nowrap', transition: 'all 0.15s' }}>
+                            style={{ fontFamily: 'var(--font-sans)', fontSize: '11px', fontWeight: active ? 600 : 400, padding: '7px 12px', borderRadius: '100px', border: d === cheapestDate && !active ? '1px solid rgba(34,197,94,0.4)' : 'none', cursor: 'pointer', background: active ? COLORS.accent : COLORS.card, color: active ? '#06060a' : d === cheapestDate ? '#22C55E' : COLORS.sub, whiteSpace: 'nowrap', transition: 'all 0.15s' }}>
                             {fmtDay(d)}{typeof p === 'number' ? ` · ${money(p)}` : ''}
                           </button>
                         );
@@ -942,7 +942,7 @@ function SearchResults() {
                       <span style={{ fontSize: '10px', color: COLORS.sub, fontWeight: 600, textTransform: 'uppercase', letterSpacing: '0.05em', marginRight: '2px' }}>Sort</span>
                       {([['price', 'Price'], ['duration', 'Fastest'], ['departure', 'Departure']] as const).map(([val, label]) => (
                         <button key={val} onClick={() => setCashSort(val)}
-                          style={{ fontFamily: 'var(--font-sans)', fontSize: '11px', fontWeight: cashSort === val ? 600 : 400, padding: '5px 11px', borderRadius: '100px', border: 'none', cursor: 'pointer', background: cashSort === val ? COLORS.accent : COLORS.card, color: cashSort === val ? '#fff' : COLORS.sub, transition: 'all 0.15s' }}>
+                          style={{ fontFamily: 'var(--font-sans)', fontSize: '11px', fontWeight: cashSort === val ? 600 : 400, padding: '5px 11px', borderRadius: '100px', border: 'none', cursor: 'pointer', background: cashSort === val ? COLORS.accent : COLORS.card, color: cashSort === val ? '#06060a' : COLORS.sub, transition: 'all 0.15s' }}>
                           {label}
                         </button>
                       ))}
@@ -1210,7 +1210,7 @@ function SearchResults() {
                             } catch { /* sessionStorage unavailable */ }
                             router.push('/book');
                           }}
-                            style={{ fontSize: '12px', fontWeight: 700, color: '#fff', background: COLORS.accent, border: 'none', padding: '7px 16px', borderRadius: '6px', cursor: 'pointer', fontFamily: 'var(--font-sans)' }}>
+                            style={{ fontSize: '12px', fontWeight: 700, color: '#06060a', background: COLORS.accent, border: 'none', padding: '7px 16px', borderRadius: '6px', cursor: 'pointer', fontFamily: 'var(--font-sans)' }}>
                             Book now
                           </button>
                         )}

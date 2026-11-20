@@ -144,7 +144,7 @@ export default function HistoryPage() {
             <div style={{ fontSize: '13px', color: C.sub, marginBottom: '24px' }}>Searches you run will appear here with the best price found, so you can see if a route got cheaper.</div>
             <button
               onClick={() => router.push('/')}
-              style={{ background: C.accent, color: '#fff', border: 'none', borderRadius: '10px', padding: '10px 20px', fontSize: '14px', fontWeight: 600, cursor: 'pointer' }}
+              style={{ background: C.accent, color: '#06060a', border: 'none', borderRadius: '10px', padding: '10px 20px', fontSize: '14px', fontWeight: 600, cursor: 'pointer' }}
             >
               Start searching
             </button>
