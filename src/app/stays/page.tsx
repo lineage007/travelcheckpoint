@@ -17,6 +17,7 @@ const TEXT_LIGHT = '#E2E8F0';
 const GOLD = '#F59E0B';
 const GREEN = '#10B981';
 const RED = '#EF4444';
+const ON_FILL = '#06060a';
 
 interface LiteHotel {
   id: string;
@@ -141,9 +142,9 @@ function HotelCard({ hotel, checkin, checkout, adults, city }: { hotel: LiteHote
           </div>
           <div style={{ display: 'flex', gap: '6px' }}>
             {hotel.offerId && hasPrice && (
-              <button onClick={startBooking} style={{ color: '#fff', background: GREEN, border: 'none', borderRadius: '8px', padding: '9px 11px', fontSize: '12px', fontWeight: 800, cursor: 'pointer', whiteSpace: 'nowrap' }}>Book now</button>
+              <button onClick={startBooking} style={{ color: ON_FILL, background: GREEN, border: 'none', borderRadius: '8px', padding: '9px 11px', fontSize: '12px', fontWeight: 800, cursor: 'pointer', whiteSpace: 'nowrap' }}>Book now</button>
             )}
-            <a href={bookingUrl} target="_blank" rel="noreferrer" style={{ color: '#fff', background: ACCENT, borderRadius: '8px', padding: '9px 11px', fontSize: '12px', fontWeight: 800, textDecoration: 'none', whiteSpace: 'nowrap' }}>Compare →</a>
+            <a href={bookingUrl} target="_blank" rel="noreferrer" style={{ color: ON_FILL, background: ACCENT, borderRadius: '8px', padding: '9px 11px', fontSize: '12px', fontWeight: 800, textDecoration: 'none', whiteSpace: 'nowrap' }}>Compare →</a>
           </div>
         </div>
       </div>
