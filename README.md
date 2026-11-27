@@ -48,6 +48,7 @@ Names and purpose only, see `.env.example` for the file to copy. Never commit va
 | --- | --- |
 | `NEXT_PUBLIC_BASE_URL` | Public base URL; the alert runner uses it to call `/api/search`. Falls back to `VERCEL_URL` |
 | `TC_SECRET` | Optional pre-shared secret for `POST /api/alerts` (header `X-TC-Secret`). Unset means no check. The in-app alert form does not send this header yet, so setting it blocks alerts from the UI |
+| `TC_ACCESS_KEY` | Optional access gate key. Unset means the site stays public (see "Access gate (optional)") |
 | `TELEGRAM_BOT_TOKEN` | Bot token for price-drop notifications |
 | `TELEGRAM_CHAT_ID` | Chat that notifications are sent to |
 | `DROP_THRESHOLD_PCT` | Percentage price drop that triggers an alert |
@@ -66,6 +67,25 @@ Every provider is optional. A missing key degrades that one panel rather than fa
 search: most search routes return empty results with `providerStatus: 'missing-key'`
 (Skiplagged returns `{ status: 'not-configured' }`, Duffel returns empty results with an
 error message). The booking routes are the exception: they return 503 `{ error: 'missing-key' }`.
+
+## Access gate (optional)
+
+Off by default. With `TC_ACCESS_KEY` unset (or blank) nothing changes: every page and
+API route stays public.
+
+When `TC_ACCESS_KEY` is set (Vercel → Settings → Environment Variables, Production, then
+redeploy), `src/proxy.ts` locks every page and every `/api/*` route, including the paid
+provider proxies and the `/api/book/*` booking routes. Locked pages redirect to `/unlock`;
+locked API calls get `401 {"error":"locked"}`. Static assets, the manifest, icons,
+`robots.txt`, `sitemap.xml`, `/unlock` and `/api/unlock` stay public.
+
+- **Unlock a device:** open `/unlock` once in each browser and enter the key. It sets an
+  httpOnly `tc_access` cookie that lasts 180 days.
+- **Rotate:** change `TC_ACCESS_KEY` and redeploy. Every existing cookie stops working,
+  so each device has to unlock again.
+- **Turn it off:** delete the variable and redeploy.
+
+Pick a long random key. Never commit it or put it in `.env.example`.
 
 ## Local development
 
