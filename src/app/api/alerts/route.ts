@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
+import { ACCESS_COOKIE, accessToken, gateEnabled } from '../../../lib/access-gate';
 
 // ═══════════════════════════════════════════════════
 // PRICE ALERTS — Telegram notifications
@@ -76,9 +77,15 @@ async function fetchBestPrices(
   const base = process.env.NEXT_PUBLIC_BASE_URL ||
     (process.env.VERCEL_URL ? `https://${process.env.VERCEL_URL}` : 'http://localhost:3000');
   try {
+    // When the optional access gate is on, this server-to-server call has no browser
+    // cookie, so present the gate cookie itself. No header at all while TC_ACCESS_KEY is unset.
+    const headers: Record<string, string> = {};
+    if (gateEnabled()) {
+      headers.cookie = `${ACCESS_COOKIE}=${await accessToken(process.env.TC_ACCESS_KEY!.trim())}`;
+    }
     const res = await fetch(
       `${base}/api/search?origin=${origin}&destination=${destination}&cabin=${cabin}&date=${date}&passengers=${passengers}`,
-      { signal: AbortSignal.timeout(20000) }
+      { signal: AbortSignal.timeout(20000), headers }
     );
     if (!res.ok) return { cash: null, award: null };
     const data: {
